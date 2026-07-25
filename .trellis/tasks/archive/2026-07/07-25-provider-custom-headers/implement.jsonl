@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/core/backend/index.md", "reason": "core 后端总则：跨驱动改动须落三份 impl、schema 改动须三份同号迁移、新 public surface 须加 exports 子路径"}
+{"file": ".trellis/spec/core/backend/database-guidelines.md", "reason": "三驱动仓储模式、行映射约定（*SqlRow + map*Row）、迁移编号 lockstep、参数化查询与 patch-allowlists 规则"}
+{"file": ".trellis/spec/proxy/backend/index.md", "reason": "egress 驱动是唯一出站路径、Worker+Node 双运行时中立、禁止在 src/runtime 外用 process.env/node:*"}
+{"file": ".trellis/spec/admin/backend/index.md", "reason": "Admin BFF 不写 SQL、走 core 仓储、响应 { success, data?, message? }、用户可见串走 next-intl"}
+{"file": ".trellis/spec/admin/frontend/index.md", "reason": "UI 走 <domain>-api/utils/types 拆分、i18n 四语言（en 为结构基线）、不得直接 import core 仓储"}
