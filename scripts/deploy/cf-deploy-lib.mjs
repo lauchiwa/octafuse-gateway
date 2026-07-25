@@ -18,6 +18,23 @@ export const CF_WORKER_DIR = join(REPO_ROOT, "cloudflare-worker");
 const NPM_COMMAND = platform === "win32" ? "npm.cmd" : "npm";
 const NPX_COMMAND = platform === "win32" ? "npx.cmd" : "npx";
 
+/**
+ * Quote an argument for use with spawnSync({ shell: true }).
+ * With shell:true the args are re-parsed by the shell (cmd.exe on Windows,
+ * /bin/sh elsewhere), so any arg containing whitespace or shell metacharacters
+ * must be wrapped in double quotes — otherwise a value like the MASTER_KEY
+ * SELECT statement gets split into multiple argv entries.
+ */
+function shellQuote(arg) {
+	const s = String(arg);
+	if (s.length > 0 && !/[\s"'`$&|;<>(){}\\*?!#~=]/.test(s)) {
+		return s;
+	}
+	// Escape embedded double quotes, then wrap. Works for both cmd.exe and sh
+	// for the simple value strings this script passes (no embedded newlines).
+	return `"${s.replace(/"/g, '\\"')}"`;
+}
+
 export function log(msg) {
 	console.log(`[cf-deploy] ${msg}`);
 }
@@ -65,10 +82,11 @@ export function runNpmWithEnv(vars, extraArgs) {
 	const env = { ...process.env, ...vars };
 	const args = ["npm", "run", ...extraArgs];
 	log(`>>> ${args.join(" ")}`);
-	const result = spawnSync(NPM_COMMAND, args.slice(1), {
+	const result = spawnSync(NPM_COMMAND, args.slice(1).map(shellQuote), {
 		cwd: REPO_ROOT,
 		env,
 		stdio: "inherit",
+		shell: true,
 	});
 	if ((result.status ?? 1) !== 0) {
 		throw new Error(`command failed (${result.status}): ${args.join(" ")}`);
@@ -87,12 +105,13 @@ export function runWrangler(wranglerArgs, opts = {}) {
 			? ["pipe", "inherit", "inherit"]
 			: "inherit";
 	log(`>>> npx wrangler ${wranglerArgs.join(" ")}`);
-	const result = spawnSync(NPX_COMMAND, ["wrangler", ...wranglerArgs], {
+	const result = spawnSync(NPX_COMMAND, ["wrangler", ...wranglerArgs].map(shellQuote), {
 		cwd: REPO_ROOT,
 		env,
 		stdio,
 		input: opts.input,
 		encoding: opts.capture ? "utf8" : undefined,
+		shell: true,
 	});
 	if ((result.status ?? 1) !== 0) {
 		if (opts.capture) {
@@ -115,8 +134,10 @@ export function runWrangler(wranglerArgs, opts = {}) {
 export function assertWranglerLoggedIn() {
 	try {
 		runWrangler(["whoami"], { capture: true });
-	} catch {
+	} catch (err) {
 		logError("Not logged in to Cloudflare. Run: npx wrangler login");
+		logError("Or set CLOUDFLARE_API_TOKEN for token-based auth.");
+		logError(`Underlying error: ${err?.message || err}`);
 		process.exit(1);
 	}
 	log("Cloudflare auth OK (wrangler whoami)");
@@ -282,7 +303,7 @@ export function fetchRemoteMasterKey(vars) {
 	const gen = spawnSync(
 		NPM_COMMAND,
 		["run", "gen:wrangler", "--", "--remote"],
-		{ cwd: REPO_ROOT, env, stdio: "pipe", encoding: "utf8" },
+		{ cwd: REPO_ROOT, env, stdio: "pipe", encoding: "utf8", shell: true },
 	);
 	if ((gen.status ?? 1) !== 0) {
 		return null;
@@ -300,8 +321,8 @@ export function fetchRemoteMasterKey(vars) {
 			"--json",
 			"--command",
 			"SELECT value FROM system_config WHERE key = 'MASTER_KEY' LIMIT 1",
-		],
-		{ cwd: REPO_ROOT, env, stdio: "pipe", encoding: "utf8" },
+		].map(shellQuote),
+		{ cwd: REPO_ROOT, env, stdio: "pipe", encoding: "utf8", shell: true },
 	);
 	if ((result.status ?? 1) !== 0) {
 		return null;

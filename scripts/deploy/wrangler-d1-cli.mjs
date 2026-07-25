@@ -13,6 +13,19 @@ const ROOT = join(__dirname, "../..");
 const D1_CONFIG = join(ROOT, "packages/core/wrangler.d1.jsonc");
 const NPX_COMMAND = process.platform === "win32" ? "npx.cmd" : "npx";
 
+/**
+ * Quote an argument for use with spawnSync({ shell: true }). On Node 22 Windows,
+ * spawnSync of a .cmd file without shell:true throws EINVAL (CVE-2024-27980
+ * patch), so we must use shell:true and quote any arg with whitespace/metachars.
+ */
+function shellQuote(arg) {
+	const s = String(arg);
+	if (s.length > 0 && !/[\s"'`$&|;<>(){}\\*?!#~=]/.test(s)) {
+		return s;
+	}
+	return `"${s.replace(/"/g, '\\"')}"`;
+}
+
 function loadDatabaseName() {
 	let config;
 	try {
@@ -49,9 +62,10 @@ const args = [
 	"./packages/core/wrangler.d1.jsonc",
 ];
 
-const result = spawnSync(NPX_COMMAND, ["wrangler", ...args], {
+const result = spawnSync(NPX_COMMAND, ["wrangler", ...args].map(shellQuote), {
 	cwd: ROOT,
 	stdio: "inherit",
+	shell: true,
 });
 
 process.exit(result.status ?? 1);
