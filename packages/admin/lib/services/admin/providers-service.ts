@@ -6,6 +6,10 @@ import {
 	type ProviderEndpointsMap,
 } from '@octafuse/core/provider-endpoints';
 import {
+	serializeProviderCustomHeaders,
+	validateAndNormalizeProviderCustomHeaders,
+} from '@octafuse/core/provider-custom-headers';
+import {
 	listStaticProviderImportPresets,
 } from '@/lib/provider-import-preset';
 import { badRequest, conflict, notFound } from './errors';
@@ -27,6 +31,17 @@ function resolveEndpointsFromMutation(body: AdminProviderMutationInput): string 
 		throw badRequest(e instanceof Error ? e.message : 'Invalid endpoints');
 	}
 	return serializeProviderEndpoints(map);
+}
+
+function resolveCustomHeadersFromMutation(body: AdminProviderMutationInput): string | null {
+	if (body.customHeaders === undefined || body.customHeaders === null) {
+		return null;
+	}
+	const result = validateAndNormalizeProviderCustomHeaders(body.customHeaders);
+	if (!result.ok) {
+		throw badRequest(result.error);
+	}
+	return serializeProviderCustomHeaders(result.value);
 }
 
 /** 供应商列表（含 key 池摘要，仅 BFF/管理端使用）。 */
@@ -56,6 +71,7 @@ export async function createProviderService(repos: GatewayRepositories, body: Ad
 	}
 
 	const endpointsJson = resolveEndpointsFromMutation(body);
+	const customHeadersJson = resolveCustomHeadersFromMutation(body);
 
 	const id = customId || crypto.randomUUID();
 	if (customId && (await repos.providers.providerIdExists(id))) {
@@ -67,6 +83,7 @@ export async function createProviderService(repos: GatewayRepositories, body: Ad
 		name,
 		endpoints: endpointsJson,
 		description: body.description,
+		customHeaders: customHeadersJson,
 	});
 
 	if (apiKey) {
@@ -100,6 +117,12 @@ export async function updateProviderService(repos: GatewayRepositories, id: stri
 
 	if ('endpoints' in patch) {
 		patch.endpoints = resolveEndpointsFromMutation(body);
+	}
+
+	// UI 传 camelCase `customHeaders`；patch 白名单为 snake_case `custom_headers`，需转换后再落库。
+	if ('customHeaders' in patch) {
+		delete patch.customHeaders;
+		patch.custom_headers = resolveCustomHeadersFromMutation(body);
 	}
 
 	const changes = await repos.providers.updateProviderByPatch(id, patch);

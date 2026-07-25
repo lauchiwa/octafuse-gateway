@@ -5,6 +5,7 @@ import { prepareGeminiUpstreamFetch, resolveUpstreamEndpoint } from '@octafuse/c
 import type { RouteResult } from '../model-router';
 import type { UsageFromStream } from '../proxy';
 import { buildRouteRequestBody } from '../route-default-params';
+import { mergeUpstreamHeaders } from './merge-upstream-headers';
 import { extractUpstreamRequestId, normalizeUpstreamId } from './upstream-request-id';
 import type { RequestTimingAttempt, RequestTimingCollector } from '../request-timing';
 
@@ -332,7 +333,7 @@ export async function dispatchGeminiRoute(
   const requestBody = buildRouteRequestBody(route, body);
   const response = await fetch(url.toString(), {
     method: 'POST',
-    headers,
+    headers: mergeUpstreamHeaders(headers, route.providerCustomHeaders),
     body: JSON.stringify(requestBody),
   });
   timing?.markAttemptHeaders(attempt, response.status);

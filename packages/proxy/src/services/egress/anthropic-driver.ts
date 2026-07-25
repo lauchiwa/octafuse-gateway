@@ -7,6 +7,7 @@ import type { UsageFromStream } from '../proxy';
 import { buildRouteRequestBody } from '../route-default-params';
 import { extractUpstreamRequestId, normalizeUpstreamId } from './upstream-request-id';
 import type { RequestTimingAttempt, RequestTimingCollector } from '../request-timing';
+import { mergeUpstreamHeaders } from './merge-upstream-headers';
 
 const EMPTY_USAGE_LOCAL: UsageFromStream = {
   input_tokens: 0,
@@ -290,11 +291,14 @@ export async function dispatchAnthropicRoute(
   };
   const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': route.providerApiKey,
-      'anthropic-version': '2023-06-01',
-    },
+    headers: mergeUpstreamHeaders(
+      {
+        'Content-Type': 'application/json',
+        'x-api-key': route.providerApiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      route.providerCustomHeaders
+    ),
     body: JSON.stringify(requestBody),
   });
   timing?.markAttemptHeaders(attempt, response.status);

@@ -71,6 +71,8 @@ export interface ProviderAdminRow {
 	name: string;
 	/** 协议端点 JSON（权威） */
 	endpoints: string | null;
+	/** 自定义上游 header JSON（权威） */
+	custom_headers?: string | null;
 	description: string | null;
 	created_at: string;
 }

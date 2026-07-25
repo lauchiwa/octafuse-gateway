@@ -119,6 +119,8 @@ export interface GatewayProvider {
   name: string;
   /** 协议端点 JSON；见 `providers.endpoints` */
   endpoints?: string | null;
+  /** 自定义上游 header JSON；见 `providers.custom_headers` */
+  custom_headers?: string | null;
   description: string | null;
   created_at: string;
   active_key_count?: number;

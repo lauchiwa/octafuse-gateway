@@ -71,6 +71,11 @@ export interface ProviderRow {
    * 见 `parseProviderEndpoints` / `resolveUpstreamEndpoint`。
    */
   endpoints?: string | null;
+  /**
+   * 自定义上游 header JSON：`{ openai?: { "User-Agent": "…" }, anthropic?, gemini? }`。
+   * 见 `parseProviderCustomHeaders` / `resolveCustomHeadersForProtocol`。
+   */
+  custom_headers?: string | null;
   description: string | null;
   created_at: string;
 }

@@ -1,6 +1,6 @@
 import { readApiJson } from '@/lib/api-json';
 import type { GatewayProvider } from '@/lib/types';
-import { buildLimitConfigJson, formDataToEndpointsMap } from './provider-utils';
+import { buildLimitConfigJson, formDataToCustomHeadersMap, formDataToEndpointsMap } from './provider-utils';
 import type {
 	ProviderFormData,
 	ProviderImportCatalogRow,
@@ -35,6 +35,7 @@ export async function saveProvider(
 		name: formData.name,
 		description: formData.description,
 		endpoints: formDataToEndpointsMap(formData),
+		customHeaders: formDataToCustomHeadersMap(formData),
 	};
 
 	let response: Response;

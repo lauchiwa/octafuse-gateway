@@ -59,6 +59,8 @@ export const providersTable = pgTable('providers', {
 	name: text('name').notNull(),
 	/** JSON: `{ openai?: { base?, endpoints? }, … }` */
 	endpoints: text('endpoints'),
+	/** JSON: `{ openai?: { "User-Agent": … }, … }`（自定义上游 header） */
+	customHeaders: text('custom_headers'),
 	description: text('description'),
 	createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull(),
 });

@@ -48,7 +48,13 @@ export type ProviderProtocolSummary = {
 	badges: ProviderCapabilityBadge[];
 };
 
-/** 单协议表单：base + Advanced capability 覆盖 */
+/** 单协议自定义上游 header 编辑行（键值对）。 */
+export type CustomHeaderRow = {
+	name: string;
+	value: string;
+};
+
+/** 单协议表单：base + Advanced capability 覆盖 + 自定义上游 header */
 export type ProtocolEndpointForm = {
 	base: string;
 	chat: string;
@@ -57,6 +63,8 @@ export type ProtocolEndpointForm = {
 	messages: string;
 	generateContent: string;
 	streamGenerateContent: string;
+	/** 自定义上游 header（键值对行）；空行在提交时会被过滤 */
+	customHeaders: CustomHeaderRow[];
 };
 
 export type ProviderFormData = {
@@ -97,14 +105,20 @@ export const EMPTY_PROTOCOL_FORM: ProtocolEndpointForm = {
 	messages: '',
 	generateContent: '',
 	streamGenerateContent: '',
+	customHeaders: [],
 };
+
+/** 全新单协议表单：customHeaders 独立数组，避免三协议共享同一引用。 */
+export function emptyProtocolForm(): ProtocolEndpointForm {
+	return { ...EMPTY_PROTOCOL_FORM, customHeaders: [] };
+}
 
 export const EMPTY_PROVIDER_FORM: ProviderFormData = {
 	id: '',
 	name: '',
-	openai: { ...EMPTY_PROTOCOL_FORM },
-	anthropic: { ...EMPTY_PROTOCOL_FORM },
-	gemini: { ...EMPTY_PROTOCOL_FORM },
+	openai: emptyProtocolForm(),
+	anthropic: emptyProtocolForm(),
+	gemini: emptyProtocolForm(),
 	description: '',
 };
 

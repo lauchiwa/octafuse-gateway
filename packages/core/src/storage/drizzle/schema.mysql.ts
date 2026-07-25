@@ -88,6 +88,8 @@ export const providersTable = mysqlTable('providers', {
 	name: varchar('name', { length: COL.PROVIDER_NAME }).notNull(),
 	/** JSON: `{ openai?: { base?, endpoints? }, … }` */
 	endpoints: text('endpoints'),
+	/** JSON: `{ openai?: { "User-Agent": … }, … }`（自定义上游 header） */
+	customHeaders: text('custom_headers'),
 	description: text('description'),
 	createdAt: timestamp('created_at', { fsp: 6, mode: 'string' }).notNull(),
 });

@@ -199,6 +199,8 @@ export interface ProvidersRepository {
 		/** `providers.endpoints` JSON 文本 */
 		endpoints: string | null;
 		description: unknown;
+		/** `providers.custom_headers` JSON 文本；可选以兼容 preset import 路径 */
+		customHeaders?: string | null;
 	}): Promise<void>;
 	updateProviderByPatch(id: string, body: Record<string, unknown>): Promise<number>;
 	deleteProviderById(id: string): Promise<number>;

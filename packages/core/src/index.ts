@@ -5,6 +5,7 @@
 export * from './types';
 export * from './upstream-protocol';
 export * from './provider-endpoints';
+export * from './provider-custom-headers';
 export * from './gemini-upstream-url';
 
 export * from './storage/context';

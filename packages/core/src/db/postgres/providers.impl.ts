@@ -18,6 +18,7 @@ function mapPgProviderRow(r: {
 	id: string;
 	name: string;
 	endpoints: string | null;
+	customHeaders: string | null;
 	description: string | null;
 	createdAt: string;
 }): ProviderRow {
@@ -25,6 +26,7 @@ function mapPgProviderRow(r: {
 		id: r.id,
 		name: r.name,
 		endpoints: r.endpoints,
+		custom_headers: r.customHeaders,
 		description: r.description,
 		created_at: r.createdAt,
 	};
@@ -34,6 +36,7 @@ function providerRecordFromPg(r: {
 	id: string;
 	name: string;
 	endpoints: string | null;
+	customHeaders: string | null;
 	description: string | null;
 	createdAt: string;
 }): ProviderAdminRow {
@@ -41,6 +44,7 @@ function providerRecordFromPg(r: {
 		id: r.id,
 		name: r.name,
 		endpoints: r.endpoints,
+		custom_headers: r.customHeaders,
 		description: r.description,
 		created_at: r.createdAt,
 	};
@@ -64,12 +68,14 @@ export function createPostgresProvidersRepository(db: PostgresDatabaseClient): P
 			name: string;
 			endpoints: string | null;
 			description: unknown;
+			customHeaders?: string | null;
 		}): Promise<void> {
 			const now = new Date().toISOString();
 			await drizzle.insert(pgProvidersTable).values({
 				id: params.id,
 				name: params.name,
 				endpoints: params.endpoints,
+				customHeaders: params.customHeaders ?? null,
 				description: params.description == null ? null : String(params.description),
 				createdAt: now,
 			});

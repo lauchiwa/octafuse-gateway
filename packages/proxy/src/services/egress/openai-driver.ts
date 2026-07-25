@@ -2,6 +2,7 @@ import { resolveUpstreamEndpoint } from '@octafuse/core';
 import type { RouteResult } from '../model-router';
 import type { UsageFromStream } from '../proxy';
 import { buildRouteRequestBody } from '../route-default-params';
+import { mergeUpstreamHeaders } from './merge-upstream-headers';
 import { extractUpstreamRequestId, normalizeUpstreamId } from './upstream-request-id';
 import type { RequestTimingAttempt, RequestTimingCollector } from '../request-timing';
 
@@ -432,10 +433,13 @@ export async function dispatchOpenAiRoute(
 
   const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${route.providerApiKey}`,
-    },
+    headers: mergeUpstreamHeaders(
+      {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${route.providerApiKey}`,
+      },
+      route.providerCustomHeaders
+    ),
     body: JSON.stringify(requestBody),
   });
   timing?.markAttemptHeaders(attempt, response.status);

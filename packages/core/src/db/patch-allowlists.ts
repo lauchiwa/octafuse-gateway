@@ -4,7 +4,7 @@
  * 防止传入任意字符串被拼入 SQL。
  */
 
-export const PROVIDER_PATCH_COLS = new Set(['name', 'endpoints', 'description']);
+export const PROVIDER_PATCH_COLS = new Set(['name', 'endpoints', 'custom_headers', 'description']);
 
 export const PROVIDER_API_KEY_PATCH_COLS = new Set([
 	'label',
