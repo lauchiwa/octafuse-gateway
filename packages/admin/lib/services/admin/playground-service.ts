@@ -11,6 +11,11 @@ import {
 	parseProviderEndpoints,
 	resolveUpstreamEndpoint,
 } from '@octafuse/core/provider-endpoints';
+import {
+	mergeUpstreamHeaders,
+	parseProviderCustomHeaders,
+	resolveCustomHeadersForProtocol,
+} from '@octafuse/core/provider-custom-headers';
 import type { UpstreamProtocol } from '@octafuse/core/upstream-protocol';
 import { normalizeUpstreamProtocol } from '@octafuse/core/upstream-protocol';
 import {
@@ -34,6 +39,8 @@ export type PlaygroundResolvedRoute = {
 	providerKeyLabel: string;
 	/** Catalog model is image-generation (`output_modalities` includes image). */
 	isImageModel: boolean;
+	/** provider 自定义上游 header，已按当前协议拍平；缺省 `{}`（与 Proxy `RouteResult` 一致）。 */
+	providerCustomHeaders: Record<string, string>;
 };
 
 type JsonObject = Record<string, unknown>;
@@ -141,6 +148,10 @@ export async function resolvePlaygroundRoute(
 		providerKeyId: resolvedKey.id,
 		providerKeyLabel: resolvedKey.label,
 		isImageModel,
+		providerCustomHeaders: resolveCustomHeadersForProtocol(
+			parseProviderCustomHeaders(provider),
+			protocol
+		),
 	};
 }
 
@@ -447,7 +458,11 @@ export async function invokePlaygroundUpstream(
 	try {
 		response = await fetch(url, {
 			method: 'POST',
-			headers,
+			// 注入 provider 自定义上游 header（与 Proxy egress 驱动同一函数与同一安全边界）：
+			// `{ ...custom, ...base }` —— 上面各协议分支内置的鉴权/协议 header 永远覆盖 custom。
+			// images.edits 为 multipart，分支内故意不设 Content-Type（由 runtime 依 FormData 生成
+			// 带 boundary 的值）；custom 侧的 content-type 已由 core 校验器 denylist 拦在写入前。
+			headers: mergeUpstreamHeaders(headers, route.providerCustomHeaders),
 			body: fetchBody,
 			signal: requestSignal,
 		});

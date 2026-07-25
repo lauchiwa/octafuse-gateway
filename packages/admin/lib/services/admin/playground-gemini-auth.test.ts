@@ -14,6 +14,7 @@ function route(base: string, apiKey: string): PlaygroundResolvedRoute {
 		providerKeyId: 'k1',
 		providerKeyLabel: 'default',
 		isImageModel: false,
+		providerCustomHeaders: {},
 	};
 }
 

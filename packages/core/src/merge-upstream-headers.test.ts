@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mergeUpstreamHeaders } from './merge-upstream-headers';
+import { mergeUpstreamHeaders } from './provider-custom-headers';
 
 test('returns base unchanged when custom is empty / nullish', () => {
 	const base = { Authorization: 'Bearer x', 'Content-Type': 'application/json' };
