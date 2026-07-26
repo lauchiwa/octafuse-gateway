@@ -2,6 +2,11 @@
 	{
 		"id": "doubao-seedream-5-0-pro",
 		"display_name": "Doubao Seedream 5.0 Pro",
+		"description": "A premium Seedream model for high-fidelity image generation and professional visual creation.",
+		"i18n": {
+			"en": "A premium Seedream model for high-fidelity image generation and professional visual creation.",
+			"zh": "面向高保真图片生成与专业视觉创作的 Seedream 高质量模型。"
+		},
 		"vendor": "bytedance",
 		"context_window": null,
 		"max_tokens": null,
@@ -70,6 +75,11 @@
 	{
 		"id": "doubao-seedream-5-0",
 		"display_name": "Doubao Seedream 5.0",
+		"description": "A Seedream model for general image generation, editing, and visual design workflows.",
+		"i18n": {
+			"en": "A Seedream model for general image generation, editing, and visual design workflows.",
+			"zh": "适合通用图片生成、编辑与视觉设计工作流的 Seedream 模型。"
+		},
 		"vendor": "bytedance",
 		"context_window": null,
 		"max_tokens": null,

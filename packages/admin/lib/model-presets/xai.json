@@ -2,6 +2,11 @@
 	{
 		"id": "grok-4.5",
 		"display_name": "Grok 4.5",
+		"description": "A frontier Grok model for coding, knowledge work, STEM, and demanding reasoning. It is positioned as xAI’s highest-capability option for frontier coding, knowledge work, and STEM tasks.",
+		"i18n": {
+			"en": "A frontier Grok model for coding, knowledge work, STEM, and demanding reasoning. It is positioned as xAI’s highest-capability option for frontier coding, knowledge work, and STEM tasks.",
+			"zh": "面向编程、知识工作、STEM 与复杂推理的前沿 Grok 模型。定位为 xAI 面向前沿编程、知识工作和 STEM 任务的最高能力档位。"
+		},
 		"vendor": "xai",
 		"context_window": 500000,
 		"max_tokens": 128000,
@@ -46,6 +51,11 @@
 	{
 		"id": "grok-4.3",
 		"display_name": "Grok 4.3",
+		"description": "A multimodal Grok reasoning model for agents, instruction following, and factual tasks. It combines visual input with reasoning for factual instruction following and agent-oriented applications.",
+		"i18n": {
+			"en": "A multimodal Grok reasoning model for agents, instruction following, and factual tasks. It combines visual input with reasoning for factual instruction following and agent-oriented applications.",
+			"zh": "面向 Agent、指令遵循与事实型任务的 Grok 多模态推理模型。结合视觉输入与推理能力，适合注重事实性的指令遵循和 Agent 应用。"
+		},
 		"vendor": "xai",
 		"context_window": 1000000,
 		"max_tokens": 128000,

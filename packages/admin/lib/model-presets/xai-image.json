@@ -2,6 +2,11 @@
 	{
 		"id": "grok-imagine-image-quality",
 		"display_name": "Grok Imagine Image Quality",
+		"description": "A high-fidelity xAI model for fast image generation, editing, and reference-guided creation.",
+		"i18n": {
+			"en": "A high-fidelity xAI model for fast image generation, editing, and reference-guided creation.",
+			"zh": "面向快速图片生成、编辑与参考图创作的 xAI 高保真模型。"
+		},
 		"vendor": "xai",
 		"context_window": null,
 		"max_tokens": null,

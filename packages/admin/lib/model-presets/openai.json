@@ -2,6 +2,11 @@
 	{
 		"id": "gpt-5.2",
 		"display_name": "GPT-5.2",
+		"description": "A frontier GPT model with adaptive reasoning for coding, agents, and long-context work. Adaptive reasoning allocates computation according to task difficulty for stronger agent and long-context performance.",
+		"i18n": {
+			"en": "A frontier GPT model with adaptive reasoning for coding, agents, and long-context work. Adaptive reasoning allocates computation according to task difficulty for stronger agent and long-context performance.",
+			"zh": "具备自适应推理能力、适合编程、Agent 与长上下文工作的前沿 GPT 模型。自适应推理会根据任务难度分配计算资源，以提升 Agent 与长上下文表现。"
+		},
 		"vendor": "openai",
 		"context_window": 400000,
 		"max_tokens": 128000,
@@ -43,6 +48,11 @@
 	{
 		"id": "gpt-5.4",
 		"display_name": "GPT-5.4",
+		"description": "A flagship GPT model for advanced reasoning, coding, multimodal input, and professional workflows. It unifies general GPT and coding capabilities for large-context professional work and tool-driven execution.",
+		"i18n": {
+			"en": "A flagship GPT model for advanced reasoning, coding, multimodal input, and professional workflows. It unifies general GPT and coding capabilities for large-context professional work and tool-driven execution.",
+			"zh": "面向高级推理、编程、多模态输入与专业工作流的旗舰 GPT 模型。统一通用 GPT 与编程能力，面向大上下文专业工作和工具驱动执行。"
+		},
 		"vendor": "openai",
 		"context_window": 1000000,
 		"max_tokens": 128000,
@@ -98,6 +108,11 @@
 	{
 		"id": "gpt-5.4-mini",
 		"display_name": "GPT-5.4 mini",
+		"description": "A faster GPT-5.4 variant for high-throughput reasoning, coding, and multimodal applications. The smaller variant keeps strong reasoning and coding capabilities while improving speed and throughput.",
+		"i18n": {
+			"en": "A faster GPT-5.4 variant for high-throughput reasoning, coding, and multimodal applications. The smaller variant keeps strong reasoning and coding capabilities while improving speed and throughput.",
+			"zh": "面向高吞吐推理、编程与多模态应用的高速 GPT-5.4 变体。较小规模版本保留较强推理和编程能力，同时提高速度与吞吐量。"
+		},
 		"vendor": "openai",
 		"context_window": 400000,
 		"max_tokens": 128000,
@@ -139,6 +154,11 @@
 	{
 		"id": "gpt-5.4-nano",
 		"display_name": "GPT-5.4 nano",
+		"description": "A compact GPT model optimized for low-latency, high-volume, and cost-sensitive tasks. It is tuned for speed-critical classification, extraction, routing, and other high-volume lightweight tasks.",
+		"i18n": {
+			"en": "A compact GPT model optimized for low-latency, high-volume, and cost-sensitive tasks. It is tuned for speed-critical classification, extraction, routing, and other high-volume lightweight tasks.",
+			"zh": "针对低延迟、高流量与成本敏感任务优化的紧凑型 GPT 模型。针对强调速度的分类、抽取、路由及其他高并发轻量任务优化。"
+		},
 		"vendor": "openai",
 		"context_window": 400000,
 		"max_tokens": 128000,
@@ -180,6 +200,11 @@
 	{
 		"id": "gpt-5.5",
 		"display_name": "GPT-5.5",
+		"description": "A frontier GPT model for complex professional work with stronger reasoning and reliability. It strengthens reliability and token efficiency on difficult professional tasks while retaining long-context support.",
+		"i18n": {
+			"en": "A frontier GPT model for complex professional work with stronger reasoning and reliability. It strengthens reliability and token efficiency on difficult professional tasks while retaining long-context support.",
+			"zh": "面向复杂专业工作、强化推理能力与可靠性的前沿 GPT 模型。在保留长上下文能力的同时，提高困难专业任务上的可靠性和 Token 效率。"
+		},
 		"vendor": "openai",
 		"context_window": 1000000,
 		"max_tokens": 128000,
@@ -235,6 +260,11 @@
 	{
 		"id": "gpt-5.6",
 		"display_name": "GPT-5.6",
+		"description": "A GPT-5.6 family model for advanced reasoning, coding, and general agent workflows.",
+		"i18n": {
+			"en": "A GPT-5.6 family model for advanced reasoning, coding, and general agent workflows.",
+			"zh": "面向高级推理、编程与通用 Agent 工作流的 GPT-5.6 系列模型。"
+		},
 		"vendor": "openai",
 		"context_window": 1050000,
 		"max_tokens": 128000,
@@ -290,6 +320,11 @@
 	{
 		"id": "gpt-5.6-sol",
 		"display_name": "GPT-5.6 Sol",
+		"description": "The GPT-5.6 flagship for demanding reasoning, coding, and multi-step agent tasks. The flagship tier is particularly strong at command-line work and complex multi-step coding workflows.",
+		"i18n": {
+			"en": "The GPT-5.6 flagship for demanding reasoning, coding, and multi-step agent tasks. The flagship tier is particularly strong at command-line work and complex multi-step coding workflows.",
+			"zh": "GPT-5.6 旗舰模型，适合高难度推理、编程与多步骤 Agent 任务。旗舰档位尤其擅长命令行工作和复杂的多步骤编程流程。"
+		},
 		"vendor": "openai",
 		"context_window": 1050000,
 		"max_tokens": 128000,
@@ -345,6 +380,11 @@
 	{
 		"id": "gpt-5.6-terra",
 		"display_name": "GPT-5.6 Terra",
+		"description": "A balanced GPT-5.6 model for everyday coding, reasoning, and agentic applications. The balanced tier sits between flagship quality and cost efficiency for everyday coding, reasoning, and agents.",
+		"i18n": {
+			"en": "A balanced GPT-5.6 model for everyday coding, reasoning, and agentic applications. The balanced tier sits between flagship quality and cost efficiency for everyday coding, reasoning, and agents.",
+			"zh": "面向日常编程、推理与 Agent 应用的均衡型 GPT-5.6 模型。平衡档位在旗舰质量与成本效率之间取舍，适合日常编程、推理和 Agent。"
+		},
 		"vendor": "openai",
 		"context_window": 1050000,
 		"max_tokens": 128000,
@@ -400,6 +440,11 @@
 	{
 		"id": "gpt-5.6-luna",
 		"display_name": "GPT-5.6 Luna",
+		"description": "A fast, efficient GPT-5.6 model for chat, classification, and lightweight agents. The efficient tier targets high-volume chat, classification, and lightweight agent workflows with low latency.",
+		"i18n": {
+			"en": "A fast, efficient GPT-5.6 model for chat, classification, and lightweight agents. The efficient tier targets high-volume chat, classification, and lightweight agent workflows with low latency.",
+			"zh": "面向对话、分类与轻量 Agent 的高速高效 GPT-5.6 模型。高效档位面向高并发对话、分类和轻量 Agent 工作流，强调低延迟。"
+		},
 		"vendor": "openai",
 		"context_window": 1050000,
 		"max_tokens": 128000,

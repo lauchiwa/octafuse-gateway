@@ -18,3 +18,15 @@ describe('import catalog pricing preview follows billing currency', () => {
 		assert.doesNotMatch(row!.pricing_preview ?? '', /\$\/M/);
 	});
 });
+
+describe('import catalog localized model metadata', () => {
+	it('provides English and Chinese descriptions for every static preset', () => {
+		const rows = listStaticModelPresetCatalogForAdmin('USD');
+		assert.ok(rows.length > 0);
+		for (const row of rows) {
+			assert.ok(row.description?.trim(), `${row.id}: English fallback`);
+			assert.ok(row.i18n?.en.trim(), `${row.id}: English catalog description`);
+			assert.ok(row.i18n?.zh.trim(), `${row.id}: Chinese catalog description`);
+		}
+	});
+});

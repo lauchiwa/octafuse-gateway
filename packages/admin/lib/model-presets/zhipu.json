@@ -2,6 +2,11 @@
 	{
 		"id": "glm-5",
 		"display_name": "GLM-5",
+		"description": "A flagship open GLM model for systems design, coding, and long-horizon agents. The open foundation model targets complex systems design and production-grade programming across long-running agent workflows.",
+		"i18n": {
+			"en": "A flagship open GLM model for systems design, coding, and long-horizon agents. The open foundation model targets complex systems design and production-grade programming across long-running agent workflows.",
+			"zh": "面向系统设计、编程与长周期 Agent 的 GLM 旗舰开放模型。开放基础模型面向复杂系统设计，以及长周期 Agent 工作流中的生产级编程。"
+		},
 		"vendor": "zhipu",
 		"context_window": 200000,
 		"max_tokens": 128000,
@@ -42,6 +47,11 @@
 	{
 		"id": "glm-5-turbo",
 		"display_name": "GLM-5 Turbo",
+		"description": "A fast GLM model optimized for real-world agent environments and efficient inference. It is deeply optimized for fast inference in real-world, tool-using agent environments.",
+		"i18n": {
+			"en": "A fast GLM model optimized for real-world agent environments and efficient inference. It is deeply optimized for fast inference in real-world, tool-using agent environments.",
+			"zh": "针对真实 Agent 环境与高效推理优化的高速 GLM 模型。针对真实世界中使用工具的 Agent 环境进行深度优化，强调快速推理。"
+		},
 		"vendor": "zhipu",
 		"context_window": 200000,
 		"max_tokens": 128000,
@@ -83,6 +93,11 @@
 	{
 		"id": "glm-5.1",
 		"display_name": "GLM-5.1",
+		"description": "A GLM model with stronger coding and sustained performance on long-horizon tasks. Its coding improvements focus on sustained, independent execution over tasks that extend far beyond short interactions.",
+		"i18n": {
+			"en": "A GLM model with stronger coding and sustained performance on long-horizon tasks. Its coding improvements focus on sustained, independent execution over tasks that extend far beyond short interactions.",
+			"zh": "强化编程能力与长周期任务持续执行表现的 GLM 模型。编程能力提升重点面向远超短时交互、需要持续独立执行的任务。"
+		},
 		"vendor": "zhipu",
 		"context_window": 200000,
 		"max_tokens": 128000,
@@ -123,6 +138,11 @@
 	{
 		"id": "glm-5.2",
 		"display_name": "GLM-5.2",
+		"description": "A long-context GLM reasoning model for project-level software engineering and agents. The large-scale reasoning model is intended for project-level software engineering and long-horizon agent workflows.",
+		"i18n": {
+			"en": "A long-context GLM reasoning model for project-level software engineering and agents. The large-scale reasoning model is intended for project-level software engineering and long-horizon agent workflows.",
+			"zh": "面向项目级软件工程与 Agent 的长上下文 GLM 推理模型。大规模推理模型面向项目级软件工程和长周期 Agent 工作流。"
+		},
 		"vendor": "zhipu",
 		"context_window": 1000000,
 		"max_tokens": 128000,

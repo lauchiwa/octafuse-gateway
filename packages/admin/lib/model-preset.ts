@@ -12,6 +12,8 @@
  * 各预设内 **`pricing.usd`** 与 D1 导出 `data/remote/.../data-remote-table-models-*.sql` 中 `pricing_profile` 一致（美元口径）；
  * **`pricing.cny`** 以中国区 Postgres 导出为准（无 CN 价的模型仍为 USD 换算占位）。
  * 导入时按当前 `BILLING_CURRENCY` 选用 `usd` / `cny` 之一写入 `pricing_profile`。
+ * 面向 Catalog 的英文摘要与中英文展示文案均与模型预设共同维护：
+ * `description` 写入现有 `models.description`，`i18n` 仅供静态 Catalog 展示，不增加数据库字段。
  *
  * 合并顺序：与下方 import 列表一致（尚未录入价目的厂商保留 `[]` 占位文件；image 文件紧挨同 vendor 的 LLM 之后）。
  */
@@ -51,6 +53,13 @@ export type StaticModelPresetModalities = {
 export type StaticModelPresetRow = {
 	id: string;
 	display_name?: string | null;
+	/** English import fallback written to the existing models.description column. */
+	description?: string | null;
+	/** Localized Catalog display copy; not persisted as a separate database field. */
+	i18n?: {
+		en: string;
+		zh: string;
+	};
 	vendor?: string | null;
 	context_window?: number | null;
 	max_tokens?: number | null;
@@ -96,7 +105,7 @@ const STATIC_MODEL_PRESETS_BY_VENDOR = [
 ] as const;
 
 export function listStaticModelPresets(): StaticModelPresetRow[] {
-	return STATIC_MODEL_PRESETS_BY_VENDOR.flat() as StaticModelPresetRow[];
+	return [...STATIC_MODEL_PRESETS_BY_VENDOR.flat()] as StaticModelPresetRow[];
 }
 
 export function pickPresetPricingRawForBillingCurrency(

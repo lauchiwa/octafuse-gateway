@@ -17,6 +17,7 @@ export type ProviderImportCatalogRow = {
 	id: string;
 	name: string;
 	vendor_key: string;
+	icon_key: string;
 	vendor_label: string;
 	protocols: Array<'openai' | 'anthropic' | 'gemini'>;
 	endpoints: string | null;

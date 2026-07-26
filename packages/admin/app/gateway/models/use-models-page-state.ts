@@ -118,7 +118,15 @@ export function useModelsPageState() {
 			if (!query) return true;
 			const id = row.id.toLowerCase();
 			const name = (row.display_name ?? '').toLowerCase();
-			return id.includes(query) || name.includes(query);
+			const vendor = row.vendor.toLowerCase();
+			const description = [
+				row.description ?? '',
+				row.i18n?.en ?? '',
+				row.i18n?.zh ?? '',
+			]
+				.join(' ')
+				.toLowerCase();
+			return id.includes(query) || name.includes(query) || vendor.includes(query) || description.includes(query);
 		});
 	}, [importCatalogSearch, importCatalogKind, importCatalogRows]);
 

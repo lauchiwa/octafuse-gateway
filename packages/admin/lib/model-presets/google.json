@@ -2,6 +2,11 @@
 	{
 		"id": "gemini-3.6-flash",
 		"display_name": "Gemini 3.6 Flash",
+		"description": "A high-efficiency Gemini model for coding, agents, and web or application development. It focuses on polished coding and application outputs with fewer unnecessary edits across agentic workflows.",
+		"i18n": {
+			"en": "A high-efficiency Gemini model for coding, agents, and web or application development. It focuses on polished coding and application outputs with fewer unnecessary edits across agentic workflows.",
+			"zh": "面向编程、Agent、Web 与应用开发的高效率 Gemini 模型。面向 Agent 工作流中的编程与应用开发，力求以更少的无效修改产出更成熟的结果。"
+		},
 		"vendor": "google",
 		"context_window": 1000000,
 		"max_tokens": 64000,
@@ -46,6 +51,11 @@
 	{
 		"id": "gemini-3.1-pro-preview",
 		"display_name": "Gemini 3.1 Pro Preview",
+		"description": "A frontier Gemini reasoning preview for software engineering and reliable agentic workflows. The preview improves software-engineering performance, agent reliability, and token efficiency across complex workflows.",
+		"i18n": {
+			"en": "A frontier Gemini reasoning preview for software engineering and reliable agentic workflows. The preview improves software-engineering performance, agent reliability, and token efficiency across complex workflows.",
+			"zh": "面向软件工程与高可靠 Agent 工作流的前沿 Gemini 推理预览模型。该预览版在复杂工作流中强化软件工程表现、Agent 可靠性和 Token 效率。"
+		},
 		"vendor": "google",
 		"context_window": 1000000,
 		"max_tokens": 64000,
@@ -104,6 +114,11 @@
 	{
 		"id": "gemini-3-flash-preview",
 		"display_name": "Gemini 3 Flash Preview",
+		"description": "A fast Gemini thinking model for multi-turn chat, coding, and agent workflows. It offers near-Pro reasoning and tool use at Flash-class speed for multi-turn chat, coding, and agents.",
+		"i18n": {
+			"en": "A fast Gemini thinking model for multi-turn chat, coding, and agent workflows. It offers near-Pro reasoning and tool use at Flash-class speed for multi-turn chat, coding, and agents.",
+			"zh": "适合多轮对话、编程与 Agent 工作流的高速 Gemini 思考模型。以 Flash 级速度提供接近 Pro 的推理与工具调用能力，适用于多轮对话、编程和 Agent。"
+		},
 		"vendor": "google",
 		"context_window": 1000000,
 		"max_tokens": 64000,
@@ -148,6 +163,11 @@
 	{
 		"id": "gemini-3.5-flash",
 		"display_name": "Gemini 3.5 Flash",
+		"description": "An efficient multimodal Gemini model with strong coding, reasoning, and parallel-agent performance. It brings near-Pro coding and reasoning to a faster tier and is tuned for parallel agent execution.",
+		"i18n": {
+			"en": "An efficient multimodal Gemini model with strong coding, reasoning, and parallel-agent performance. It brings near-Pro coding and reasoning to a faster tier and is tuned for parallel agent execution.",
+			"zh": "在编程、推理与并行 Agent 场景表现出色的高效 Gemini 多模态模型。在更高效的档位提供接近 Pro 的编程和推理能力，并针对并行 Agent 执行优化。"
+		},
 		"vendor": "google",
 		"context_window": 1000000,
 		"max_tokens": 64000,
@@ -192,6 +212,11 @@
 	{
 		"id": "gemini-3.5-flash-lite",
 		"display_name": "Gemini 3.5 Flash Lite",
+		"description": "A lightweight Gemini model for focused subagents and high-volume production tasks. The lightweight design is especially suited to focused subagents inside larger multi-agent systems.",
+		"i18n": {
+			"en": "A lightweight Gemini model for focused subagents and high-volume production tasks. The lightweight design is especially suited to focused subagents inside larger multi-agent systems.",
+			"zh": "面向专注型子 Agent 与高流量生产任务的轻量 Gemini 模型。轻量化设计尤其适合大型多 Agent 系统中执行明确子任务的子 Agent。"
+		},
 		"vendor": "google",
 		"context_window": 1000000,
 		"max_tokens": 64000,
@@ -236,6 +261,11 @@
 	{
 		"id": "gemini-3.1-flash-lite-preview",
 		"display_name": "Gemini 3.1 Flash Lite Preview",
+		"description": "A high-efficiency Gemini preview optimized for high-volume, latency-sensitive applications. It is tuned for high-volume workloads while approaching the quality of larger Flash models.",
+		"i18n": {
+			"en": "A high-efficiency Gemini preview optimized for high-volume, latency-sensitive applications. It is tuned for high-volume workloads while approaching the quality of larger Flash models.",
+			"zh": "针对高流量、延迟敏感应用优化的高效率 Gemini 预览模型。针对高吞吐工作负载优化，同时力求接近更大型 Flash 模型的质量。"
+		},
 		"vendor": "google",
 		"context_window": 1000000,
 		"max_tokens": 64000,
@@ -280,6 +310,11 @@
 	{
 		"id": "gemini-2.5-pro",
 		"display_name": "Gemini 2.5 Pro",
+		"description": "A capable Gemini reasoning model for coding, mathematics, science, and multimodal analysis. Built-in thinking supports more deliberate answers across advanced coding, mathematics, science, and multimodal analysis.",
+		"i18n": {
+			"en": "A capable Gemini reasoning model for coding, mathematics, science, and multimodal analysis. Built-in thinking supports more deliberate answers across advanced coding, mathematics, science, and multimodal analysis.",
+			"zh": "适合编程、数学、科学与多模态分析的高性能 Gemini 推理模型。内置思考能力可在高级编程、数学、科学和多模态分析中给出更审慎的回答。"
+		},
 		"vendor": "google",
 		"context_window": 1000000,
 		"max_tokens": 64000,
@@ -338,6 +373,11 @@
 	{
 		"id": "gemini-2.5-flash",
 		"display_name": "Gemini 2.5 Flash",
+		"description": "A versatile Gemini workhorse balancing reasoning quality, speed, and multimodal support. It balances built-in reasoning with workhorse throughput for coding, mathematics, science, and multimodal production tasks.",
+		"i18n": {
+			"en": "A versatile Gemini workhorse balancing reasoning quality, speed, and multimodal support. It balances built-in reasoning with workhorse throughput for coding, mathematics, science, and multimodal production tasks.",
+			"zh": "在推理质量、速度与多模态能力之间取得平衡的 Gemini 主力模型。在编程、数学、科学和多模态生产任务中平衡内置推理能力与主力级吞吐量。"
+		},
 		"vendor": "google",
 		"context_window": 1000000,
 		"max_tokens": 64000,
@@ -382,6 +422,11 @@
 	{
 		"id": "gemini-2.5-flash-lite",
 		"display_name": "Gemini 2.5 Flash Lite",
+		"description": "A low-cost Gemini reasoning model optimized for throughput and fast token generation. The model prioritizes ultra-low latency, low cost, high throughput, and fast token generation.",
+		"i18n": {
+			"en": "A low-cost Gemini reasoning model optimized for throughput and fast token generation. The model prioritizes ultra-low latency, low cost, high throughput, and fast token generation.",
+			"zh": "针对高吞吐与快速生成优化的低成本 Gemini 推理模型。重点优化超低延迟、低成本、高吞吐和快速 Token 生成。"
+		},
 		"vendor": "google",
 		"context_window": 1000000,
 		"max_tokens": 64000,

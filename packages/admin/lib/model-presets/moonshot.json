@@ -2,6 +2,11 @@
 	{
 		"id": "kimi-k2.5",
 		"display_name": "Kimi K2.5",
+		"description": "A native multimodal Kimi model for visual coding and coordinated agent workflows. It pairs native multimodal understanding with visual coding and a self-directed agent-swarm approach.",
+		"i18n": {
+			"en": "A native multimodal Kimi model for visual coding and coordinated agent workflows. It pairs native multimodal understanding with visual coding and a self-directed agent-swarm approach.",
+			"zh": "面向视觉编程与协同 Agent 工作流的原生多模态 Kimi 模型。将原生多模态理解、视觉编程与自主 Agent 集群范式结合起来。"
+		},
 		"vendor": "moonshot",
 		"context_window": 256000,
 		"max_tokens": 256000,
@@ -44,6 +49,11 @@
 	{
 		"id": "kimi-k2.6",
 		"display_name": "Kimi K2.6",
+		"description": "A multimodal Kimi model for long-horizon coding, UI generation, and agent orchestration. It targets long-horizon coding, code-driven UI generation, and coordinated multi-agent execution across complex projects.",
+		"i18n": {
+			"en": "A multimodal Kimi model for long-horizon coding, UI generation, and agent orchestration. It targets long-horizon coding, code-driven UI generation, and coordinated multi-agent execution across complex projects.",
+			"zh": "面向长周期编程、UI 生成与 Agent 编排的多模态 Kimi 模型。面向长周期编程、代码驱动的 UI 生成，以及复杂项目中的多 Agent 协同执行。"
+		},
 		"vendor": "moonshot",
 		"context_window": 256000,
 		"max_tokens": 256000,
@@ -86,6 +96,11 @@
 	{
 		"id": "kimi-k2.7-code",
 		"display_name": "Kimi K2.7 Code",
+		"description": "A coding-focused Kimi model for reliable end-to-end programming across long contexts. The coding-focused design aims to complete end-to-end programming tasks reliably across long contexts.",
+		"i18n": {
+			"en": "A coding-focused Kimi model for reliable end-to-end programming across long contexts. The coding-focused design aims to complete end-to-end programming tasks reliably across long contexts.",
+			"zh": "面向长上下文端到端编程任务、强调可靠性的 Kimi Code 模型。以编程为中心，旨在长上下文中可靠完成端到端开发任务。"
+		},
 		"vendor": "moonshot",
 		"context_window": 256000,
 		"max_tokens": 256000,
@@ -128,6 +143,11 @@
 	{
 		"id": "kimi-k3",
 		"display_name": "Kimi K3",
+		"description": "An open-weight multimodal Kimi model for complex coding, reasoning, and agentic work. The open-weight multimodal reasoning model is positioned for complex coding, knowledge work, and long-running agents.",
+		"i18n": {
+			"en": "An open-weight multimodal Kimi model for complex coding, reasoning, and agentic work. The open-weight multimodal reasoning model is positioned for complex coding, knowledge work, and long-running agents.",
+			"zh": "面向复杂编程、推理与 Agent 工作的开放权重 Kimi 多模态模型。这款开放权重多模态推理模型面向复杂编程、知识工作和长时间运行的 Agent。"
+		},
 		"vendor": "moonshot",
 		"context_window": 1000000,
 		"max_tokens": 1000000,

@@ -2,6 +2,11 @@
 	{
 		"id": "qwen3.8-max-preview",
 		"display_name": "Qwen3.8 Max Preview",
+		"description": "A flagship Qwen preview for complex reasoning, coding, and agentic enterprise workloads.",
+		"i18n": {
+			"en": "A flagship Qwen preview for complex reasoning, coding, and agentic enterprise workloads.",
+			"zh": "面向复杂推理、编程与企业级 Agent 工作流的 Qwen 旗舰预览模型。"
+		},
 		"vendor": "aliyun",
 		"context_window": 1000000,
 		"max_tokens": 64000,
@@ -43,6 +48,11 @@
 	{
 		"id": "qwen3.7-plus",
 		"display_name": "Qwen3.7 Plus",
+		"description": "A cost-efficient multimodal Qwen model for general reasoning, vision, and production applications. It combines text and image understanding with a cost-conscious design for production-scale multimodal reasoning.",
+		"i18n": {
+			"en": "A cost-efficient multimodal Qwen model for general reasoning, vision, and production applications. It combines text and image understanding with a cost-conscious design for production-scale multimodal reasoning.",
+			"zh": "兼顾成本与效果的 Qwen 多模态模型，适合通用推理、视觉理解与生产应用。兼顾文本与图像理解，并以更具成本效率的设计服务于生产级多模态推理。"
+		},
 		"vendor": "aliyun",
 		"context_window": 1000000,
 		"max_tokens": 64000,
@@ -100,6 +110,11 @@
 	{
 		"id": "qwen3.7-max",
 		"display_name": "Qwen3.7 Max",
+		"description": "The Qwen3.7 flagship, optimized for coding, productivity, and agent-centric workloads. Its agent-oriented design emphasizes coding, office productivity, and complex multi-step work.",
+		"i18n": {
+			"en": "The Qwen3.7 flagship, optimized for coding, productivity, and agent-centric workloads. Its agent-oriented design emphasizes coding, office productivity, and complex multi-step work.",
+			"zh": "Qwen3.7 旗舰模型，重点优化编程、生产力任务与 Agent 工作流。其 Agent 导向设计重点覆盖编程、办公生产力和复杂多步骤任务。"
+		},
 		"vendor": "aliyun",
 		"context_window": 1000000,
 		"max_tokens": 64000,
@@ -140,6 +155,11 @@
 	{
 		"id": "qwen3.6-plus",
 		"display_name": "Qwen3.6 Plus",
+		"description": "A scalable long-context Qwen model balancing strong reasoning with efficient inference. A hybrid of efficient linear attention and sparse expert routing improves scalability and inference efficiency.",
+		"i18n": {
+			"en": "A scalable long-context Qwen model balancing strong reasoning with efficient inference. A hybrid of efficient linear attention and sparse expert routing improves scalability and inference efficiency.",
+			"zh": "兼顾推理能力与推理效率、适合长上下文任务的 Qwen 模型。通过高效线性注意力与稀疏专家路由的混合架构，提升扩展性和推理效率。"
+		},
 		"vendor": "aliyun",
 		"context_window": 1000000,
 		"max_tokens": 64000,
@@ -197,6 +217,11 @@
 	{
 		"id": "qwen3.6-max",
 		"display_name": "Qwen3.6 Max",
+		"description": "A high-capability Qwen model for demanding reasoning, coding, and knowledge work.",
+		"i18n": {
+			"en": "A high-capability Qwen model for demanding reasoning, coding, and knowledge work.",
+			"zh": "面向高难度推理、编程与知识工作的高性能 Qwen 模型。"
+		},
 		"vendor": "aliyun",
 		"context_window": 256000,
 		"max_tokens": 64000,
@@ -251,6 +276,11 @@
 	{
 		"id": "qwen3.6-flash",
 		"display_name": "Qwen3.6 flash",
+		"description": "A fast multimodal Qwen model with a large context window for high-throughput workloads. It handles text, image, and video inputs with a long context window for latency-sensitive multimodal applications.",
+		"i18n": {
+			"en": "A fast multimodal Qwen model with a large context window for high-throughput workloads. It handles text, image, and video inputs with a long context window for latency-sensitive multimodal applications.",
+			"zh": "具备大上下文能力的高速 Qwen 多模态模型，适合高吞吐工作负载。支持文本、图像和视频输入，并以长上下文能力面向延迟敏感的多模态应用。"
+		},
 		"vendor": "aliyun",
 		"context_window": 1000000,
 		"max_tokens": 64000,
@@ -308,6 +338,11 @@
 	{
 		"id": "qwen3.5-plus",
 		"display_name": "Qwen3.5 Plus",
+		"description": "A balanced Qwen model for general chat, reasoning, coding, and multimodal tasks.",
+		"i18n": {
+			"en": "A balanced Qwen model for general chat, reasoning, coding, and multimodal tasks.",
+			"zh": "适合通用对话、推理、编程与多模态任务的均衡型 Qwen 模型。"
+		},
 		"vendor": "aliyun",
 		"context_window": 1000000,
 		"max_tokens": 64000,
@@ -365,6 +400,11 @@
 	{
 		"id": "qwen3.5-flash",
 		"display_name": "Qwen3.5 Flash",
+		"description": "A low-latency Qwen model for responsive chat, extraction, and lightweight agents.",
+		"i18n": {
+			"en": "A low-latency Qwen model for responsive chat, extraction, and lightweight agents.",
+			"zh": "面向低延迟对话、信息抽取与轻量 Agent 场景的 Qwen 模型。"
+		},
 		"vendor": "aliyun",
 		"context_window": 1000000,
 		"max_tokens": 64000,
@@ -408,6 +448,11 @@
 	{
 		"id": "qwen3-vl-plus",
 		"display_name": "Qwen3-VL Plus",
+		"description": "A vision-language model for document, image, screen, and visual reasoning tasks.",
+		"i18n": {
+			"en": "A vision-language model for document, image, screen, and visual reasoning tasks.",
+			"zh": "面向文档、图像、屏幕理解与视觉推理任务的视觉语言模型。"
+		},
 		"vendor": "aliyun",
 		"context_window": 256000,
 		"max_tokens": 32000,
@@ -478,6 +523,11 @@
 	{
 		"id": "qwen3.5-omni-plus",
 		"display_name": "Qwen3.5 Omni Plus",
+		"description": "A full-capability Qwen model for understanding text, images, audio, and video.",
+		"i18n": {
+			"en": "A full-capability Qwen model for understanding text, images, audio, and video.",
+			"zh": "可统一理解文本、图像、音频与视频的全能力 Qwen 多模态模型。"
+		},
 		"vendor": "aliyun",
 		"context_window": 256000,
 		"max_tokens": 64000,
@@ -522,6 +572,11 @@
 	{
 		"id": "qwen3.5-omni-flash",
 		"display_name": "Qwen3.5 Omni Flash",
+		"description": "A fast omni-modal Qwen model for real-time multimodal understanding and interaction.",
+		"i18n": {
+			"en": "A fast omni-modal Qwen model for real-time multimodal understanding and interaction.",
+			"zh": "面向实时多模态理解与交互的高速 Qwen Omni 模型。"
+		},
 		"vendor": "aliyun",
 		"context_window": 256000,
 		"max_tokens": 64000,

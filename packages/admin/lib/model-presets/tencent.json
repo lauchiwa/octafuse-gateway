@@ -2,6 +2,11 @@
 	{
 		"id": "hy3",
 		"display_name": "Hy3",
+		"description": "A Tencent mixture-of-experts model for configurable reasoning and production agents. Configurable reasoning effort lets production systems trade latency for depth across agentic workloads.",
+		"i18n": {
+			"en": "A Tencent mixture-of-experts model for configurable reasoning and production agents. Configurable reasoning effort lets production systems trade latency for depth across agentic workloads.",
+			"zh": "面向可调节推理与生产级 Agent 的腾讯混合专家模型。可配置的推理强度让生产系统在 Agent 任务中灵活权衡延迟与推理深度。"
+		},
 		"vendor": "tencent",
 		"context_window": 256000,
 		"max_tokens": 128000,
@@ -42,6 +47,11 @@
 	{
 		"id": "hy3-preview",
 		"display_name": "Hy3 preview",
+		"description": "A high-efficiency Tencent preview model for agent workflows and production evaluation. The preview offers configurable reasoning levels for efficient evaluation and deployment of agent workflows.",
+		"i18n": {
+			"en": "A high-efficiency Tencent preview model for agent workflows and production evaluation. The preview offers configurable reasoning levels for efficient evaluation and deployment of agent workflows.",
+			"zh": "面向 Agent 工作流与生产评估的高效率腾讯预览模型。预览版提供可配置推理等级，便于高效评估和部署 Agent 工作流。"
+		},
 		"vendor": "tencent",
 		"context_window": 256000,
 		"max_tokens": 128000,

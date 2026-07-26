@@ -2,6 +2,11 @@
 	{
 		"id": "step-3.7-flash",
 		"display_name": "Step 3.7 Flash",
+		"description": "An efficient multimodal StepFun model for native image and video understanding. Its multimodal mixture-of-experts design combines a large language backbone with native image and video understanding.",
+		"i18n": {
+			"en": "An efficient multimodal StepFun model for native image and video understanding. Its multimodal mixture-of-experts design combines a large language backbone with native image and video understanding.",
+			"zh": "支持原生图像与视频理解的高效率阶跃星辰多模态模型。多模态混合专家设计将大型语言骨干与原生图像、视频理解结合起来。"
+		},
 		"vendor": "stepfun",
 		"context_window": 256000,
 		"max_tokens": 256000,

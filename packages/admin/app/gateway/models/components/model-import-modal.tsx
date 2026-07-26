@@ -4,7 +4,7 @@ import { ArrowPathIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/
 import { formatCompactTokens } from '@/lib/format-compact-tokens';
 import { formatPerMillionTokenUnit } from '@/lib/format-gateway-currency';
 import { getModelVendorLabel, normalizeModelVendorInput } from '@/lib/model-vendor';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { sortImportCatalogRows } from '../model-utils';
@@ -196,6 +196,7 @@ export function ModelImportModal(props: Props) {
 	const t = useTranslations('models.import');
 	const tCommon = useTranslations('common');
 	const tKind = useTranslations('models.filter');
+	const locale = useLocale();
 
 	if (!open) return null;
 
@@ -424,7 +425,18 @@ export function ModelImportModal(props: Props) {
 													/>
 												</td>
 												<td className="px-3 py-2 font-mono text-xs text-gray-900">{row.id}</td>
-												<td className="px-3 py-2 text-gray-900">{row.display_name || '—'}</td>
+												<td className="max-w-sm px-3 py-2 text-gray-900">
+													<div>{row.display_name || '—'}</div>
+													{(locale.startsWith('zh')
+														? row.i18n?.zh
+														: row.i18n?.en ?? row.description) ? (
+														<p className="mt-1 line-clamp-2 text-xs leading-relaxed text-gray-500">
+															{locale.startsWith('zh')
+																? row.i18n?.zh
+																: row.i18n?.en ?? row.description}
+														</p>
+													) : null}
+												</td>
 												{showKindColumn ? (
 													<td className="px-3 py-2">
 														<span

@@ -8,6 +8,7 @@ import {
 	PlusIcon,
 } from '@heroicons/react/24/outline';
 import { useTranslations } from 'next-intl';
+import { VendorIcon } from '@/components/model-vendor-icon';
 import { PROVIDER_KEY_LABEL_MAX_LENGTH } from '@/lib/provider-key-label';
 import type { GatewayProvider, ProviderKeyRow } from '../types';
 import { formatLimitConfig, getProviderProtocolSummaries, sortProviderKeyRows } from '../provider-utils';
@@ -88,6 +89,7 @@ export function ProviderCard(props: ProviderCardProps) {
 			<div className="flex min-h-[5.75rem] flex-col p-3">
 				<div className="min-h-[2.75rem] min-w-0">
 					<div className="flex min-w-0 items-start gap-2">
+						<VendorIcon vendor={provider.vendor_key} iconKey={provider.icon_key} size="compact" />
 						<div className="min-w-0 flex-1">
 							<h2 className="truncate text-base font-semibold leading-6 text-gray-900" title={provider.name}>
 								{provider.name}

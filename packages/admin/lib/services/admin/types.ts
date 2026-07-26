@@ -120,6 +120,8 @@ export type AdminProviderImportCatalogItem = {
 	id: string;
 	name: string;
 	vendor_key: string;
+	/** Provider 产品级静态图标 key；不写入数据库。 */
+	icon_key: string;
 	vendor_label: string;
 	protocols: Array<'openai' | 'anthropic' | 'gemini'>;
 	/** 序列化后的 endpoints JSON（可 null） */
@@ -196,6 +198,13 @@ export type AdminStaticModelPresetCatalogItem = {
 	kind: 'llm' | 'image';
 	context_window: number | null;
 	max_tokens: number | null;
+	/** English fallback used by non-localized Admin clients and on import. */
+	description: string | null;
+	/** Localized catalog summaries; currently aligned with Website locales. */
+	i18n: {
+		en: string;
+		zh: string;
+	} | null;
 	/** 当前计费币种对应目录价分支的档位数 */
 	tier_count: number;
 	/** 表格短文案（如 `¥12 / ¥36 /M` 或 `$2 / $8 /M`）。 */
@@ -225,6 +234,10 @@ export type AdminModelsImportOutput = {
 export type AdminProviderRow = {
 	id: string;
 	name: string;
+	/** 由内置 Provider 预设名称 / Endpoint 动态推导，不持久化。 */
+	vendor_key?: string;
+	/** 由内置 Provider 预设动态推导的产品级图标，不持久化。 */
+	icon_key?: string;
 	endpoints: string | null;
 	description: string | null;
 	created_at: string;

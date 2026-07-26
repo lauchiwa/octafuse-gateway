@@ -117,6 +117,10 @@ export const API_KEY_BUDGET_AUDIT_SOURCE_CHANNELS = [
 export interface GatewayProvider {
   id: string;
   name: string;
+  /** Admin API 根据内置预设动态推导；不写入 providers 表。 */
+  vendor_key?: string;
+  /** Admin API 根据内置预设动态推导的产品级图标；不写入 providers 表。 */
+  icon_key?: string;
   /** 协议端点 JSON；见 `providers.endpoints` */
   endpoints?: string | null;
   /** 自定义上游 header JSON；见 `providers.custom_headers` */

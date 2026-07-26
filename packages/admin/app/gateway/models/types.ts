@@ -16,6 +16,11 @@ export type PresetCatalogRow = {
 	kind: 'llm' | 'image';
 	context_window: number | null;
 	max_tokens: number | null;
+	description: string | null;
+	i18n: {
+		en: string;
+		zh: string;
+	} | null;
 	/** Tier count for the billing-currency catalog branch. */
 	tier_count: number;
 	/** Short cell label (USD/CNY branch per `BILLING_CURRENCY`). */

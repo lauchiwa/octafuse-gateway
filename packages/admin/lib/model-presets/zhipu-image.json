@@ -2,6 +2,11 @@
 	{
 		"id": "glm-image",
 		"display_name": "GLM Image",
+		"description": "A Zhipu image model for text-guided generation and general visual creation.",
+		"i18n": {
+			"en": "A Zhipu image model for text-guided generation and general visual creation.",
+			"zh": "面向文本引导图片生成与通用视觉创作的智谱图像模型。"
+		},
 		"vendor": "zhipu",
 		"context_window": null,
 		"max_tokens": null,

@@ -2,6 +2,11 @@
 	{
 		"id": "gpt-image-2",
 		"display_name": "GPT Image 2",
+		"description": "OpenAI's high-fidelity image generation and editing model for the dedicated Images API.",
+		"i18n": {
+			"en": "OpenAI's high-fidelity image generation and editing model for the dedicated Images API.",
+			"zh": "用于专用 Images API 的 OpenAI 高保真图片生成与编辑模型。"
+		},
 		"vendor": "openai",
 		"context_window": null,
 		"max_tokens": null,
@@ -11,13 +16,13 @@
 				"tiers": [
 					{
 						"upto": null,
-						"input_price": 5.0,
+						"input_price": 5,
 						"output_price": 0,
 						"cache_read_price": 1.25,
 						"cache_write_price": null,
-						"image_input_price": 8.0,
-						"image_input_cache_price": 2.0,
-						"image_output_price": 30.0
+						"image_input_price": 8,
+						"image_input_cache_price": 2,
+						"image_output_price": 30
 					}
 				]
 			},
@@ -30,7 +35,7 @@
 						"output_price": 0,
 						"cache_read_price": 9.0625,
 						"cache_write_price": null,
-						"image_input_price": 58.0,
+						"image_input_price": 58,
 						"image_input_cache_price": 14.5,
 						"image_output_price": 217.5
 					}

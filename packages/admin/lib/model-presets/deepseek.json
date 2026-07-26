@@ -2,6 +2,11 @@
 	{
 		"id": "deepseek-v3.2",
 		"display_name": "DeepSeek-V3.2",
+		"description": "An efficient DeepSeek model combining strong reasoning with agentic tool use. Its sparse-attention design targets efficient long-context reasoning while preserving strong tool-use performance.",
+		"i18n": {
+			"en": "An efficient DeepSeek model combining strong reasoning with agentic tool use. Its sparse-attention design targets efficient long-context reasoning while preserving strong tool-use performance.",
+			"zh": "兼顾推理效率、复杂推理与 Agent 工具调用能力的 DeepSeek 模型。稀疏注意力设计旨在提高长上下文推理效率，同时保持较强的工具调用表现。"
+		},
 		"vendor": "deepseek",
 		"context_window": 128000,
 		"max_tokens": 8000,
@@ -42,6 +47,11 @@
 	{
 		"id": "deepseek-v4-flash",
 		"display_name": "DeepSeek V4 Flash",
+		"description": "A fast DeepSeek mixture-of-experts model for long-context reasoning and coding. The efficiency-focused mixture-of-experts architecture activates only a small portion of its parameters for fast long-context inference.",
+		"i18n": {
+			"en": "A fast DeepSeek mixture-of-experts model for long-context reasoning and coding. The efficiency-focused mixture-of-experts architecture activates only a small portion of its parameters for fast long-context inference.",
+			"zh": "面向长上下文推理与编程任务的高速 DeepSeek 混合专家模型。效率优先的混合专家架构仅激活少量参数，以实现快速的长上下文推理。"
+		},
 		"vendor": "deepseek",
 		"context_window": 1000000,
 		"max_tokens": 384000,
@@ -82,6 +92,11 @@
 	{
 		"id": "deepseek-v4-pro",
 		"display_name": "DeepSeek V4 Pro",
+		"description": "A large DeepSeek mixture-of-experts model for advanced reasoning, coding, and agents. Its large mixture-of-experts design is aimed at advanced reasoning, coding, and sustained agent workloads.",
+		"i18n": {
+			"en": "A large DeepSeek mixture-of-experts model for advanced reasoning, coding, and agents. Its large mixture-of-experts design is aimed at advanced reasoning, coding, and sustained agent workloads.",
+			"zh": "面向高级推理、编程与 Agent 的大型 DeepSeek 混合专家模型。大规模混合专家架构面向高级推理、编程和持续运行的 Agent 任务。"
+		},
 		"vendor": "deepseek",
 		"context_window": 1000000,
 		"max_tokens": 384000,

@@ -299,6 +299,8 @@ export function listStaticModelPresetCatalogForAdmin(
 				kind,
 				context_window: p.context_window ?? null,
 				max_tokens: p.max_tokens ?? null,
+				description: p.description ?? null,
+				i18n: p.i18n ?? null,
 				tier_count: tierCount,
 				pricing_label: pricing.label,
 				pricing_preview: pricing.detail,
@@ -382,6 +384,7 @@ export async function importModelsFromStaticPresetsService(
 				input_modalities: preset.modalities?.input ?? null,
 				output_modalities: preset.modalities?.output ?? null,
 				released_at: preset.released ?? null,
+				description: preset.description ?? preset.i18n?.en ?? null,
 			};
 
 			await createModelService(repos, body);

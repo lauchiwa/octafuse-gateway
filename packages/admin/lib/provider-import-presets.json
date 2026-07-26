@@ -8,6 +8,22 @@
 					"chat": "https://api.deepseek.com/chat/completions"
 				}
 			}
+		},
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "DeepSeek",
+					"description": "DeepSeek 官方开放平台，提供 OpenAI 兼容的对话模型 API。"
+				},
+				"en": {
+					"name": "DeepSeek",
+					"description": "DeepSeek’s official platform with an OpenAI-compatible chat API."
+				}
+			},
+			"links": {
+				"platform": "https://platform.deepseek.com/",
+				"api_keys": "https://platform.deepseek.com/api_keys"
+			}
 		}
 	},
 	{
@@ -21,7 +37,23 @@
 				}
 			}
 		},
-		"description": "Capability URLs only (no openai.base): chat/completions + images/generations. Seedream has no /images/edits — i2i uses generations + JSON `image`. Do not set base or Gateway would derive a dead edits URL. Coding/Agent Plan templates use separate paths—do not mix."
+		"description": "Capability URLs only (no openai.base): chat/completions + images/generations. Seedream has no /images/edits — i2i uses generations + JSON `image`. Do not set base or Gateway would derive a dead edits URL. Coding/Agent Plan templates use separate paths—do not mix.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "火山方舟",
+					"description": "火山方舟标准按量 API 预设，覆盖对话与 Seedream 图片生成。"
+				},
+				"en": {
+					"name": "Volcengine Ark",
+					"description": "Standard pay-as-you-go Ark endpoints for chat and Seedream image generation."
+				}
+			},
+			"links": {
+				"platform": "https://console.volcengine.com/ark/",
+				"api_keys": "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey"
+			}
+		}
 	},
 	{
 		"name": "Volcengine Ark (Coding Plan)",
@@ -36,7 +68,23 @@
 				"base": "https://ark.cn-beijing.volces.com/api/coding"
 			}
 		},
-		"description": "Coding Plan–only endpoints (/api/coding…). Do not mix with the standard /api/v3 base URL or plan quota will not apply. See Volcengine official docs."
+		"description": "Coding Plan–only endpoints (/api/coding…). Do not mix with the standard /api/v3 base URL or plan quota will not apply. See Volcengine official docs.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "火山方舟（Coding Plan）",
+					"description": "火山方舟 Coding Plan 专用端点，支持 OpenAI 与 Anthropic 协议。"
+				},
+				"en": {
+					"name": "Volcengine Ark (Coding Plan)",
+					"description": "Coding Plan endpoints with OpenAI- and Anthropic-compatible access."
+				}
+			},
+			"links": {
+				"platform": "https://console.volcengine.com/ark/",
+				"api_keys": "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey"
+			}
+		}
 	},
 	{
 		"name": "Volcengine Ark (Agent Plan)",
@@ -51,22 +99,56 @@
 				"base": "https://ark.cn-beijing.volces.com/api/plan"
 			}
 		},
-		"description": "Agent Plan–only endpoints (/api/plan…). Do not mix with the standard /api/v3 base URL or plan quota will not apply. See Volcengine official docs."
+		"description": "Agent Plan–only endpoints (/api/plan…). Do not mix with the standard /api/v3 base URL or plan quota will not apply. See Volcengine official docs.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "火山方舟（Agent Plan）",
+					"description": "火山方舟 Agent Plan 专用端点，支持 OpenAI 与 Anthropic 协议。"
+				},
+				"en": {
+					"name": "Volcengine Ark (Agent Plan)",
+					"description": "Agent Plan endpoints with OpenAI- and Anthropic-compatible access."
+				}
+			},
+			"links": {
+				"platform": "https://console.volcengine.com/ark/",
+				"api_keys": "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey"
+			}
+		}
 	},
 	{
 		"name": "Alibaba Cloud Bailian",
 		"vendor_key": "aliyun",
+		"icon_key": "bailian",
 		"endpoints": {
 			"openai": {
 				"endpoints": {
 					"chat": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
 				}
 			}
+		},
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "阿里云百炼",
+					"description": "阿里云百炼标准模型服务，提供 OpenAI 兼容的对话 API。"
+				},
+				"en": {
+					"name": "Alibaba Cloud Model Studio",
+					"description": "Alibaba Cloud Model Studio’s standard OpenAI-compatible chat API."
+				}
+			},
+			"links": {
+				"platform": "https://bailian.console.aliyun.com/",
+				"api_keys": "https://bailian.console.aliyun.com/cn-beijing/?tab=app#/api-key"
+			}
 		}
 	},
 	{
 		"name": "Alibaba Cloud Bailian (Coding Plan)",
 		"vendor_key": "aliyun",
+		"icon_key": "bailian",
 		"endpoints": {
 			"openai": {
 				"endpoints": {
@@ -77,11 +159,28 @@
 				"base": "https://coding.dashscope.aliyuncs.com/apps/anthropic"
 			}
 		},
-		"description": "Coding Plan–only endpoints and plan keys (sk-sp-*), separate from pay-as-you-go compatible-mode. See Alibaba Cloud \"Coding Plan tool integration\" docs."
+		"description": "Coding Plan–only endpoints and plan keys (sk-sp-*), separate from pay-as-you-go compatible-mode. See Alibaba Cloud \"Coding Plan tool integration\" docs.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "阿里云百炼（Coding Plan）",
+					"description": "阿里云百炼 Coding Plan 专用端点，使用独立的套餐 Key 与额度。"
+				},
+				"en": {
+					"name": "Alibaba Cloud Model Studio (Coding Plan)",
+					"description": "Coding Plan endpoints that use plan-specific keys and quota."
+				}
+			},
+			"links": {
+				"platform": "https://bailian.console.aliyun.com/",
+				"api_keys": "https://bailian.console.aliyun.com/cn-beijing/?tab=app#/api-key"
+			}
+		}
 	},
 	{
 		"name": "Qwen AI Platform (Token Plan)",
 		"vendor_key": "aliyun",
+		"icon_key": "qwen",
 		"endpoints": {
 			"openai": {
 				"endpoints": {
@@ -92,22 +191,54 @@
 				"base": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic"
 			}
 		},
-		"description": "Qwen AI Platform Token Plan (personal/team) OpenAI chat + Anthropic base; plan keys (sk-sp-*). Do not mix with pay-as-you-go dashscope.aliyuncs.com or Coding Plan coding.dashscope.aliyuncs.com. Image models use a separate Skill path—not this chat template. See platform.qianwenai.com Token Plan docs."
+		"description": "Qwen AI Platform Token Plan (personal/team) OpenAI chat + Anthropic base; plan keys (sk-sp-*). Do not mix with pay-as-you-go dashscope.aliyuncs.com or Coding Plan coding.dashscope.aliyuncs.com. Image models use a separate Skill path—not this chat template. See platform.qianwenai.com Token Plan docs.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "千问 AI 平台（Token Plan）",
+					"description": "千问 Token Plan 个人版与团队版端点，支持 OpenAI 与 Anthropic 协议。"
+				},
+				"en": {
+					"name": "Qwen AI Platform (Token Plan)",
+					"description": "Personal and team Token Plan endpoints for OpenAI and Anthropic protocols."
+				}
+			},
+			"links": {
+				"platform": "https://platform.qianwenai.com/"
+			}
+		}
 	},
 	{
 		"name": "Tencent Hunyuan",
 		"vendor_key": "tencent",
+		"icon_key": "hunyuan",
 		"endpoints": {
 			"openai": {
 				"endpoints": {
 					"chat": "https://api.hunyuan.cloud.tencent.com/v1/chat/completions"
 				}
 			}
+		},
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "腾讯混元",
+					"description": "腾讯混元官方 OpenAI 兼容对话 API。"
+				},
+				"en": {
+					"name": "Tencent Hunyuan",
+					"description": "Tencent Hunyuan’s official OpenAI-compatible chat API."
+				}
+			},
+			"links": {
+				"platform": "https://console.cloud.tencent.com/hunyuan"
+			}
 		}
 	},
 	{
 		"name": "Tencent TokenHub (Hy Token Plan)",
 		"vendor_key": "tencent",
+		"icon_key": "hunyuan",
 		"endpoints": {
 			"openai": {
 				"endpoints": {
@@ -118,7 +249,22 @@
 				"base": "https://api.lkeap.cloud.tencent.com/plan/anthropic"
 			}
 		},
-		"description": "Hy Token Plan personal subscription endpoints (/plan/v3, /plan/anthropic). Shares the same API key (sk-tp-*) as the general Token Plan; usage is deducted from the Hy plan bundle by model ID (hy3, hy3-preview). Do not mix with pay-as-you-go tokenhub.tencentmaas.com/v1 or legacy api.hunyuan.cloud.tencent.com. See TokenHub \"Token Plan personal edition\" docs."
+		"description": "Hy Token Plan personal subscription endpoints (/plan/v3, /plan/anthropic). Shares the same API key (sk-tp-*) as the general Token Plan; usage is deducted from the Hy plan bundle by model ID (hy3, hy3-preview). Do not mix with pay-as-you-go tokenhub.tencentmaas.com/v1 or legacy api.hunyuan.cloud.tencent.com. See TokenHub \"Token Plan personal edition\" docs.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "腾讯 TokenHub（混元 Token Plan）",
+					"description": "腾讯 TokenHub 混元套餐专用端点，使用 sk-tp-* 套餐 Key。"
+				},
+				"en": {
+					"name": "Tencent TokenHub (Hunyuan Token Plan)",
+					"description": "Hunyuan Token Plan endpoints that use the shared sk-tp-* plan key."
+				}
+			},
+			"links": {
+				"platform": "https://console.cloud.tencent.com/lkeap"
+			}
+		}
 	},
 	{
 		"name": "Baidu Qianfan",
@@ -128,6 +274,21 @@
 				"endpoints": {
 					"chat": "https://qianfan.baidubce.com/v2/chat/completions"
 				}
+			}
+		},
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "百度千帆",
+					"description": "百度千帆大模型平台的 OpenAI 兼容对话 API。"
+				},
+				"en": {
+					"name": "Baidu Qianfan",
+					"description": "Baidu Qianfan’s OpenAI-compatible chat API."
+				}
+			},
+			"links": {
+				"platform": "https://console.bce.baidu.com/qianfan/"
 			}
 		}
 	},
@@ -139,7 +300,23 @@
 				"base": "https://open.bigmodel.cn/api/paas/v4"
 			}
 		},
-		"description": "China-region OpenAI-compatible root (/api/paas/v4): chat/completions + images/generations (GLM-Image / CogView). Coding Plan template stays chat-only."
+		"description": "China-region OpenAI-compatible root (/api/paas/v4): chat/completions + images/generations (GLM-Image / CogView). Coding Plan template stays chat-only.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "智谱 GLM",
+					"description": "智谱中国区标准 API，支持对话与 GLM 图片生成。"
+				},
+				"en": {
+					"name": "Zhipu GLM",
+					"description": "China-region standard API for chat and GLM image generation."
+				}
+			},
+			"links": {
+				"platform": "https://open.bigmodel.cn/",
+				"api_keys": "https://open.bigmodel.cn/usercenter/apikeys"
+			}
+		}
 	},
 	{
 		"name": "Zhipu GLM (Coding Plan)",
@@ -154,21 +331,54 @@
 				"base": "https://open.bigmodel.cn/api/anthropic"
 			}
 		},
-		"description": "GLM Coding Plan OpenAI chat endpoint (LLM only); Anthropic base for tools such as Claude Code. Do not mix with the general /api/paas/v4 path."
+		"description": "GLM Coding Plan OpenAI chat endpoint (LLM only); Anthropic base for tools such as Claude Code. Do not mix with the general /api/paas/v4 path.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "智谱 GLM（Coding Plan）",
+					"description": "智谱 Coding Plan 专用对话端点，支持 OpenAI 与 Anthropic 协议。"
+				},
+				"en": {
+					"name": "Zhipu GLM (Coding Plan)",
+					"description": "Coding Plan chat endpoints for OpenAI and Anthropic protocols."
+				}
+			},
+			"links": {
+				"platform": "https://open.bigmodel.cn/",
+				"api_keys": "https://open.bigmodel.cn/usercenter/apikeys"
+			}
+		}
 	},
 	{
 		"name": "Z.AI GLM (International)",
 		"vendor_key": "zhipu",
+		"icon_key": "zai",
 		"endpoints": {
 			"openai": {
 				"base": "https://api.z.ai/api/paas/v4"
 			}
 		},
-		"description": "Z.AI international OpenAI-compatible root (api.z.ai/api/paas/v4): chat/completions + images/generations (glm-image); pay-as-you-go API key. China-region users should use the Zhipu GLM template (open.bigmodel.cn) instead."
+		"description": "Z.AI international OpenAI-compatible root (api.z.ai/api/paas/v4): chat/completions + images/generations (glm-image); pay-as-you-go API key. China-region users should use the Zhipu GLM template (open.bigmodel.cn) instead.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "Z.AI GLM（国际站）",
+					"description": "Z.AI 国际站标准 API，支持对话与 GLM 图片生成。"
+				},
+				"en": {
+					"name": "Z.AI GLM (International)",
+					"description": "International standard API for chat and GLM image generation."
+				}
+			},
+			"links": {
+				"platform": "https://z.ai/"
+			}
+		}
 	},
 	{
 		"name": "Z.AI GLM (Coding Plan)",
 		"vendor_key": "zhipu",
+		"icon_key": "zai",
 		"endpoints": {
 			"openai": {
 				"endpoints": {
@@ -179,11 +389,27 @@
 				"base": "https://api.z.ai/api/anthropic"
 			}
 		},
-		"description": "GLM Coding Plan international chat endpoint (api.z.ai; LLM only); Anthropic base for tools such as Claude Code. Do not mix with the general /api/paas/v4 path or plan quota will not apply. See Z.AI developer docs."
+		"description": "GLM Coding Plan international chat endpoint (api.z.ai; LLM only); Anthropic base for tools such as Claude Code. Do not mix with the general /api/paas/v4 path or plan quota will not apply. See Z.AI developer docs.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "Z.AI GLM（Coding Plan）",
+					"description": "Z.AI 国际站 Coding Plan 专用对话端点。"
+				},
+				"en": {
+					"name": "Z.AI GLM (Coding Plan)",
+					"description": "International Coding Plan endpoints for supported coding tools."
+				}
+			},
+			"links": {
+				"platform": "https://z.ai/"
+			}
+		}
 	},
 	{
 		"name": "Meituan LongCat",
 		"vendor_key": "meituan",
+		"icon_key": "longcat",
 		"endpoints": {
 			"openai": {
 				"endpoints": {
@@ -194,7 +420,22 @@
 				"base": "https://api.longcat.chat/anthropic"
 			}
 		},
-		"description": "Dual OpenAI- and Anthropic-compatible endpoints; upstream model IDs such as LongCat-2.0. See longcat.chat platform docs."
+		"description": "Dual OpenAI- and Anthropic-compatible endpoints; upstream model IDs such as LongCat-2.0. See longcat.chat platform docs.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "美团 LongCat",
+					"description": "LongCat 开放平台，同时提供 OpenAI 与 Anthropic 兼容端点。"
+				},
+				"en": {
+					"name": "Meituan LongCat",
+					"description": "LongCat platform endpoints compatible with both OpenAI and Anthropic protocols."
+				}
+			},
+			"links": {
+				"platform": "https://longcat.chat/"
+			}
+		}
 	},
 	{
 		"name": "Moonshot AI",
@@ -205,11 +446,28 @@
 					"chat": "https://api.moonshot.cn/v1/chat/completions"
 				}
 			}
+		},
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "月之暗面 Moonshot",
+					"description": "月之暗面开放平台的 OpenAI 兼容对话 API。"
+				},
+				"en": {
+					"name": "Moonshot AI",
+					"description": "Moonshot AI’s OpenAI-compatible chat API."
+				}
+			},
+			"links": {
+				"platform": "https://platform.moonshot.cn/",
+				"api_keys": "https://platform.moonshot.cn/console/api-keys"
+			}
 		}
 	},
 	{
 		"name": "Kimi Code (Coding API)",
 		"vendor_key": "moonshot",
+		"icon_key": "kimi",
 		"endpoints": {
 			"openai": {
 				"endpoints": {
@@ -217,7 +475,22 @@
 				}
 			}
 		},
-		"description": "OpenAI-compatible chat endpoint for Kimi Code CLI / Coding plan (api.kimi.com; LLM only), separate from the standard moonshot.cn platform. See Kimi Code CLI docs (platform & models)."
+		"description": "OpenAI-compatible chat endpoint for Kimi Code CLI / Coding plan (api.kimi.com; LLM only), separate from the standard moonshot.cn platform. See Kimi Code CLI docs (platform & models).",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "Kimi Code（Coding API）",
+					"description": "Kimi Code 与 Coding Plan 使用的专用 OpenAI 兼容对话端点。"
+				},
+				"en": {
+					"name": "Kimi Code (Coding API)",
+					"description": "Dedicated OpenAI-compatible chat endpoint for Kimi Code and its coding plan."
+				}
+			},
+			"links": {
+				"platform": "https://www.kimi.com/code"
+			}
+		}
 	},
 	{
 		"name": "MiniMax",
@@ -231,6 +504,21 @@
 			"anthropic": {
 				"base": "https://api.minimaxi.com/anthropic"
 			}
+		},
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "MiniMax",
+					"description": "MiniMax 开放平台，支持 OpenAI 与 Anthropic 兼容协议。"
+				},
+				"en": {
+					"name": "MiniMax",
+					"description": "MiniMax platform endpoints compatible with OpenAI and Anthropic protocols."
+				}
+			},
+			"links": {
+				"platform": "https://platform.minimaxi.com/"
+			}
 		}
 	},
 	{
@@ -239,6 +527,22 @@
 		"endpoints": {
 			"openai": {
 				"base": "https://api.openai.com/v1"
+			}
+		},
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "OpenAI",
+					"description": "OpenAI 官方 API 根地址，覆盖对话、图片等开放能力。"
+				},
+				"en": {
+					"name": "OpenAI",
+					"description": "OpenAI’s official API root for chat, images, and other supported capabilities."
+				}
+			},
+			"links": {
+				"platform": "https://platform.openai.com/",
+				"api_keys": "https://platform.openai.com/api-keys"
 			}
 		}
 	},
@@ -250,7 +554,23 @@
 				"base": "https://api.anthropic.com"
 			}
 		},
-		"description": "Root URL has no path suffix; the gateway appends `/v1/messages`. See Anthropic console docs."
+		"description": "Root URL has no path suffix; the gateway appends `/v1/messages`. See Anthropic console docs.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "Anthropic",
+					"description": "Anthropic 官方 Messages API 根地址。"
+				},
+				"en": {
+					"name": "Anthropic",
+					"description": "Anthropic’s official Messages API root."
+				}
+			},
+			"links": {
+				"platform": "https://console.anthropic.com/",
+				"api_keys": "https://console.anthropic.com/settings/keys"
+			}
+		}
 	},
 	{
 		"name": "Google Gemini (Generative Language API)",
@@ -263,17 +583,49 @@
 				"base": "https://generativelanguage.googleapis.com/v1beta/models"
 			}
 		},
-		"description": "Developer API: native Gemini base includes `/v1beta/models` (`key=`); OpenAI-compatible root is `/v1beta/openai` (chat + images/generations, Bearer; prefer response_format=b64_json for images). See ai.google.dev/gemini-api/docs/openai."
+		"description": "Developer API: native Gemini base includes `/v1beta/models` (`key=`); OpenAI-compatible root is `/v1beta/openai` (chat + images/generations, Bearer; prefer response_format=b64_json for images). See ai.google.dev/gemini-api/docs/openai.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "Google Gemini（Generative Language API）",
+					"description": "Gemini Developer API，支持原生 Gemini 与 OpenAI 兼容协议。"
+				},
+				"en": {
+					"name": "Google Gemini (Generative Language API)",
+					"description": "Gemini Developer API with native Gemini and OpenAI-compatible access."
+				}
+			},
+			"links": {
+				"platform": "https://aistudio.google.com/",
+				"api_keys": "https://aistudio.google.com/app/apikey"
+			}
+		}
 	},
 	{
 		"name": "Google Vertex AI (Express Mode · API Key)",
 		"vendor_key": "google",
+		"icon_key": "vertexai",
 		"endpoints": {
 			"gemini": {
 				"base": "https://aiplatform.googleapis.com/v1/publishers/google/models"
 			}
 		},
-		"description": "Vertex Express: base includes the full prefix `/v1/publishers/google/models` (use `.../v1beta1/publishers/google/models` for v1beta1). API key via `key=`; no project/location/OAuth required. Express has no official OpenAI-compatible endpoint."
+		"description": "Vertex Express: base includes the full prefix `/v1/publishers/google/models` (use `.../v1beta1/publishers/google/models` for v1beta1). API key via `key=`; no project/location/OAuth required. Express has no official OpenAI-compatible endpoint.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "Google Vertex AI（Express Mode · API Key）",
+					"description": "Vertex AI Express 模式的原生 Gemini 端点，使用 API Key 鉴权。"
+				},
+				"en": {
+					"name": "Google Vertex AI (Express Mode · API Key)",
+					"description": "Native Gemini endpoint for Vertex AI Express mode with API key authentication."
+				}
+			},
+			"links": {
+				"platform": "https://console.cloud.google.com/vertex-ai"
+			}
+		}
 	},
 	{
 		"name": "Mistral AI",
@@ -283,6 +635,22 @@
 				"endpoints": {
 					"chat": "https://api.mistral.ai/v1/chat/completions"
 				}
+			}
+		},
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "Mistral AI",
+					"description": "Mistral 官方 OpenAI 兼容对话 API。"
+				},
+				"en": {
+					"name": "Mistral AI",
+					"description": "Mistral’s official OpenAI-compatible chat API."
+				}
+			},
+			"links": {
+				"platform": "https://console.mistral.ai/",
+				"api_keys": "https://console.mistral.ai/api-keys"
 			}
 		}
 	},
@@ -295,6 +663,22 @@
 					"chat": "https://api.groq.com/openai/v1/chat/completions"
 				}
 			}
+		},
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "Groq（OpenAI 兼容）",
+					"description": "GroqCloud 的 OpenAI 兼容高速推理 API。"
+				},
+				"en": {
+					"name": "Groq (OpenAI Compatible)",
+					"description": "GroqCloud’s high-speed OpenAI-compatible inference API."
+				}
+			},
+			"links": {
+				"platform": "https://console.groq.com/",
+				"api_keys": "https://console.groq.com/keys"
+			}
 		}
 	},
 	{
@@ -305,7 +689,22 @@
 				"base": "https://api.x.ai/v1"
 			}
 		},
-		"description": "OpenAI-compatible root (api.x.ai/v1): chat/completions + images/generations (Grok Imagine). See docs.x.ai."
+		"description": "OpenAI-compatible root (api.x.ai/v1): chat/completions + images/generations (Grok Imagine). See docs.x.ai.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "xAI（Grok）",
+					"description": "xAI 官方 OpenAI 兼容 API，支持 Grok 对话与图片生成。"
+				},
+				"en": {
+					"name": "xAI (Grok)",
+					"description": "xAI’s OpenAI-compatible API for Grok chat and image generation."
+				}
+			},
+			"links": {
+				"platform": "https://console.x.ai/"
+			}
+		}
 	},
 	{
 		"name": "Together AI",
@@ -315,7 +714,22 @@
 				"base": "https://api.together.xyz/v1"
 			}
 		},
-		"description": "OpenAI-compatible root (api.together.xyz/v1): chat/completions + images/generations (e.g. FLUX). Host may also be api.together.ai—see Together docs."
+		"description": "OpenAI-compatible root (api.together.xyz/v1): chat/completions + images/generations (e.g. FLUX). Host may also be api.together.ai—see Together docs.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "Together AI",
+					"description": "Together AI 的 OpenAI 兼容 API，覆盖对话与图片模型。"
+				},
+				"en": {
+					"name": "Together AI",
+					"description": "Together AI’s OpenAI-compatible API for chat and image models."
+				}
+			},
+			"links": {
+				"platform": "https://api.together.ai/"
+			}
+		}
 	},
 	{
 		"name": "Fireworks AI",
@@ -325,6 +739,21 @@
 				"endpoints": {
 					"chat": "https://api.fireworks.ai/inference/v1/chat/completions"
 				}
+			}
+		},
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "Fireworks AI",
+					"description": "Fireworks AI 的 OpenAI 兼容推理 API。"
+				},
+				"en": {
+					"name": "Fireworks AI",
+					"description": "Fireworks AI’s OpenAI-compatible inference API."
+				}
+			},
+			"links": {
+				"platform": "https://app.fireworks.ai/"
 			}
 		}
 	},
@@ -338,7 +767,22 @@
 				}
 			}
 		},
-		"description": "OpenAI-compatible Chat Completions only (no Images API on this template). Path per Perplexity official docs."
+		"description": "OpenAI-compatible Chat Completions only (no Images API on this template). Path per Perplexity official docs.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "Perplexity",
+					"description": "Perplexity Sonar 系列联网模型的 OpenAI 兼容对话 API。"
+				},
+				"en": {
+					"name": "Perplexity",
+					"description": "OpenAI-compatible chat API for Perplexity’s web-connected Sonar models."
+				}
+			},
+			"links": {
+				"platform": "https://www.perplexity.ai/settings/api"
+			}
+		}
 	},
 	{
 		"name": "Cohere (OpenAI Compatibility)",
@@ -350,7 +794,22 @@
 				}
 			}
 		},
-		"description": "Uses the Cohere Compatibility API (OpenAI SDK migration path). See Cohere docs compatibility section."
+		"description": "Uses the Cohere Compatibility API (OpenAI SDK migration path). See Cohere docs compatibility section.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "Cohere（OpenAI 兼容）",
+					"description": "Cohere Compatibility API，可沿用 OpenAI SDK 接入。"
+				},
+				"en": {
+					"name": "Cohere (OpenAI Compatibility)",
+					"description": "Cohere’s Compatibility API for integrations using the OpenAI SDK."
+				}
+			},
+			"links": {
+				"platform": "https://dashboard.cohere.com/"
+			}
+		}
 	},
 	{
 		"name": "NVIDIA NIM (integrate.api)",
@@ -362,7 +821,22 @@
 				}
 			}
 		},
-		"description": "Common NIM OpenAI-compatible entry point; models and regions per NVIDIA Build / NGC docs."
+		"description": "Common NIM OpenAI-compatible entry point; models and regions per NVIDIA Build / NGC docs.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "NVIDIA NIM（integrate.api）",
+					"description": "NVIDIA Build 提供的 NIM OpenAI 兼容推理入口。"
+				},
+				"en": {
+					"name": "NVIDIA NIM (integrate.api)",
+					"description": "NVIDIA Build’s OpenAI-compatible NIM inference endpoint."
+				}
+			},
+			"links": {
+				"platform": "https://build.nvidia.com/"
+			}
+		}
 	},
 	{
 		"name": "Azure OpenAI (replace resource name)",
@@ -372,7 +846,22 @@
 				"base": "https://YOUR_RESOURCE_NAME.openai.azure.com/openai"
 			}
 		},
-		"description": "Replace YOUR_RESOURCE_NAME with your Azure portal OpenAI resource name; deployment paths and `api-version` per Microsoft official docs."
+		"description": "Replace YOUR_RESOURCE_NAME with your Azure portal OpenAI resource name; deployment paths and `api-version` per Microsoft official docs.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "Azure OpenAI（请替换资源名）",
+					"description": "Azure OpenAI 资源模板；导入后需替换为自己的资源名称。"
+				},
+				"en": {
+					"name": "Azure OpenAI (replace resource name)",
+					"description": "Azure OpenAI resource template; replace the placeholder with your resource name."
+				}
+			},
+			"links": {
+				"platform": "https://portal.azure.com/"
+			}
+		}
 	},
 	{
 		"name": "StepFun",
@@ -384,7 +873,22 @@
 				}
 			}
 		},
-		"description": "OpenAI-compatible chat endpoint (LLM only); other product lines such as Step Plan may use different URLs—see StepFun platform docs."
+		"description": "OpenAI-compatible chat endpoint (LLM only); other product lines such as Step Plan may use different URLs—see StepFun platform docs.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "阶跃星辰 StepFun",
+					"description": "阶跃星辰开放平台的 OpenAI 兼容对话 API。"
+				},
+				"en": {
+					"name": "StepFun",
+					"description": "StepFun’s OpenAI-compatible chat API."
+				}
+			},
+			"links": {
+				"platform": "https://platform.stepfun.com/"
+			}
+		}
 	},
 	{
 		"name": "Baichuan AI",
@@ -395,11 +899,27 @@
 					"chat": "https://api.baichuan-ai.com/v1/chat/completions"
 				}
 			}
+		},
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "百川智能",
+					"description": "百川智能开放平台的 OpenAI 兼容对话 API。"
+				},
+				"en": {
+					"name": "Baichuan AI",
+					"description": "Baichuan AI’s OpenAI-compatible chat API."
+				}
+			},
+			"links": {
+				"platform": "https://platform.baichuan-ai.com/"
+			}
 		}
 	},
 	{
 		"name": "Xiaomi MiMo",
 		"vendor_key": "xiaomi",
+		"icon_key": "xiaomimimo",
 		"endpoints": {
 			"openai": {
 				"endpoints": {
@@ -407,11 +927,27 @@
 				}
 			}
 		},
-		"description": "OpenAI-compatible chat endpoint (LLM only); host and path per latest Xiaomi MiMo platform docs."
+		"description": "OpenAI-compatible chat endpoint (LLM only); host and path per latest Xiaomi MiMo platform docs.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "小米 MiMo",
+					"description": "小米 MiMo 开放平台的标准 OpenAI 兼容对话 API。"
+				},
+				"en": {
+					"name": "Xiaomi MiMo",
+					"description": "Xiaomi MiMo’s standard OpenAI-compatible chat API."
+				}
+			},
+			"links": {
+				"platform": "https://platform.xiaomimimo.com/"
+			}
+		}
 	},
 	{
 		"name": "Xiaomi MiMo (Token Plan)",
 		"vendor_key": "xiaomi",
+		"icon_key": "xiaomimimo",
 		"endpoints": {
 			"openai": {
 				"endpoints": {
@@ -422,7 +958,53 @@
 				"base": "https://token-plan-cn.xiaomimimo.com/anthropic"
 			}
 		},
-		"description": "Xiaomi MiMo Token Plan OpenAI chat endpoint (LLM only); Anthropic base for tools such as Claude Code. Do not mix with the general API endpoint."
+		"description": "Xiaomi MiMo Token Plan OpenAI chat endpoint (LLM only); Anthropic base for tools such as Claude Code. Do not mix with the general API endpoint.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "小米 MiMo（Token Plan）",
+					"description": "小米 MiMo Token Plan 专用端点，支持 OpenAI 与 Anthropic 协议。"
+				},
+				"en": {
+					"name": "Xiaomi MiMo (Token Plan)",
+					"description": "Token Plan endpoints for OpenAI and Anthropic protocols."
+				}
+			},
+			"links": {
+				"platform": "https://platform.xiaomimimo.com/"
+			}
+		}
+	},
+	{
+		"name": "Qiniu AI",
+		"vendor_key": "qiniu",
+		"endpoints": {
+			"openai": {
+				"endpoints": {
+					"chat": "https://api.qnaigc.com/v1/chat/completions"
+				}
+			},
+			"anthropic": {
+				"base": "https://api.qnaigc.com"
+			}
+		},
+		"description": "Qiniu AI Token API (api.qnaigc.com): OpenAI chat/completions + Anthropic Messages root. Image generation uses chat modalities, not /images/generations—keep openai as chat-only. Overseas host api.modelink.ai is a separate template if needed. See developer.qiniu.com/aitokenapi.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "七牛云 AI",
+					"description": "七牛云 AI 大模型推理（Token API），支持 OpenAI 与 Anthropic 兼容协议。"
+				},
+				"en": {
+					"name": "Qiniu AI",
+					"description": "Qiniu AI Token API with OpenAI- and Anthropic-compatible access."
+				}
+			},
+			"links": {
+				"platform": "https://www.qiniu.com/products/ai-token-api",
+				"api_keys": "https://portal.qiniu.com/ai-inference"
+			}
+		}
 	},
 	{
 		"name": "OpenRouter",
@@ -435,7 +1017,117 @@
 				}
 			}
 		},
-		"description": "OpenAI-compatible chat via /api/v1; Images use OpenRouter's dedicated POST /api/v1/images (not /images/generations). See openrouter.ai/docs image API."
+		"description": "OpenAI-compatible chat via /api/v1; Images use OpenRouter's dedicated POST /api/v1/images (not /images/generations). See openrouter.ai/docs image API.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "OpenRouter",
+					"description": "OpenRouter 聚合平台，统一访问多家对话与图片模型。"
+				},
+				"en": {
+					"name": "OpenRouter",
+					"description": "A unified aggregation platform for chat and image models from many vendors."
+				}
+			},
+			"links": {
+				"platform": "https://openrouter.ai/",
+				"api_keys": "https://openrouter.ai/settings/keys"
+			}
+		}
+	},
+	{
+		"name": "OpenCode Zen",
+		"vendor_key": "opencode",
+		"endpoints": {
+			"openai": {
+				"endpoints": {
+					"chat": "https://opencode.ai/zen/v1/chat/completions"
+				}
+			},
+			"anthropic": {
+				"base": "https://opencode.ai/zen"
+			},
+			"gemini": {
+				"base": "https://opencode.ai/zen/v1/models"
+			}
+		},
+		"description": "OpenCode Zen pay-as-you-go gateway (/zen/v1…): OpenAI chat/completions, Anthropic Messages (root appends /v1/messages), and Gemini models base. Do not mix with OpenCode Go (/zen/go/v1…). Some GPT models on Zen use /v1/responses instead of chat/completions—route those separately if needed. See opencode.ai/docs/zen.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "OpenCode Zen",
+					"description": "OpenCode Zen 按量网关（/zen/v1），支持 OpenAI、Anthropic 与 Gemini；勿与 Go 套餐端点混用。"
+				},
+				"en": {
+					"name": "OpenCode Zen",
+					"description": "OpenCode Zen pay-as-you-go gateway (/zen/v1) with OpenAI, Anthropic, and Gemini; do not mix with Go endpoints."
+				}
+			},
+			"links": {
+				"platform": "https://opencode.ai/zen",
+				"api_keys": "https://opencode.ai/auth"
+			}
+		}
+	},
+	{
+		"name": "OpenCode Go",
+		"vendor_key": "opencode",
+		"endpoints": {
+			"openai": {
+				"endpoints": {
+					"chat": "https://opencode.ai/zen/go/v1/chat/completions"
+				}
+			},
+			"anthropic": {
+				"base": "https://opencode.ai/zen/go"
+			}
+		},
+		"description": "OpenCode Go subscription-only endpoints (/zen/go/v1…): OpenAI chat/completions + Anthropic Messages. Do not mix with OpenCode Zen (/zen/v1…) or plan quota will not apply. Model list is open-coding focused (no Gemini on this template). See opencode.ai/docs/go.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "OpenCode Go",
+					"description": "OpenCode Go 订阅套餐专用端点（/zen/go/v1），支持 OpenAI 与 Anthropic；勿与 Zen 按量端点混用。"
+				},
+				"en": {
+					"name": "OpenCode Go",
+					"description": "OpenCode Go subscription endpoints (/zen/go/v1) for OpenAI and Anthropic; do not mix with Zen pay-as-you-go."
+				}
+			},
+			"links": {
+				"platform": "https://opencode.ai/go",
+				"api_keys": "https://opencode.ai/auth"
+			}
+		}
+	},
+	{
+		"name": "ZenMux",
+		"vendor_key": "zenmux",
+		"endpoints": {
+			"openai": {
+				"base": "https://zenmux.ai/api/v1"
+			},
+			"anthropic": {
+				"base": "https://zenmux.ai/api/anthropic"
+			}
+		},
+		"description": "ZenMux aggregation API: OpenAI-compatible root (/api/v1) + Anthropic Messages base (/api/anthropic). Pay As You Go and Builder Plan (subscription, sk-ss-v1-* keys) share the same endpoints—billing differs by API key only, so one import template covers both. Vertex/Gemini native base is https://zenmux.ai/api/vertex-ai if you need a separate Gemini template. See docs.zenmux.ai.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "ZenMux",
+					"description": "ZenMux 聚合平台（Pay As You Go 与 Builder 订阅共用同一端点，按 API Key 区分计费）。"
+				},
+				"en": {
+					"name": "ZenMux",
+					"description": "ZenMux aggregation API; Pay As You Go and Builder Plan share endpoints and differ by API key only."
+				}
+			},
+			"links": {
+				"platform": "https://zenmux.ai/",
+				"api_keys": "https://zenmux.ai/platform"
+			}
+		}
 	},
 	{
 		"name": "SiliconFlow",
@@ -443,6 +1135,22 @@
 		"endpoints": {
 			"openai": {
 				"base": "https://api.siliconflow.cn/v1"
+			}
+		},
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "硅基流动",
+					"description": "硅基流动模型云的 OpenAI 兼容 API。"
+				},
+				"en": {
+					"name": "SiliconFlow",
+					"description": "SiliconFlow Model Cloud’s OpenAI-compatible API."
+				}
+			},
+			"links": {
+				"platform": "https://cloud.siliconflow.cn/",
+				"api_keys": "https://cloud.siliconflow.cn/account/ak"
 			}
 		}
 	},
@@ -456,6 +1164,21 @@
 				}
 			}
 		},
-		"description": "Default local Ollama OpenAI-compatible chat endpoint (LLM only). For remote or container deployments, change the host/port in the chat URL."
+		"description": "Default local Ollama OpenAI-compatible chat endpoint (LLM only). For remote or container deployments, change the host/port in the chat URL.",
+		"catalog": {
+			"i18n": {
+				"zh": {
+					"name": "Ollama（本地）",
+					"description": "本地 Ollama 默认 OpenAI 兼容端点；无需平台 API Key。"
+				},
+				"en": {
+					"name": "Ollama (Local)",
+					"description": "Default local Ollama OpenAI-compatible endpoint; no platform API key is required."
+				}
+			},
+			"links": {
+				"platform": "https://ollama.com/download"
+			}
+		}
 	}
 ]

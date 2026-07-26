@@ -2,6 +2,11 @@
 	{
 		"id": "longcat-2.0",
 		"display_name": "LongCat 2.0",
+		"description": "A sparse expert model from Meituan for coding, repository work, and long-horizon agents. Its sparse expert architecture is built for repository-scale coding, long-horizon problem solving, and agentic execution.",
+		"i18n": {
+			"en": "A sparse expert model from Meituan for coding, repository work, and long-horizon agents. Its sparse expert architecture is built for repository-scale coding, long-horizon problem solving, and agentic execution.",
+			"zh": "美团稀疏专家模型，适合编程、代码仓库任务与长周期 Agent。稀疏专家架构面向仓库级编程、长周期问题求解和 Agent 执行。"
+		},
 		"vendor": "meituan",
 		"context_window": 1000000,
 		"max_tokens": 128000,
