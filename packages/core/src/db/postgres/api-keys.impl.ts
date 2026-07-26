@@ -15,6 +15,7 @@ import {
 	type ApiKeyListSortOrder,
 } from '../api-keys-list-sort';
 import type { AdminApiKeyListItem } from '../../storage/repository-dtos';
+import { maskApiKeyFromPrefix } from '../../services/api-key-hash';
 import { parseMoney } from '../../storage/critical-write-paths-utils';
 
 function apiKeyListOrderBy(sort: ApiKeyListSortField, order: ApiKeyListSortOrder) {
@@ -31,7 +32,8 @@ function apiKeyListOrderBy(sort: ApiKeyListSortField, order: ApiKeyListSortOrder
 
 function mapPgKeyRow(r: {
 	id: string;
-	key: string;
+	keyHash: string;
+	keyPrefix: string | null;
 	userId: string;
 	name: string | null;
 	status: string;
@@ -42,7 +44,8 @@ function mapPgKeyRow(r: {
 }): ApiKeyRow {
 	return {
 		id: r.id,
-		key: r.key,
+		key_hash: r.keyHash,
+		key_prefix: r.keyPrefix ?? null,
 		user_id: r.userId,
 		name: r.name,
 		status: r.status,
@@ -56,7 +59,8 @@ function mapPgKeyRow(r: {
 function mapPgResolvedRow(
 	r: {
 		id: string;
-		key: string;
+		keyHash: string;
+		keyPrefix: string | null;
 		userId: string;
 		name: string | null;
 		status: string;
@@ -88,7 +92,7 @@ function mapPgResolvedRow(
 
 function mapPgAdminListRow(r: {
 	id: string;
-	key: string;
+	keyPrefix: string | null;
 	user_id: string;
 	name: string | null;
 	user_email: string | null;
@@ -104,7 +108,7 @@ function mapPgAdminListRow(r: {
 }): AdminApiKeyListItem {
 	return {
 		id: r.id,
-		key: r.key,
+		key_masked: maskApiKeyFromPrefix(r.keyPrefix),
 		user_id: r.user_id,
 		name: r.name,
 		user_email: r.user_email,
@@ -122,7 +126,8 @@ function mapPgAdminListRow(r: {
 
 const resolvedCols = {
 	id: pgApiKeysTable.id,
-	key: pgApiKeysTable.key,
+	keyHash: pgApiKeysTable.keyHash,
+	keyPrefix: pgApiKeysTable.keyPrefix,
 	userId: pgApiKeysTable.userId,
 	name: pgApiKeysTable.name,
 	status: pgApiKeysTable.status,
@@ -142,17 +147,17 @@ const resolvedCols = {
 export function createPostgresApiKeysRepository(db: PostgresDatabaseClient): ApiKeysRepository {
 	const drizzle = db.drizzle;
 	return {
-		async getApiKeyByKey(key: string): Promise<ApiKeyRow | null> {
+		async getApiKeyByKeyHash(keyHash: string): Promise<ApiKeyRow | null> {
 			const rows = await drizzle
 				.select()
 				.from(pgApiKeysTable)
-				.where(and(eq(pgApiKeysTable.key, key), eq(pgApiKeysTable.status, 'active')))
+				.where(and(eq(pgApiKeysTable.keyHash, keyHash), eq(pgApiKeysTable.status, 'active')))
 				.limit(1);
 			return rows[0] ? mapPgKeyRow(rows[0]) : null;
 		},
 
-		async getApiKeyByKeyAnyStatus(key: string): Promise<ApiKeyRow | null> {
-			const rows = await drizzle.select().from(pgApiKeysTable).where(eq(pgApiKeysTable.key, key)).limit(1);
+		async getApiKeyByKeyHashAnyStatus(keyHash: string): Promise<ApiKeyRow | null> {
+			const rows = await drizzle.select().from(pgApiKeysTable).where(eq(pgApiKeysTable.keyHash, keyHash)).limit(1);
 			return rows[0] ? mapPgKeyRow(rows[0]) : null;
 		},
 
@@ -161,12 +166,12 @@ export function createPostgresApiKeysRepository(db: PostgresDatabaseClient): Api
 			return rows[0] ? mapPgKeyRow(rows[0]) : null;
 		},
 
-		async getApiKeyWithUserByKey(key: string): Promise<ResolvedGatewayKeyRow | null> {
+		async getApiKeyWithUserByKeyHash(keyHash: string): Promise<ResolvedGatewayKeyRow | null> {
 			const rows = await drizzle
 				.select(resolvedCols)
 				.from(pgApiKeysTable)
 				.innerJoin(pgUsersTable, eq(pgApiKeysTable.userId, pgUsersTable.id))
-				.where(and(eq(pgApiKeysTable.key, key), eq(pgApiKeysTable.status, 'active')))
+				.where(and(eq(pgApiKeysTable.keyHash, keyHash), eq(pgApiKeysTable.status, 'active')))
 				.limit(1);
 			return rows[0] ? mapPgResolvedRow(rows[0]) : null;
 		},
@@ -194,7 +199,8 @@ export function createPostgresApiKeysRepository(db: PostgresDatabaseClient): Api
 			const status = params.status ?? 'active';
 			await drizzle.insert(pgApiKeysTable).values({
 				id: params.id,
-				key: params.key,
+				keyHash: params.keyHash,
+				keyPrefix: params.keyPrefix,
 				userId: params.userId,
 				name: params.name ?? null,
 				status,
@@ -288,7 +294,8 @@ export function createPostgresApiKeysRepository(db: PostgresDatabaseClient): Api
 			let listQ = drizzle
 				.select({
 					id: pgApiKeysTable.id,
-					key: pgApiKeysTable.key,
+					keyHash: pgApiKeysTable.keyHash,
+	keyPrefix: pgApiKeysTable.keyPrefix,
 					user_id: pgApiKeysTable.userId,
 					name: pgApiKeysTable.name,
 					user_email: pgUsersTable.email,

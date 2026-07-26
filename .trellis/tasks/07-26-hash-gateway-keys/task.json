@@ -3,7 +3,7 @@
   "name": "hash-gateway-keys",
   "title": "Hash gateway sk- keys at rest",
   "description": "HIGH: api_keys.key stores plaintext sk- keys; proxy validates by plaintext equality and admin API returns them in full. Store a hash, look up by hash on the proxy path, and reveal the secret once at creation. Requires schema migration + key re-issue.",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,

@@ -8,7 +8,8 @@ import type { ModelRouteRow } from '../types';
 /** 管理端密钥列表行（`getAllApiKeys`，JOIN `users`）。 */
 export interface AdminApiKeyListItem {
 	id: string;
-	key: string;
+	/** 掩码展示值（如 `sk-Ab3dEf9x…`）；明文不可还原，仅创建时返回一次。 */
+	key_masked: string;
 	user_id: string;
 	name: string | null;
 	user_email: string | null;

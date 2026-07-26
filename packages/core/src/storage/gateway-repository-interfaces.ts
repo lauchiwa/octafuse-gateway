@@ -75,10 +75,11 @@ export interface UserAuditLogsRepository {
 }
 
 export interface ApiKeysRepository {
-	getApiKeyByKey(key: string): Promise<ApiKeyRow | null>;
-	getApiKeyByKeyAnyStatus(key: string): Promise<ApiKeyRow | null>;
+	/** 按 SHA-256 摘要查询（调用方负责哈希；明文不入库）。 */
+	getApiKeyByKeyHash(keyHash: string): Promise<ApiKeyRow | null>;
+	getApiKeyByKeyHashAnyStatus(keyHash: string): Promise<ApiKeyRow | null>;
 	getApiKeyById(id: string): Promise<ApiKeyRow | null>;
-	getApiKeyWithUserByKey(key: string): Promise<ResolvedGatewayKeyRow | null>;
+	getApiKeyWithUserByKeyHash(keyHash: string): Promise<ResolvedGatewayKeyRow | null>;
 	getApiKeyWithUserById(id: string): Promise<ResolvedGatewayKeyRow | null>;
 	listKeysByUserId(userId: string, options?: { status?: string }): Promise<ApiKeyRow[]>;
 	insertApiKey(params: InsertKeyParams): Promise<void>;

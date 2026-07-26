@@ -40,7 +40,8 @@ export const usersTable = sqliteTable(
 
 export const apiKeysTable = sqliteTable('api_keys', {
 	id: text('id').primaryKey(),
-	key: text('key').notNull(),
+	keyHash: text('key_hash').notNull(),
+	keyPrefix: text('key_prefix'),
 	userId: text('user_id').notNull(),
 	name: text('name'),
 	status: text('status').notNull().default('active'),

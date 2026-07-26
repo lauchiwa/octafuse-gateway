@@ -9,7 +9,8 @@ export type BudgetPeriod = 'none' | 'daily' | 'weekly' | 'monthly';
 
 export interface GatewayApiKey {
   id: string;
-  key: string;
+  /** 掩码展示值（如 `sk-Ab3dEf9x…`）；明文仅创建时返回一次。 */
+  key_masked: string;
   user_id: string;
   /** 密钥展示名（`api_keys.name`） */
   name?: string | null;

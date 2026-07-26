@@ -4,6 +4,7 @@
  */
 import type { GatewayRepositories, RequestLogsByKeyIdFilter } from '@octafuse/core';
 import { createKey, updateKeyName } from '@octafuse/core/services/key-service';
+import { hashApiKey, maskApiKeyFromPrefix } from '@octafuse/core/services/api-key-hash';
 import {
 	getKeyInfo,
 	getOrCreateUser,
@@ -33,7 +34,7 @@ import type {
 /** `sk-` 开头按密钥查，否则按行 id 查（不区分 status，供更新前定位行）。 */
 async function resolveKeyRow(repos: GatewayRepositories, idOrKey: string) {
 	if (idOrKey.startsWith('sk-')) {
-		return repos.apiKeys.getApiKeyWithUserByKey(idOrKey);
+		return repos.apiKeys.getApiKeyWithUserByKeyHash(await hashApiKey(idOrKey));
 	}
 	return repos.apiKeys.getApiKeyWithUserById(idOrKey);
 }
@@ -41,7 +42,7 @@ async function resolveKeyRow(repos: GatewayRepositories, idOrKey: string) {
 /** 含已吊销：按 sk- 查时不过滤 status，供物理删除等。 */
 async function resolveKeyRowAnyStatus(repos: GatewayRepositories, idOrKey: string) {
 	if (idOrKey.startsWith('sk-')) {
-		const k = await repos.apiKeys.getApiKeyByKeyAnyStatus(idOrKey);
+		const k = await repos.apiKeys.getApiKeyByKeyHashAnyStatus(await hashApiKey(idOrKey));
 		if (!k) return null;
 		return repos.apiKeys.getApiKeyWithUserById(k.id);
 	}
@@ -345,7 +346,7 @@ export async function getAdminKeyById(repos: GatewayRepositories, idOrKey: strin
 
 	return {
 		id: info.id,
-		key: info.key,
+		key_masked: info.key_masked,
 		user_id: info.user_id,
 		name: info.name,
 		user_email: info.user_email,
@@ -406,6 +407,6 @@ export async function deleteAdminKey(repos: GatewayRepositories, idOrKey: string
 			correlationId: crypto.randomUUID(),
 		})
 	);
-	const ok = await repos.apiKeys.deleteApiKeyHard(row.id, row.key);
+	const ok = await repos.apiKeys.deleteApiKeyHard(row.id, row.key_hash);
 	if (!ok) throw notFound('Key not found');
 }
