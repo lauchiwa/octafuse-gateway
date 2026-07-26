@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  resolveCookieSecure,
   issueSessionToken,
   verifySessionToken,
   verifyRequestSession,
@@ -79,4 +80,20 @@ test('verifyRequestSession validates cookie from request headers', async () => {
 
   const none = new Request('https://x/api/admin/models');
   assert.equal(await verifyRequestSession(none, PASSWORD), false);
+});
+
+test('cookie Secure follows request protocol when unset', () => {
+	delete process.env.ADMIN_COOKIE_SECURE;
+	assert.equal(resolveCookieSecure(new Request('https://admin.example/x')), true);
+	assert.equal(resolveCookieSecure(new Request('http://localhost:8789/x')), false);
+	// 无 request 时保守取 false（不破坏纯 HTTP 部署）
+	assert.equal(resolveCookieSecure(), false);
+});
+
+test('explicit ADMIN_COOKIE_SECURE overrides both ways', () => {
+	process.env.ADMIN_COOKIE_SECURE = '1';
+	assert.equal(resolveCookieSecure(new Request('http://plain.example/x')), true);
+	process.env.ADMIN_COOKIE_SECURE = '0';
+	assert.equal(resolveCookieSecure(new Request('https://admin.example/x')), false);
+	delete process.env.ADMIN_COOKIE_SECURE;
 });

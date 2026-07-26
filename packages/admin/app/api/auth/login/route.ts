@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     const cookieStore = await cookies();
     cookieStore.set('admin_session', sessionToken, {
       httpOnly: true,
-      secure: resolveCookieSecure(),
+      secure: resolveCookieSecure(request),
       sameSite: 'strict',
       expires: expiresAt,
       path: '/',

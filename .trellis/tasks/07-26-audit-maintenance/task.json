@@ -3,7 +3,7 @@
   "name": "audit-maintenance",
   "title": "Maintenance: cookie secure default, deps, test bootstrap, upstream remote",
   "description": "Remaining lower-severity items from the 2026-07-26 audit: default ADMIN_COOKIE_SECURE on in production, npm audit fix for dev-toolchain advisories, make proxy unit tests self-bootstrapping (core dist), resolve dead vitest test files in core, and configure an upstream remote for fork sync.",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,

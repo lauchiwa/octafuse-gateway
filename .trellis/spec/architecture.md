@@ -110,7 +110,7 @@ operator's responsibility. The documented, canonical pattern
 (`docs/operators/deployment/docker.md §7`) is:
 
 - Production **strongly** recommends placing Admin (and any public Proxy) behind a TLS reverse proxy (Nginx / Caddy / Traefik). Do not expose the admin port in plaintext on an untrusted network.
-- The `admin_session` cookie has **no `Secure` flag by default**, so plain HTTP works out of the box (quickstart). Set `ADMIN_COOKIE_SECURE=1` only once Admin is served over HTTPS.
+- The `admin_session` cookie gets `Secure` **inferred from the request protocol** (HTTPS yes, plain HTTP no), so quickstart works out of the box while HTTPS deployments are hardened automatically. `ADMIN_COOKIE_SECURE=1`/`0` forces it either way.
 - Reference Nginx template (substitute upstream host + cert paths):
 
 ```nginx
