@@ -49,6 +49,25 @@ const OTHER_TZ = '__other__';
 
 const MASTER_KEY_KEY = 'MASTER_KEY';
 
+/** 凭据类配置项的展示状态（服务端只给掩码，不给明文）。 */
+type SecretStatus = { isSet: boolean; masked: string | null };
+
+/** 与服务端 `maskSecretValue` 一致的本地掩码，用于保存成功后立即回显。 */
+function localMask(value: string): string {
+	const v = value.trim();
+	if (v.length < 12) return '••••';
+	return `${v.slice(0, 4)}…${v.slice(-4)}`;
+}
+
+/** 「已配置 8bxa…jNfp / 未配置」提示。 */
+function SecretStatusHint({ status }: { status: SecretStatus }) {
+	return (
+		<p className="mt-1 text-xs text-gray-500">
+			{status.isSet ? `已配置：${status.masked ?? '••••'}（留空则不修改）` : '未配置'}
+		</p>
+	);
+}
+
 const MASTER_KEY_DEFAULT_DESCRIPTION =
 	'Bearer token for Gateway admin API. Set in Admin Config.';
 
@@ -187,6 +206,9 @@ export default function GatewayConfigPage() {
   const saveSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [wecomWebhookDraft, setWecomWebhookDraft] = useState('');
   const [feishuWebhookDraft, setFeishuWebhookDraft] = useState('');
+  const [masterKeyStatus, setMasterKeyStatus] = useState<SecretStatus>({ isSet: false, masked: null });
+  const [wecomWebhookStatus, setWecomWebhookStatus] = useState<SecretStatus>({ isSet: false, masked: null });
+  const [feishuWebhookStatus, setFeishuWebhookStatus] = useState<SecretStatus>({ isSet: false, masked: null });
   const [alertWebhooksSaving, setAlertWebhooksSaving] = useState(false);
   const [webhookWecomVisible, setWebhookWecomVisible] = useState(true);
   const [webhookFeishuVisible, setWebhookFeishuVisible] = useState(true);
@@ -200,12 +222,16 @@ export default function GatewayConfigPage() {
         setConfig(data.data);
         syncBusinessTimezoneUi(data.data, setBizSelectValue, setBizOtherValue);
         syncBillingCurrencyUi(data.data, setBillSelectValue);
+        // 凭据不再回读：草稿保持为空，仅展示「已配置 + 掩码」。
         const masterRow = data.data.find((r) => r.key === MASTER_KEY_KEY);
-        setMasterKeyDraft(masterRow?.value ?? '');
+        setMasterKeyDraft('');
+        setMasterKeyStatus({ isSet: !!masterRow?.is_set, masked: masterRow?.value_masked ?? null });
         const wecomRow = data.data.find((r) => r.key === ALERT_WEBHOOK_WECOM_URL_KEY);
         const feishuRow = data.data.find((r) => r.key === ALERT_WEBHOOK_FEISHU_URL_KEY);
-        setWecomWebhookDraft(wecomRow?.value ?? '');
-        setFeishuWebhookDraft(feishuRow?.value ?? '');
+        setWecomWebhookDraft('');
+        setFeishuWebhookDraft('');
+        setWecomWebhookStatus({ isSet: !!wecomRow?.is_set, masked: wecomRow?.value_masked ?? null });
+        setFeishuWebhookStatus({ isSet: !!feishuRow?.is_set, masked: feishuRow?.value_masked ?? null });
       }
     } catch (error) {
       console.error('Fetch config error:', error);
@@ -426,6 +452,39 @@ export default function GatewayConfigPage() {
     }
   };
 
+  /** 显式清除某个 webhook（空草稿现在表示「不修改」，故清除需独立入口）。 */
+  const handleClearWebhook = async (key: string) => {
+    setSaveError('');
+    clearSaveSuccess();
+    setAlertWebhooksSaving(true);
+    try {
+      const response = await fetch('/api/admin/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, value: '' }),
+      });
+      const data = await readApiJson(response);
+      if (!data.success) {
+        clearSaveSuccess();
+        setSaveError(data.message || tCommon('saveFailed'));
+        return;
+      }
+      if (key === ALERT_WEBHOOK_WECOM_URL_KEY) {
+        setWecomWebhookStatus({ isSet: false, masked: null });
+        setWecomWebhookDraft('');
+      } else {
+        setFeishuWebhookStatus({ isSet: false, masked: null });
+        setFeishuWebhookDraft('');
+      }
+      flashSaveSuccess(data.message || tCommon('configUpdated'));
+    } catch {
+      clearSaveSuccess();
+      setSaveError(tCommon('requestFailed'));
+    } finally {
+      setAlertWebhooksSaving(false);
+    }
+  };
+
   const handleSaveAlertWebhooks = async () => {
     setSaveError('');
     clearSaveSuccess();
@@ -433,18 +492,31 @@ export default function GatewayConfigPage() {
     try {
       const wecom = wecomWebhookDraft.trim();
       const feishu = feishuWebhookDraft.trim();
-      const results = await Promise.all([
-        fetch('/api/admin/config', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: ALERT_WEBHOOK_WECOM_URL_KEY, value: wecom }),
-        }),
-        fetch('/api/admin/config', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: ALERT_WEBHOOK_FEISHU_URL_KEY, value: feishu }),
-        }),
-      ]);
+      // 空草稿表示「不修改」（凭据不回读，空不再等于清除；清除走下方 handleClearWebhook）。
+      const pending: Array<Promise<Response>> = [];
+      if (wecom !== '') {
+        pending.push(
+          fetch('/api/admin/config', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: ALERT_WEBHOOK_WECOM_URL_KEY, value: wecom }),
+          })
+        );
+      }
+      if (feishu !== '') {
+        pending.push(
+          fetch('/api/admin/config', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: ALERT_WEBHOOK_FEISHU_URL_KEY, value: feishu }),
+          })
+        );
+      }
+      if (pending.length === 0) {
+        setAlertWebhooksSaving(false);
+        return;
+      }
+      const results = await Promise.all(pending);
       let successMessage = tCommon('configUpdated');
       for (const response of results) {
         const data = await readApiJson(response);
@@ -457,28 +529,15 @@ export default function GatewayConfigPage() {
           successMessage = data.message;
         }
       }
-      setConfig((prev) => {
-        const next = [...prev];
-        const upsert = (key: string, value: string, description: string | null) => {
-          const idx = next.findIndex((r) => r.key === key);
-          if (idx >= 0) {
-            next[idx] = { ...next[idx], value };
-          } else {
-            next.push({ key, value, description: description ?? null });
-          }
-        };
-        upsert(
-          ALERT_WEBHOOK_WECOM_URL_KEY,
-          wecom,
-          'WeCom group robot webhook URL; Proxy POSTs on api_key_request_logs status=error when non-empty.'
-        );
-        upsert(
-          ALERT_WEBHOOK_FEISHU_URL_KEY,
-          feishu,
-          'Feishu custom bot webhook URL; Proxy POSTs on api_key_request_logs status=error when non-empty.'
-        );
-        return next;
-      });
+      // 只更新掩码状态并清空草稿；明文不留在前端 state（与服务端不回读凭据一致）。
+      if (wecom !== '') {
+        setWecomWebhookStatus({ isSet: true, masked: localMask(wecom) });
+        setWecomWebhookDraft('');
+      }
+      if (feishu !== '') {
+        setFeishuWebhookStatus({ isSet: true, masked: localMask(feishu) });
+        setFeishuWebhookDraft('');
+      }
       flashSaveSuccess(successMessage);
     } catch {
       clearSaveSuccess();
@@ -507,10 +566,20 @@ export default function GatewayConfigPage() {
       const data = await readApiJson(response);
       if (data.success) {
         flashSaveSuccess(data.message);
+        // 明文不留在前端 state；仅回显掩码并清空输入框。
+        setMasterKeyStatus({ isSet: true, masked: localMask(raw) });
+        setMasterKeyDraft('');
         setConfig((prev) => {
           const idx = prev.findIndex((r) => r.key === MASTER_KEY_KEY);
           const desc = prev[idx]?.description ?? MASTER_KEY_DEFAULT_DESCRIPTION;
-          const nextRow: SystemConfigRow = { key: MASTER_KEY_KEY, value: raw, description: desc };
+          const nextRow: SystemConfigRow = {
+            key: MASTER_KEY_KEY,
+            value: null,
+            description: desc,
+            is_secret: true,
+            is_set: true,
+            value_masked: localMask(raw),
+          };
           if (idx >= 0) {
             const copy = [...prev];
             copy[idx] = nextRow;
@@ -604,6 +673,7 @@ export default function GatewayConfigPage() {
               autoComplete="new-password"
               className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-mono text-gray-900 shadow-sm"
             />
+            <SecretStatusHint status={masterKeyStatus} />
           </div>
           <button
             type="button"
@@ -716,6 +786,19 @@ export default function GatewayConfigPage() {
             visible={webhookWecomVisible}
             onToggleVisible={() => setWebhookWecomVisible((v) => !v)}
           />
+          <div className="-mt-2 flex items-center justify-between">
+            <SecretStatusHint status={wecomWebhookStatus} />
+            {wecomWebhookStatus.isSet && (
+              <button
+                type="button"
+                onClick={() => void handleClearWebhook(ALERT_WEBHOOK_WECOM_URL_KEY)}
+                disabled={alertWebhooksSaving}
+                className="text-xs text-gray-500 underline hover:text-gray-700 disabled:opacity-50"
+              >
+                清除
+              </button>
+            )}
+          </div>
           <WebhookUrlField
             showLabel={tCommon('show')}
             hideLabel={tCommon('hide')}
@@ -728,6 +811,19 @@ export default function GatewayConfigPage() {
             visible={webhookFeishuVisible}
             onToggleVisible={() => setWebhookFeishuVisible((v) => !v)}
           />
+          <div className="-mt-2 flex items-center justify-between">
+            <SecretStatusHint status={feishuWebhookStatus} />
+            {feishuWebhookStatus.isSet && (
+              <button
+                type="button"
+                onClick={() => void handleClearWebhook(ALERT_WEBHOOK_FEISHU_URL_KEY)}
+                disabled={alertWebhooksSaving}
+                className="text-xs text-gray-500 underline hover:text-gray-700 disabled:opacity-50"
+              >
+                清除
+              </button>
+            )}
+          </div>
           <button
             type="button"
             onClick={() => void handleSaveAlertWebhooks()}

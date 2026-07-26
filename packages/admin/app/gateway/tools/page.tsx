@@ -64,7 +64,23 @@ import {
 } from '@octafuse/core/lib/web-deep-search-system-config';
 import { WebSearchProviderGuideModal } from './components/web-search-provider-guide-modal';
 
-type ProviderDraft = { apiKey: string; cost: string };
+/**
+ * `apiKey` 为**待写入的新值**，永不承载库中现值 —— 服务端不再回读凭据（见 `system-config-mask`）。
+ * 空 `apiKey` 表示「不修改」；`apiKeySet` / `apiKeyMasked` 仅用于展示已配置状态。
+ */
+/** 「已配置 xxxx…yyyy（留空则不修改）/ 未配置」提示。 */
+function ApiKeyStatusHint({ draft }: { draft: { apiKeySet?: boolean; apiKeyMasked?: string } }) {
+	if (!draft.apiKeySet) {
+		return <p className="mt-1 text-xs text-gray-400">未配置</p>;
+	}
+	return (
+		<p className="mt-1 text-xs text-gray-500">
+			已配置：{draft.apiKeyMasked || '••••'}（留空则不修改）
+		</p>
+	);
+}
+
+type ProviderDraft = { apiKey: string; cost: string; apiKeySet?: boolean; apiKeyMasked?: string };
 
 function emptySearchDrafts(): Record<WebSearchProvider, ProviderDraft> {
 	const out = {} as Record<WebSearchProvider, ProviderDraft>;
@@ -102,7 +118,12 @@ function syncWebSearchFromRows(
 		for (const p of WEB_SEARCH_PROVIDERS) {
 			const entry = catalog[p];
 			if (entry) {
-				drafts[p] = { apiKey: entry.apiKey, cost: String(entry.cost) };
+				drafts[p] = {
+					apiKey: '',
+					cost: String(entry.cost),
+					apiKeySet: Boolean((entry as { apiKeySet?: boolean }).apiKeySet ?? entry.apiKey),
+					apiKeyMasked: entry.apiKey || undefined,
+				};
 			}
 		}
 		const activeRaw = rows.find((r) => r.key === WEB_SEARCH_ACTIVE_KEY)?.value?.trim().toLowerCase() ?? '';
@@ -120,11 +141,13 @@ function syncWebSearchFromRows(
 	const provider = (WEB_SEARCH_PROVIDERS as readonly string[]).includes(providerRaw)
 		? (providerRaw as WebSearchProvider)
 		: DEFAULT_WEB_SEARCH_PROVIDER;
-	const apiKey = rows.find((r) => r.key === WEB_SEARCH_API_KEY_KEY)?.value ?? '';
+	const apiKeyRow = rows.find((r) => r.key === WEB_SEARCH_API_KEY_KEY);
 	const costRaw = rows.find((r) => r.key === WEB_SEARCH_COST_KEY)?.value?.trim() ?? '';
 	drafts[provider] = {
-		apiKey,
+		apiKey: '',
 		cost: costRaw || String(DEFAULT_WEB_SEARCH_COST),
+		apiKeySet: Boolean(apiKeyRow?.is_set),
+		apiKeyMasked: apiKeyRow?.value_masked ?? undefined,
 	};
 	return { active: provider, drafts, savedActive: null };
 }
@@ -141,7 +164,12 @@ function syncWebFetchFromRows(
 		for (const p of WEB_FETCH_PROVIDERS) {
 			const entry = catalog[p];
 			if (entry) {
-				drafts[p] = { apiKey: entry.apiKey, cost: String(entry.cost) };
+				drafts[p] = {
+					apiKey: '',
+					cost: String(entry.cost),
+					apiKeySet: Boolean((entry as { apiKeySet?: boolean }).apiKeySet ?? entry.apiKey),
+					apiKeyMasked: entry.apiKey || undefined,
+				};
 			}
 		}
 		const activeRaw = rows.find((r) => r.key === WEB_FETCH_ACTIVE_KEY)?.value?.trim().toLowerCase() ?? '';
@@ -158,11 +186,13 @@ function syncWebFetchFromRows(
 	const provider = (WEB_FETCH_PROVIDERS as readonly string[]).includes(providerRaw)
 		? (providerRaw as WebFetchProvider)
 		: DEFAULT_WEB_FETCH_PROVIDER;
-	const apiKey = rows.find((r) => r.key === WEB_FETCH_API_KEY_KEY)?.value ?? '';
+	const apiKeyRow = rows.find((r) => r.key === WEB_FETCH_API_KEY_KEY);
 	const costRaw = rows.find((r) => r.key === WEB_FETCH_COST_KEY)?.value?.trim() ?? '';
 	drafts[provider] = {
-		apiKey,
+		apiKey: '',
 		cost: costRaw || String(DEFAULT_WEB_FETCH_COST),
+		apiKeySet: Boolean(apiKeyRow?.is_set),
+		apiKeyMasked: apiKeyRow?.value_masked ?? undefined,
 	};
 	return { active: provider, drafts, savedActive: null };
 }
@@ -208,7 +238,12 @@ function syncWebDeepSearchFromRows(
 		for (const p of WEB_DEEP_SEARCH_PROVIDERS) {
 			const entry = catalog[p];
 			if (entry) {
-				drafts[p] = { apiKey: entry.apiKey, cost: String(entry.cost) };
+				drafts[p] = {
+					apiKey: '',
+					cost: String(entry.cost),
+					apiKeySet: Boolean((entry as { apiKeySet?: boolean }).apiKeySet ?? entry.apiKey),
+					apiKeyMasked: entry.apiKey || undefined,
+				};
 			}
 		}
 		const activeRaw = rows.find((r) => r.key === WEB_DEEP_SEARCH_ACTIVE_KEY)?.value?.trim().toLowerCase() ?? '';
@@ -700,6 +735,7 @@ export default function GatewayToolsConfigPage() {
 														)}
 													</button>
 												</div>
+												<ApiKeyStatusHint draft={webSearchDrafts[p]} />
 											</td>
 										</tr>
 									))}
@@ -832,6 +868,7 @@ export default function GatewayToolsConfigPage() {
 														)}
 													</button>
 												</div>
+												<ApiKeyStatusHint draft={webFetchDrafts[p]} />
 											</td>
 										</tr>
 									))}
@@ -981,6 +1018,7 @@ export default function GatewayToolsConfigPage() {
 														)}
 													</button>
 												</div>
+												<ApiKeyStatusHint draft={webDeepSearchDrafts[p]} />
 											</td>
 										</tr>
 									))}

@@ -2,6 +2,7 @@
  * 管理后台聚合服务：仪表盘 KPI、全局请求日志列表、`system_config` 读写，以及模型/供应商/用户/可靠性分析 API 的数据装配。
  */
 import type { GatewayRepositories } from '@octafuse/core';
+import { maskSystemConfigRow, mergeSecretCatalogPreservingKeys } from './system-config-mask';
 import { BILLING_CURRENCY_KEY, tryParseGatewaySupportedBillingCurrencyInput } from '@octafuse/core/lib/billing-currency';
 import {
 	parseWebSearchActiveInput,
@@ -182,13 +183,19 @@ export async function listAdminGlobalBudgetAuditLogFilterOptionsService(repos: G
 }
 
 /** 配置列表；空 value 转为 `''` 便于前端表单展示。 */
+/**
+ * 列出 `system_config`；**凭据类键不返回明文**（见 `system-config-mask`）。
+ * 写路径不受影响：设置新值照常，只是不能再读回旧值。
+ */
 export async function listAdminSystemConfigService(repos: GatewayRepositories): Promise<AdminConfigRow[]> {
 	const rows = await repos.systemConfig.listSystemConfigRows();
-	return rows.map((r) => ({
-		key: r.key,
-		value: r.value ?? '',
-		description: r.description ?? null,
-	}));
+	return rows.map((r) =>
+		maskSystemConfigRow({
+			key: r.key,
+			value: r.value ?? '',
+			description: r.description ?? null,
+		})
+	);
 }
 
 /**
@@ -226,7 +233,20 @@ export async function updateAdminSystemConfigService(repos: GatewayRepositories,
 	}
 
 	if (key === WEB_SEARCH_CATALOG_KEY) {
-		const catalog = parseWebSearchCatalogInput(value);
+		const catalogRawIncoming = parseWebSearchCatalogInput(value);
+		// 空 apiKey 表示「不修改」：先与库中已存目录合并，再做后续校验，
+		// 否则「只改成本」会因密钥为空而被拒，或把已存密钥抹掉。
+		const catalog =
+			catalogRawIncoming == null
+				? null
+				: parseWebSearchCatalogInput(
+						JSON.stringify(
+							mergeSecretCatalogPreservingKeys(
+								catalogRawIncoming as Record<string, { apiKey?: string; cost?: number }>,
+								await repos.systemConfig.getConfig(WEB_SEARCH_CATALOG_KEY)
+							)
+						)
+					);
 		if (catalog == null) {
 			throw badRequest(
 				`WEB_SEARCH_CATALOG must be a JSON object with whitelist providers (${WEB_SEARCH_PROVIDERS.join(', ')}) and { apiKey: string, cost: number }`
@@ -262,7 +282,20 @@ export async function updateAdminSystemConfigService(repos: GatewayRepositories,
 	}
 
 	if (key === WEB_FETCH_CATALOG_KEY) {
-		const catalog = parseWebFetchCatalogInput(value);
+		const catalogRawIncoming = parseWebFetchCatalogInput(value);
+		// 空 apiKey 表示「不修改」：先与库中已存目录合并，再做后续校验，
+		// 否则「只改成本」会因密钥为空而被拒，或把已存密钥抹掉。
+		const catalog =
+			catalogRawIncoming == null
+				? null
+				: parseWebFetchCatalogInput(
+						JSON.stringify(
+							mergeSecretCatalogPreservingKeys(
+								catalogRawIncoming as Record<string, { apiKey?: string; cost?: number }>,
+								await repos.systemConfig.getConfig(WEB_FETCH_CATALOG_KEY)
+							)
+						)
+					);
 		if (catalog == null) {
 			throw badRequest(
 				`WEB_FETCH_CATALOG must be a JSON object with whitelist providers (${WEB_FETCH_PROVIDERS.join(', ')}) and { apiKey: string, cost: number }`
@@ -298,7 +331,20 @@ export async function updateAdminSystemConfigService(repos: GatewayRepositories,
 	}
 
 	if (key === WEB_DEEP_SEARCH_CATALOG_KEY) {
-		const catalog = parseWebDeepSearchCatalogInput(value);
+		const catalogRawIncoming = parseWebDeepSearchCatalogInput(value);
+		// 空 apiKey 表示「不修改」：先与库中已存目录合并，再做后续校验，
+		// 否则「只改成本」会因密钥为空而被拒，或把已存密钥抹掉。
+		const catalog =
+			catalogRawIncoming == null
+				? null
+				: parseWebDeepSearchCatalogInput(
+						JSON.stringify(
+							mergeSecretCatalogPreservingKeys(
+								catalogRawIncoming as Record<string, { apiKey?: string; cost?: number }>,
+								await repos.systemConfig.getConfig(WEB_DEEP_SEARCH_CATALOG_KEY)
+							)
+						)
+					);
 		if (catalog == null) {
 			throw badRequest(
 				`WEB_DEEP_SEARCH_CATALOG must be a JSON object with whitelist providers (${WEB_DEEP_SEARCH_PROVIDERS.join(', ')}) and { apiKey: string, cost: number }`

@@ -247,8 +247,15 @@ export interface GatewayRequestLog {
 /** `system_config` row shape (Gateway D1; admin UI loads via Gateway Worker proxy). */
 export interface SystemConfigRow {
   key: string;
-  value: string;
+  /** 凭据类键为 `null`（服务端不再返回明文）；目录键为已脱敏 JSON。 */
+  value: string | null;
   description: string | null;
+  /** 是否为凭据类键。 */
+  is_secret?: boolean;
+  /** 是否已配置（不泄露内容）。 */
+  is_set?: boolean;
+  /** 形如 `8bxa…jNfp`；未配置或非敏感时为 `null`。 */
+  value_masked?: string | null;
 }
 
 export interface DashboardStats {

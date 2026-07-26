@@ -382,8 +382,15 @@ export type AdminRequestLogsOutput = {
 /** `GET /admin/config` 单行 */
 export type AdminConfigRow = {
 	key: string;
-	value: string;
+	/** 敏感标量为 `null`（不可读回）；目录键为已脱敏 JSON；普通键为原值。 */
+	value: string | null;
 	description: string | null;
+	/** 是否为凭据类键（由 `system-config-mask` 判定）。 */
+	is_secret: boolean;
+	/** 是否已配置；供前端显示「已配置 / 未配置」而不泄露内容。 */
+	is_set: boolean;
+	/** 形如 `8bxa…jNfp`；未配置或非敏感时为 `null`。 */
+	value_masked: string | null;
 };
 
 /** `GET /admin/stats` 仪表盘数据结构 */
