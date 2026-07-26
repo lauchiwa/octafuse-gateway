@@ -11,6 +11,7 @@ import type {
 } from '../provider-api-keys-types';
 import { isPendingProviderImportApiKey, maskProviderApiKeyForAdmin } from '../provider-key-utils';
 import { PROVIDER_API_KEY_PATCH_COLS } from '../patch-allowlists';
+import { createProviderKeyCrypto, type ProviderKeyCrypto } from '../../services/provider-key-crypto';
 
 function mapAdminRow(row: {
 	id: string;
@@ -39,8 +40,13 @@ function mapAdminRow(row: {
 	};
 }
 
-export function createD1ProviderApiKeysRepository(db: D1DatabaseClient): ProviderApiKeysRepository {
+export function createD1ProviderApiKeysRepository(
+	db: D1DatabaseClient,
+	crypto?: ProviderKeyCrypto
+): ProviderApiKeysRepository {
 	const raw = db.raw;
+	// 未注入时按「历史明文」语义直通，便于既有单测与未配置 secret 的自托管场景。
+	const keyCrypto: ProviderKeyCrypto = crypto ?? createProviderKeyCrypto(null);
 	return {
 		async listProviderKeys(providerId: string): Promise<ProviderApiKeyAdminRow[]> {
 			const rows = await raw
@@ -61,7 +67,9 @@ export function createD1ProviderApiKeysRepository(db: D1DatabaseClient): Provide
 					created_at: string;
 					updated_at: string;
 				}>();
-			return (rows.results ?? []).map(mapAdminRow);
+			return Promise.all(
+				(rows.results ?? []).map(async (row) => mapAdminRow({ ...row, api_key: await keyCrypto.decrypt(row.api_key) }))
+			);
 		},
 
 		async getActiveProviderKeys(providerId: string): Promise<ActiveProviderApiKeyRow[]> {
@@ -73,11 +81,14 @@ export function createD1ProviderApiKeysRepository(db: D1DatabaseClient): Provide
 				)
 				.bind(providerId)
 				.all<ActiveProviderApiKeyRow>();
-			return rows.results ?? [];
+			return Promise.all(
+				(rows.results ?? []).map(async (row) => ({ ...row, api_key: await keyCrypto.decrypt(row.api_key) }))
+			);
 		},
 
 		async createProviderKey(params: InsertProviderApiKeyParams): Promise<void> {
 			const now = new Date().toISOString();
+			const storedApiKey = await keyCrypto.encrypt(params.apiKey);
 			await raw
 				.prepare(
 					`INSERT INTO provider_api_keys (id, provider_id, label, api_key, status, weight, priority, limit_config, created_at, updated_at)
@@ -87,7 +98,7 @@ export function createD1ProviderApiKeysRepository(db: D1DatabaseClient): Provide
 					params.id,
 					params.providerId,
 					params.label,
-					params.apiKey,
+					storedApiKey,
 					params.status ?? 'active',
 					params.weight ?? 1,
 					params.priority ?? 0,
@@ -103,7 +114,7 @@ export function createD1ProviderApiKeysRepository(db: D1DatabaseClient): Provide
 			const bindValues: unknown[] = [];
 			const fieldMap: Record<string, unknown> = {
 				label: patch.label,
-				api_key: patch.apiKey,
+				api_key: patch.apiKey === undefined ? undefined : await keyCrypto.encrypt(patch.apiKey),
 				status: patch.status,
 				weight: patch.weight,
 				priority: patch.priority,
@@ -149,7 +160,7 @@ export function createD1ProviderApiKeysRepository(db: D1DatabaseClient): Provide
 					created_at: string;
 					updated_at: string;
 				}>();
-			return row ? mapAdminRow(row) : null;
+			return row ? mapAdminRow({ ...row, api_key: await keyCrypto.decrypt(row.api_key) }) : null;
 		},
 
 		async getProviderKeyPlaintext(keyId: string): Promise<{ provider_id: string; api_key: string } | null> {
@@ -157,7 +168,8 @@ export function createD1ProviderApiKeysRepository(db: D1DatabaseClient): Provide
 				.prepare(`SELECT provider_id, api_key FROM provider_api_keys WHERE id = ?`)
 				.bind(keyId)
 				.first<{ provider_id: string; api_key: string }>();
-			return row ?? null;
+			if (!row) return null;
+			return { provider_id: row.provider_id, api_key: await keyCrypto.decrypt(row.api_key) };
 		},
 
 		async countActiveProviderKeys(providerId: string): Promise<number> {

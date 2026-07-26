@@ -54,3 +54,4 @@ export * from './services/user-service';
 export * from './services/budget-transition-service';
 export * from './services/key-service';
 export * from './services/api-key-hash';
+export * from './services/provider-key-crypto';

@@ -9,6 +9,8 @@ export type AdminBindings = {
 	DATABASE_URL?: string;
 	/** 与 `DATABASE_URL` 命名对齐；Node 下省略视为 `postgres`（见 `@octafuse/core`）。 */
 	DATABASE_DRIVER?: string;
+	/** provider 上游密钥静态加密 secret（Worker secret / 环境变量）。 */
+	PROVIDER_KEY_ENCRYPTION_KEY?: string;
 	STORAGE_CONTEXT?: StorageContext;
 };
 

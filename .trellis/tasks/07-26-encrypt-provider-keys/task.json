@@ -3,7 +3,7 @@
   "name": "encrypt-provider-keys",
   "title": "Encrypt provider upstream API keys at rest",
   "description": "HIGH: provider_api_keys.api_key stored plaintext (masked in admin listing only). Envelope-encrypt with a Worker secret; decrypt only on the egress path. Requires migration of existing rows.",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
