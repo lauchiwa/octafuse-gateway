@@ -539,18 +539,7 @@ export default function GatewayKeysPage() {
                 </td>
                 <td className="px-3 py-3 whitespace-nowrap">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-mono text-gray-900">{maskKey(key.key)}</span>
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        copyToClipboard(key.key);
-                      }}
-                      className="text-gray-400 hover:text-gray-600"
-                      title={t('copyKey')}
-                    >
-                      <ClipboardDocumentIcon className="h-4 w-4" />
-                    </button>
+                    <span className="text-sm font-mono text-gray-900">{key.key_masked}</span>
                   </div>
                 </td>
                 <td className="px-3 py-3 whitespace-nowrap">
@@ -821,15 +810,7 @@ export default function GatewayKeysPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <ReadonlyRow label={t('fields.secretKey')}>
                     <div className="flex items-start gap-2">
-                      <span className="font-mono text-xs break-all">{selectedKey.key}</span>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(selectedKey.key)}
-                        className="shrink-0 text-gray-400 hover:text-gray-600"
-                        title={t('copySecret')}
-                      >
-                        <ClipboardDocumentIcon className="h-4 w-4" />
-                      </button>
+                      <span className="font-mono text-xs break-all">{selectedKey.key_masked}</span>
                     </div>
                   </ReadonlyRow>
                   <ReadonlyRow label={t('fields.status')}>

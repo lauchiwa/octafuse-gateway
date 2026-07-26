@@ -14,6 +14,7 @@ import type {
 	UpdateProviderApiKeyPatch,
 } from '../provider-api-keys-types';
 import { isPendingProviderImportApiKey, maskProviderApiKeyForAdmin } from '../provider-key-utils';
+import { createProviderKeyCrypto, type ProviderKeyCrypto } from '../../services/provider-key-crypto';
 
 function mapAdminRow(r: {
 	id: string;
@@ -42,8 +43,13 @@ function mapAdminRow(r: {
 	};
 }
 
-export function createMySqlProviderApiKeysRepository(db: MySqlDatabaseClient): ProviderApiKeysRepository {
+export function createMySqlProviderApiKeysRepository(
+	db: MySqlDatabaseClient,
+	crypto?: ProviderKeyCrypto
+): ProviderApiKeysRepository {
 	const drizzle = db.drizzle;
+	// 未注入时按「历史明文」语义直通，便于既有单测与未配置 secret 的自托管场景。
+	const keyCrypto: ProviderKeyCrypto = crypto ?? createProviderKeyCrypto(null);
 	return {
 		async listProviderKeys(providerId: string): Promise<ProviderApiKeyAdminRow[]> {
 			const rows = await drizzle
@@ -51,7 +57,9 @@ export function createMySqlProviderApiKeysRepository(db: MySqlDatabaseClient): P
 				.from(myProviderApiKeysTable)
 				.where(eq(myProviderApiKeysTable.providerId, providerId))
 				.orderBy(desc(myProviderApiKeysTable.priority), asc(myProviderApiKeysTable.createdAt));
-			return rows.map(mapAdminRow);
+			return Promise.all(
+				rows.map(async (r) => mapAdminRow({ ...r, apiKey: await keyCrypto.decrypt(r.apiKey) }))
+			);
 		},
 
 		async getActiveProviderKeys(providerId: string): Promise<ActiveProviderApiKeyRow[]> {
@@ -67,14 +75,14 @@ export function createMySqlProviderApiKeysRepository(db: MySqlDatabaseClient): P
 				.from(myProviderApiKeysTable)
 				.where(and(eq(myProviderApiKeysTable.providerId, providerId), eq(myProviderApiKeysTable.status, 'active')))
 				.orderBy(desc(myProviderApiKeysTable.priority), asc(myProviderApiKeysTable.createdAt));
-			const keys: ActiveProviderApiKeyRow[] = rows.map((r) => ({
+			const keys: ActiveProviderApiKeyRow[] = await Promise.all(rows.map(async (r) => ({
 				id: r.id,
 				label: r.label,
-				api_key: r.api_key,
+				api_key: await keyCrypto.decrypt(r.api_key),
 				weight: r.weight,
 				priority: r.priority,
 				limit_config: r.limit_config,
-			}));
+			})));
 			return keys;
 		},
 
@@ -84,7 +92,7 @@ export function createMySqlProviderApiKeysRepository(db: MySqlDatabaseClient): P
 				id: params.id,
 				providerId: params.providerId,
 				label: params.label,
-				apiKey: params.apiKey,
+				apiKey: await keyCrypto.encrypt(params.apiKey),
 				status: params.status ?? 'active',
 				weight: params.weight ?? 1,
 				priority: params.priority ?? 0,
@@ -97,7 +105,7 @@ export function createMySqlProviderApiKeysRepository(db: MySqlDatabaseClient): P
 		async updateProviderKeyByPatch(keyId: string, patch: UpdateProviderApiKeyPatch): Promise<number> {
 			const set: Record<string, unknown> = { updatedAt: new Date().toISOString() };
 			if (patch.label !== undefined) set.label = patch.label;
-			if (patch.apiKey !== undefined) set.apiKey = patch.apiKey;
+			if (patch.apiKey !== undefined) set.apiKey = await keyCrypto.encrypt(patch.apiKey);
 			if (patch.status !== undefined) set.status = patch.status;
 			if (patch.weight !== undefined) set.weight = patch.weight;
 			if (patch.priority !== undefined) set.priority = patch.priority;
@@ -117,7 +125,7 @@ export function createMySqlProviderApiKeysRepository(db: MySqlDatabaseClient): P
 
 		async getProviderKeyById(keyId: string): Promise<ProviderApiKeyAdminRow | null> {
 			const rows = await drizzle.select().from(myProviderApiKeysTable).where(eq(myProviderApiKeysTable.id, keyId)).limit(1);
-			return rows[0] ? mapAdminRow(rows[0]) : null;
+			return rows[0] ? mapAdminRow({ ...rows[0], apiKey: await keyCrypto.decrypt(rows[0].apiKey) }) : null;
 		},
 
 		async getProviderKeyPlaintext(keyId: string): Promise<{ provider_id: string; api_key: string } | null> {
@@ -131,7 +139,7 @@ export function createMySqlProviderApiKeysRepository(db: MySqlDatabaseClient): P
 				.limit(1);
 			const row = rows[0];
 			if (!row) return null;
-			return { provider_id: row.provider_id, api_key: row.api_key };
+			return { provider_id: row.provider_id, api_key: await keyCrypto.decrypt(row.api_key) };
 		},
 
 		async countActiveProviderKeys(providerId: string): Promise<number> {

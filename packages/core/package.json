@@ -11,7 +11,7 @@
 		"build": "npm run build:migrate && npm run build:node-index",
 		"build:migrate": "tsc -p tsconfig.build.migrate.json",
 		"build:node-index": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --packages=external --log-level=warning",
-		"test:unit": "tsx --test src/db/image-token-usage.test.ts src/db/image-per-image-usage.test.ts src/db/pricing-profile.test.ts src/db/pricing-schedule.test.ts src/db/model-modalities.test.ts src/lib/business-timezone.test.ts src/services/budget-transition-service.test.ts src/upstream-protocol-images-url.test.ts src/provider-endpoints.test.ts src/provider-custom-headers.test.ts src/merge-upstream-headers.test.ts src/db/providers-custom-headers-roundtrip.test.ts"
+		"test:unit": "tsx --test src/gemini-upstream-url.test.ts src/lib/resolve-me-metadata.test.ts src/db/model-sticky-config.test.ts src/db/provider-key-limit-config.test.ts src/db/provider-key-utils.test.ts src/services/api-key-hash.test.ts src/services/provider-key-crypto.test.ts src/db/image-token-usage.test.ts src/db/image-per-image-usage.test.ts src/db/pricing-profile.test.ts src/db/pricing-schedule.test.ts src/db/model-modalities.test.ts src/lib/business-timezone.test.ts src/services/budget-transition-service.test.ts src/upstream-protocol-images-url.test.ts src/provider-endpoints.test.ts src/provider-custom-headers.test.ts src/merge-upstream-headers.test.ts src/db/providers-custom-headers-roundtrip.test.ts"
 	},
 	"files": [
 		"dist",
@@ -52,6 +52,8 @@
 		"./lib/string-utils": "./src/lib/string-utils.ts",
 		"./lib/time-format": "./src/lib/time-format.ts",
 		"./services/key-service": "./src/services/key-service.ts",
+		"./services/api-key-hash": "./src/services/api-key-hash.ts",
+		"./services/provider-key-crypto": "./src/services/provider-key-crypto.ts",
 		"./services/user-service": "./src/services/user-service.ts",
 		"./services/budget-transition-service": "./src/services/budget-transition-service.ts",
 		"./storage/drizzle/client-d1": "./src/storage/drizzle/client-d1.ts",

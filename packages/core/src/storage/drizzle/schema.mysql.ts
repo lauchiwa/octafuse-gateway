@@ -73,7 +73,8 @@ export const usersTable = mysqlTable(
 
 export const apiKeysTable = mysqlTable('api_keys', {
 	id: varchar('id', { length: COL.ID }).primaryKey(),
-	key: varchar('key', { length: COL.KEY }).notNull(),
+	keyHash: varchar('key_hash', { length: COL.KEY }).notNull(),
+	keyPrefix: varchar('key_prefix', { length: 64 }),
 	userId: varchar('user_id', { length: COL.USER_ID }).notNull(),
 	name: varchar('name', { length: COL.NAME }),
 	status: varchar('status', { length: COL.STATUS }).notNull().default('active'),

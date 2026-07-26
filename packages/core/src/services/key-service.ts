@@ -9,6 +9,7 @@ import {
 } from '../db/user-audit-snapshot';
 import type { GatewayRepositories } from '../storage/repositories';
 import { createApiKeyWithAudit } from '../storage/critical-write-paths';
+import { apiKeyPrefix, hashApiKey } from './api-key-hash';
 
 const KEY_PREFIX = 'sk-';
 const KEY_RANDOM_BYTES = 32;
@@ -50,7 +51,8 @@ export async function createKey(
 
 	const insertParams: InsertKeyParams = {
 		id,
-		key,
+		keyHash: await hashApiKey(key),
+		keyPrefix: apiKeyPrefix(key),
 		userId: params.user_id,
 		name: params.name ?? null,
 		metadata: params.metadata ?? null,

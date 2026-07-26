@@ -29,7 +29,7 @@
 |`PORT`|否|默认 Dockerfile 内为 `8789`|
 |`ADMIN_USERNAME`|是|控制台登录用户名|
 |`ADMIN_PASSWORD`|是|控制台登录密码|
-|`ADMIN_COOKIE_SECURE`|否|**可选加固**：为 `admin_session` 加上 `Secure`。默认不设（明文 HTTP / quickstart 可登录）。仅在已用 HTTPS 访问 Admin、并希望进一步限制会话 Cookie 时设 `1`/`true`/`yes`/`on`（见 [§7.3](#73-生产-https-建议)）。|
+|`ADMIN_COOKIE_SECURE`|否|为 `admin_session` 加上 `Secure`。**默认按请求协议自动判断**：HTTPS 访问时自动开启，明文 HTTP（如 quickstart）保持关闭，因此无需手工配置。可显式覆盖：`1`/`true`/`yes`/`on` 强制开启，`0`/`false`/`no`/`off` 强制关闭（见 [§7.3](#73-生产-https-建议)）。|
 |`AUTO_MIGRATE`|否|与 proxy 相同：真值时启动前自动迁移（见 §5）。默认关闭。|
 |迁移方式（备选）|—|未设 `AUTO_MIGRATE` 时：迁移由 `migrate` 服务独立执行，admin 仅负责应用进程。|
 
@@ -274,7 +274,7 @@ Admin 会话 Cookie（`admin_session`）默认**不**带 `Secure`，因此无需
 
 **生产强烈建议**将 Admin（以及对外暴露的 Proxy）置于 Nginx / Caddy / Traefik 等 **TLS 反代**之后，使用 HTTPS 访问控制台，避免把管理口明文暴露到不可信网络。
 
-若已通过 HTTPS 访问 Admin，可按需开启可选加固 **`ADMIN_COOKIE_SECURE=1`**（Compose / `.env`），让浏览器仅在 HTTPS 下保存并回传会话 Cookie。该变量不是必需项；不设不影响正常登录。
+通过 HTTPS 访问 Admin 时，`admin_session` 会**自动**带上 `Secure`（按请求协议判断），无需配置。若你的反代终止 TLS 后以明文回源、导致自动判断不准，可用 **`ADMIN_COOKIE_SECURE=1`** 强制开启；纯 HTTP 部署若被误判则用 `0` 强制关闭。
 
 Nginx 示例（将上游与证书路径换成你的环境）：
 

@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
 import {
 	applyGeminiStreamQueryParams,
 	buildGeminiUpstreamActionUrl,
@@ -9,87 +10,79 @@ import {
 
 describe('buildGeminiUpstreamActionUrl', () => {
 	it('rejects empty base URL', () => {
-		expect(() =>
+		assert.throws(() =>
 			buildGeminiUpstreamActionUrl('', 'gemini-2.5-pro', 'generateContent')
-		).toThrow(/base URL is empty/);
-		expect(() =>
+		, /base URL is empty/);
+		assert.throws(() =>
 			buildGeminiUpstreamActionUrl('   ', 'gemini-2.5-pro', 'generateContent')
-		).toThrow(/base URL is empty/);
+		, /base URL is empty/);
 	});
 
 	it('rejects bare host without path prefix', () => {
-		expect(() =>
+		assert.throws(() =>
 			buildGeminiUpstreamActionUrl(
 				'https://generativelanguage.googleapis.com',
 				'gemini-2.5-pro',
 				'streamGenerateContent'
 			)
-		).toThrow(/must include path prefix/);
-		expect(() =>
+		, /must include path prefix/);
+		assert.throws(() =>
 			buildGeminiUpstreamActionUrl(
 				'https://generativelanguage.googleapis.com/',
 				'gemini-2.5-pro',
 				'streamGenerateContent'
 			)
-		).toThrow(/must include path prefix/);
+		, /must include path prefix/);
 	});
 
 	it('developer API full prefix', () => {
-		expect(
+		assert.strictEqual(
 			buildGeminiUpstreamActionUrl(
 				'https://generativelanguage.googleapis.com/v1beta/models',
 				'gemini-2.5-flash',
 				'generateContent'
 			)
-		).toBe(
-			'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
-		);
+		, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent');
 	});
 
 	it('vertex express prefix', () => {
-		expect(
+		assert.strictEqual(
 			buildGeminiUpstreamActionUrl(
 				'https://aiplatform.googleapis.com/v1/publishers/google/models',
 				'gemini-2.5-flash',
 				'streamGenerateContent'
 			)
-		).toBe(
-			'https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-flash:streamGenerateContent'
-		);
+		, 'https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-flash:streamGenerateContent');
 	});
 
 	it('trims trailing slash from base URL', () => {
-		expect(
+		assert.strictEqual(
 			buildGeminiUpstreamActionUrl(
 				'https://generativelanguage.googleapis.com/v1beta/models/',
 				'gemini-2.5-flash',
 				'generateContent'
 			)
-		).toBe(
-			'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
-		);
+		, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent');
 	});
 
 	it('encodes model name', () => {
-		expect(
+		assert.ok(
 			buildGeminiUpstreamActionUrl(
 				'https://generativelanguage.googleapis.com/v1beta/models',
 				'model/with/slash',
 				'generateContent'
-			)
-		).toContain('model%2Fwith%2Fslash');
+			).includes('model%2Fwith%2Fslash')
+		);
 	});
 
 	it('collapses duplicate slashes in base path (qnaigc bypass/vertex)', () => {
-		expect(
+		assert.strictEqual(
 			buildGeminiUpstreamActionUrl(
 				'https://api.qnaigc.com//bypass/vertex/v1/models',
 				'gemini-3.1-flash-lite-preview',
 				'streamGenerateContent'
 			)
-		).toBe(
-			'https://api.qnaigc.com/bypass/vertex/v1/models/gemini-3.1-flash-lite-preview:streamGenerateContent'
-		);
+		, 'https://api.qnaigc.com/bypass/vertex/v1/models/gemini-3.1-flash-lite-preview:streamGenerateContent');
 	});
 });
 
@@ -99,7 +92,7 @@ describe('applyGeminiStreamQueryParams', () => {
 			'https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-flash:streamGenerateContent?key=test'
 		);
 		applyGeminiStreamQueryParams(u, 'streamGenerateContent');
-		expect(u.searchParams.get('alt')).toBe('sse');
+		assert.strictEqual(u.searchParams.get('alt'), 'sse');
 	});
 
 	it('overrides existing alt for streamGenerateContent', () => {
@@ -107,7 +100,7 @@ describe('applyGeminiStreamQueryParams', () => {
 			'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=json'
 		);
 		applyGeminiStreamQueryParams(u, 'streamGenerateContent');
-		expect(u.searchParams.get('alt')).toBe('sse');
+		assert.strictEqual(u.searchParams.get('alt'), 'sse');
 	});
 
 	it('does not set alt for generateContent', () => {
@@ -115,38 +108,34 @@ describe('applyGeminiStreamQueryParams', () => {
 			'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=test'
 		);
 		applyGeminiStreamQueryParams(u, 'generateContent');
-		expect(u.searchParams.has('alt')).toBe(false);
+		assert.strictEqual(u.searchParams.has('alt'), false);
 	});
 });
 
 describe('resolveGeminiUpstreamAuth', () => {
 	it('returns query-key for official Google Gemini base URLs', () => {
-		expect(
+		assert.strictEqual(
 			resolveGeminiUpstreamAuth('https://generativelanguage.googleapis.com/v1beta/models')
-		).toBe('query-key');
-		expect(
+		, 'query-key');
+		assert.strictEqual(
 			resolveGeminiUpstreamAuth('https://aiplatform.googleapis.com/v1/publishers/google/models')
-		).toBe('query-key');
+		, 'query-key');
 	});
 
 	it('returns bearer for bypass/vertex compatible providers', () => {
-		expect(resolveGeminiUpstreamAuth('https://api.qnaigc.com/bypass/vertex/v1/models')).toBe(
-			'bearer'
-		);
-		expect(resolveGeminiUpstreamAuth('https://api.modelink.ai/bypass/vertex/v1/models')).toBe(
-			'bearer'
-		);
+		assert.strictEqual(resolveGeminiUpstreamAuth('https://api.qnaigc.com/bypass/vertex/v1/models'), 'bearer');
+		assert.strictEqual(resolveGeminiUpstreamAuth('https://api.modelink.ai/bypass/vertex/v1/models'), 'bearer');
 	});
 
 	it('normalizes trailing slash, host case, and duplicate slashes', () => {
-		expect(
+		assert.strictEqual(
 			resolveGeminiUpstreamAuth('https://API.QNAIGC.COM//bypass/vertex/v1/models/')
-		).toBe('bearer');
-		expect(
+		, 'bearer');
+		assert.strictEqual(
 			normalizeGeminiUpstreamBaseForAuthMatch(
 				'https://api.qnaigc.com//bypass/vertex/v1/models/'
 			)
-		).toBe('https://api.qnaigc.com/bypass/vertex/v1/models');
+		, 'https://api.qnaigc.com/bypass/vertex/v1/models');
 	});
 });
 
@@ -158,8 +147,8 @@ describe('prepareGeminiUpstreamFetch', () => {
 			action: 'generateContent',
 			apiKey: 'provider-key',
 		});
-		expect(url.searchParams.get('key')).toBe('provider-key');
-		expect(headers.Authorization).toBeUndefined();
+		assert.strictEqual(url.searchParams.get('key'), 'provider-key');
+		assert.strictEqual(headers.Authorization, undefined);
 	});
 
 	it('uses Authorization Bearer for bypass/vertex upstream', () => {
@@ -169,8 +158,8 @@ describe('prepareGeminiUpstreamFetch', () => {
 			action: 'generateContent',
 			apiKey: 'provider-token',
 		});
-		expect(url.searchParams.has('key')).toBe(false);
-		expect(headers.Authorization).toBe('Bearer provider-token');
+		assert.strictEqual(url.searchParams.has('key'), false);
+		assert.strictEqual(headers.Authorization, 'Bearer provider-token');
 	});
 
 	it('sets alt=sse for streamGenerateContent on bearer upstream', () => {
@@ -180,7 +169,7 @@ describe('prepareGeminiUpstreamFetch', () => {
 			action: 'streamGenerateContent',
 			apiKey: 'provider-token',
 		});
-		expect(url.searchParams.get('alt')).toBe('sse');
-		expect(url.searchParams.has('key')).toBe(false);
+		assert.strictEqual(url.searchParams.get('alt'), 'sse');
+		assert.strictEqual(url.searchParams.has('key'), false);
 	});
 });

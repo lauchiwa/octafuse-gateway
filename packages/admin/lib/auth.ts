@@ -133,14 +133,29 @@ export async function verifyRequestSession(
 }
 
 /**
- * 是否为 `admin_session` 设置 `Secure`（可选加固，由 `ADMIN_COOKIE_SECURE` 控制）。
- * - 未设置或 `0`/`false`/`no`/`off` → false（默认；明文 HTTP 可登录）
- * - `1`/`true`/`yes`/`on` → true（已部署 HTTPS 时可选用，限制 Cookie 仅经 HTTPS 回传）
+ * 是否为 `admin_session` 设置 `Secure`。
+ *
+ * 优先级：显式 `ADMIN_COOKIE_SECURE` > 按当前请求协议自动判断。
+ * - `1`/`true`/`yes`/`on` → 强制开启
+ * - `0`/`false`/`no`/`off` → 强制关闭
+ * - 未设置 → HTTPS 请求自动开启，明文 HTTP 保持关闭
+ *
+ * 自动判断而非一律开启：始终加 `Secure` 会让纯 HTTP 部署（如 Docker quickstart）
+ * 登录后立刻掉线（上游 issue #36）。按协议推断可在 HTTPS 下默认加固，
+ * 同时不破坏明文 HTTP 场景；两个方向都仍可用环境变量显式覆盖。
  */
-export function resolveCookieSecure(): boolean {
+export function resolveCookieSecure(request?: Request): boolean {
   const raw = process.env.ADMIN_COOKIE_SECURE?.trim().toLowerCase();
   if (raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on') {
     return true;
   }
-  return false;
+  if (raw === '0' || raw === 'false' || raw === 'no' || raw === 'off') {
+    return false;
+  }
+  if (!request) return false;
+  try {
+    return new URL(request.url).protocol === 'https:';
+  } catch {
+    return false;
+  }
 }

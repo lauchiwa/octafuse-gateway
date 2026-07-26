@@ -178,3 +178,37 @@ export async function resolvePlaygroundProviderKey(
 	const first = keys[0]!;
 	return { id: first.id, label: first.label, api_key: first.api_key };
 }
+
+/**
+ * 一次性回填：把库中仍为明文的 provider 上游密钥转成密文。
+ *
+ * 读路径已透明解密（历史明文直通），写路径已透明加密，因此「读出再原样写回」即完成转换。
+ * 幂等：对已加密的行会用新 IV 重新加密，值不变。
+ * 未配置 `PROVIDER_KEY_ENCRYPTION_KEY` 时写入会抛错（fail closed），不会静默留存明文。
+ */
+export async function encryptExistingProviderKeysService(
+	repos: GatewayRepositories
+): Promise<{ processed: number; failed: Array<{ key_id: string; message: string }> }> {
+	const providers = await repos.providers.listProviders();
+	let processed = 0;
+	const failed: Array<{ key_id: string; message: string }> = [];
+
+	for (const provider of providers) {
+		const keys = await repos.providerKeys.listProviderKeys(provider.id);
+		for (const key of keys) {
+			try {
+				const row = await repos.providerKeys.getProviderKeyPlaintext(key.id);
+				if (!row) continue;
+				await repos.providerKeys.updateProviderKeyByPatch(key.id, { apiKey: row.api_key });
+				processed += 1;
+			} catch (error) {
+				failed.push({
+					key_id: key.id,
+					message: error instanceof Error ? error.message : String(error),
+				});
+			}
+		}
+	}
+
+	return { processed, failed };
+}

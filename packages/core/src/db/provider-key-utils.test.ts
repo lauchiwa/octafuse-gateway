@@ -1,14 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
 import { fingerprintProviderApiKey, maskProviderApiKeyForAdmin } from '../db/provider-key-utils';
 
 describe('provider-key-utils', () => {
 	it('fingerprintProviderApiKey masks short keys', () => {
-		expect(fingerprintProviderApiKey('abc')).toBe('***');
-		expect(fingerprintProviderApiKey('sk-1234567890')).toBe('…7890');
+		assert.strictEqual(fingerprintProviderApiKey('abc'), '***');
+		assert.strictEqual(fingerprintProviderApiKey('sk-1234567890'), '…7890');
 	});
 
 	it('maskProviderApiKeyForAdmin shows prefix and suffix', () => {
-		expect(maskProviderApiKeyForAdmin('sk-1234567890abcdef')).toBe('sk-…cdef');
-		expect(maskProviderApiKeyForAdmin('')).toBe('(empty)');
+		assert.strictEqual(maskProviderApiKeyForAdmin('sk-1234567890abcdef'), 'sk-…cdef');
+		assert.strictEqual(maskProviderApiKeyForAdmin(''), '(empty)');
 	});
 });

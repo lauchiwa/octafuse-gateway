@@ -16,6 +16,7 @@ import {
 import {
 	createProviderKeyService,
 	deleteProviderKeyService,
+	encryptExistingProviderKeysService,
 	listProviderKeysService,
 	revealProviderKeyService,
 	updateProviderKeyService,
@@ -26,6 +27,21 @@ import { normalizeApiTimeFields } from '@octafuse/core/lib/time-format';
 export const adminProvidersRoutes = new Hono<AdminEnv>();
 
 adminProvidersRoutes.use('*', requireMasterKey);
+
+/** 一次性回填：把仍为明文的上游密钥转成密文（幂等；未配置加密 secret 时报错）。 */
+adminProvidersRoutes.post('/keys/encrypt-existing', async (c) => {
+	try {
+		const repos = c.get('repositories');
+		const data = await encryptExistingProviderKeysService(repos);
+		return c.json({
+			success: data.failed.length === 0,
+			message: `encrypted ${data.processed} provider key(s)` + (data.failed.length ? `, ${data.failed.length} failed` : ''),
+			data,
+		});
+	} catch (error) {
+		return handleAdminRouteError(c, error, 'Failed to encrypt existing provider keys');
+	}
+});
 
 /** 全量列表。 */
 adminProvidersRoutes.get('/', async (c) => {

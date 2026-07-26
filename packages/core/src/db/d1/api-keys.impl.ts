@@ -16,10 +16,12 @@ import {
 	type ApiKeyListSortOrder,
 } from '../api-keys-list-sort';
 import type { AdminApiKeyListItem } from '../../storage/repository-dtos';
+import { maskApiKeyFromPrefix } from '../../services/api-key-hash';
 
 type KeySqlRow = {
 	id: string;
-	key: string;
+	key_hash: string;
+	key_prefix: string | null;
 	user_id: string;
 	name: string | null;
 	status: string;
@@ -32,7 +34,8 @@ type KeySqlRow = {
 function mapKeyRow(r: KeySqlRow): ApiKeyRow {
 	return {
 		id: r.id,
-		key: r.key,
+		key_hash: r.key_hash,
+		key_prefix: r.key_prefix ?? null,
 		user_id: r.user_id,
 		name: r.name,
 		status: r.status,
@@ -71,31 +74,42 @@ export function buildInsertApiKeyStatement(db: D1Database, params: InsertKeyPara
 	const status = params.status ?? 'active';
 	return db
 		.prepare(
-			`INSERT INTO api_keys (id, key, user_id, name, status, metadata, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
+			`INSERT INTO api_keys (id, key_hash, key_prefix, user_id, name, status, metadata, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
 		)
-		.bind(params.id, params.key, params.userId, params.name ?? null, status, params.metadata ?? null);
+		.bind(
+			params.id,
+			params.keyHash,
+			params.keyPrefix,
+			params.userId,
+			params.name ?? null,
+			status,
+			params.metadata ?? null
+		);
 }
 
 export function createD1ApiKeysRepository(db: D1DatabaseClient): ApiKeysRepository & ApiKeysD1Statements {
 	const raw = db.raw;
-	const resolvedSelect = `SELECT k.id, k.key, k.user_id, k.name, k.status, k.metadata, k.last_used_at, k.created_at, k.updated_at,
+	const resolvedSelect = `SELECT k.id, k.key_hash, k.key_prefix, k.user_id, k.name, k.status, k.metadata, k.last_used_at, k.created_at, k.updated_at,
     u.email AS user_email, u.metadata AS user_metadata, u.budget_max, u.budget_base, u.budget_spent, u.budget_period, u.budget_reset_at
     FROM api_keys k INNER JOIN users u ON u.id = k.user_id`;
 
 	return {
 		buildInsertApiKeyStatement,
 
-		async getApiKeyByKey(key: string): Promise<ApiKeyRow | null> {
+		async getApiKeyByKeyHash(keyHash: string): Promise<ApiKeyRow | null> {
 			const row = await raw
-				.prepare('SELECT * FROM api_keys WHERE key = ? AND status = ?')
-				.bind(key, 'active')
+				.prepare('SELECT * FROM api_keys WHERE key_hash = ? AND status = ?')
+				.bind(keyHash, 'active')
 				.first<KeySqlRow>();
 			return row ? mapKeyRow(row) : null;
 		},
 
-		async getApiKeyByKeyAnyStatus(key: string): Promise<ApiKeyRow | null> {
-			const row = await raw.prepare('SELECT * FROM api_keys WHERE key = ?').bind(key).first<KeySqlRow>();
+		async getApiKeyByKeyHashAnyStatus(keyHash: string): Promise<ApiKeyRow | null> {
+			const row = await raw
+				.prepare('SELECT * FROM api_keys WHERE key_hash = ?')
+				.bind(keyHash)
+				.first<KeySqlRow>();
 			return row ? mapKeyRow(row) : null;
 		},
 
@@ -104,10 +118,10 @@ export function createD1ApiKeysRepository(db: D1DatabaseClient): ApiKeysReposito
 			return row ? mapKeyRow(row) : null;
 		},
 
-		async getApiKeyWithUserByKey(key: string): Promise<ResolvedGatewayKeyRow | null> {
+		async getApiKeyWithUserByKeyHash(keyHash: string): Promise<ResolvedGatewayKeyRow | null> {
 			const row = await raw
-				.prepare(`${resolvedSelect} WHERE k.key = ? AND k.status = ?`)
-				.bind(key, 'active')
+				.prepare(`${resolvedSelect} WHERE k.key_hash = ? AND k.status = ?`)
+				.bind(keyHash, 'active')
 				.first<ResolvedSqlRow>();
 			return row ? mapResolvedRow(row) : null;
 		},
@@ -209,14 +223,14 @@ export function createD1ApiKeysRepository(db: D1DatabaseClient): ApiKeysReposito
 			const total = Number(countRow?.total ?? 0);
 			const rows = await raw
 				.prepare(
-					`SELECT k.id, k.key, k.user_id, k.name, k.status, k.metadata, k.created_at, k.updated_at,
+					`SELECT k.id, k.key_prefix, k.user_id, k.name, k.status, k.metadata, k.created_at, k.updated_at,
             u.email AS user_email, u.budget_max, u.budget_base, u.budget_spent, u.budget_period, u.budget_reset_at
        FROM api_keys k INNER JOIN users u ON u.id = k.user_id ${whereClause} ${orderBy} LIMIT ? OFFSET ?`
 				)
 				.bind(...bindValues, pageSize, offset)
 				.all<{
 					id: string;
-					key: string;
+					key_prefix: string | null;
 					user_id: string;
 					name: string | null;
 					status: string;
@@ -232,7 +246,7 @@ export function createD1ApiKeysRepository(db: D1DatabaseClient): ApiKeysReposito
 				}>();
 			const keys: AdminApiKeyListItem[] = (rows.results ?? []).map((r) => ({
 				id: r.id,
-				key: r.key,
+				key_masked: maskApiKeyFromPrefix(r.key_prefix),
 				user_id: r.user_id,
 				name: r.name,
 				user_email: r.user_email,

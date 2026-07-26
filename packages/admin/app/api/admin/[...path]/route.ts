@@ -85,6 +85,9 @@ async function handle(request: Request): Promise<Response> {
 			DATABASE_DRIVER: cloudflareRuntime
 				? (env as { DATABASE_DRIVER?: string } | undefined)?.DATABASE_DRIVER
 				: process.env.DATABASE_DRIVER,
+			PROVIDER_KEY_ENCRYPTION_KEY:
+				(env as { PROVIDER_KEY_ENCRYPTION_KEY?: string } | undefined)?.PROVIDER_KEY_ENCRYPTION_KEY ??
+				process.env.PROVIDER_KEY_ENCRYPTION_KEY,
 		};
 		const storage = await resolveAdminStorageContext(
 			runtimeBindings,
