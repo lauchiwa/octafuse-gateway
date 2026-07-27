@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/proxy/backend/error-handling.md", "reason": "403 分类属上游错误处理路径，需遵循错误分类与返回约定"}
+{"file": ".trellis/spec/proxy/backend/logging-guidelines.md", "reason": "新增 client-identity 拒绝告警日志，需符合日志规范"}
