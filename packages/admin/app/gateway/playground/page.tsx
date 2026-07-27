@@ -64,6 +64,14 @@ type RouteListRow = {
 	provider_name: string | null;
 };
 
+/** `/v1/responses` 是 item 形状（`input` 而非 `messages`），与 chat 模板不通用。 */
+const RESPONSES_BODY_TEMPLATE = `{
+  "input": "Hello",
+  "max_output_tokens": 256,
+  "stream": true,
+  "store": false
+}`;
+
 const BODY_TEMPLATES: Record<string, string> = {
 	openai: `{
   "messages": [{ "role": "user", "content": "Hello" }],
@@ -145,6 +153,8 @@ export default function PlaygroundPage() {
 	const [bodyText, setBodyText] = useState(BODY_TEMPLATES.openai);
 	const [bodyError, setBodyError] = useState<string | null>(null);
 	const [geminiAction, setGeminiAction] = useState<'generateContent' | 'streamGenerateContent'>('streamGenerateContent');
+	/** OpenAI 协议下选 chat/completions 还是 responses（仅非图像模型有意义）。 */
+	const [openaiSurface, setOpenaiSurface] = useState<'chat' | 'responses'>('chat');
 	const [imageOperation, setImageOperation] = useState<ImageOperation>('generations');
 	const [editFiles, setEditFiles] = useState<File[]>([]);
 
@@ -187,9 +197,10 @@ export default function PlaygroundPage() {
 			providerModelName: selected.provider_model_name,
 			isImageModel: selectedIsImage,
 			imageOperation: selectedIsImage ? imageOperation : undefined,
+			openaiSurface: selectedIsImage ? undefined : openaiSurface,
 			geminiAction,
 		});
-	}, [selected, providersById, selectedIsImage, imageOperation, geminiAction]);
+	}, [selected, providersById, selectedIsImage, imageOperation, openaiSurface, geminiAction]);
 
 	/** 发送后以上游实际 URL 为准；否则展示与 Send 同规则的预览。 */
 	const requestTargetUrl = responseMeta?.upstreamUrl ?? previewUpstreamUrl;
@@ -438,15 +449,23 @@ export default function PlaygroundPage() {
 		setResponseMeta(null);
 		setLastSentWireBody(null);
 
-		setResponseProtocol(proto);
+		// 合并器按此选解析器：responses 的报文形状与 chat 不同，传错会导致正文空白。
+		setResponseProtocol(
+			proto === 'openai' && !effectiveImageOp && openaiSurface === 'responses' ? 'responses' : proto
+		);
 		const payload: {
 			routeId: string;
 			body: Record<string, unknown>;
 			geminiAction?: 'generateContent' | 'streamGenerateContent';
+			openaiSurface?: 'chat' | 'responses';
 			imageOperation?: ImageOperation;
 		} = { routeId: selected.id, body: bodyObj };
 		if (proto === 'gemini') {
 			payload.geminiAction = geminiAction;
+		}
+		// 非图像 OpenAI 路由：把入口选择带给服务端（chat 为缺省，保持既有行为）
+		if (proto === 'openai' && !effectiveImageOp && openaiSurface === 'responses') {
+			payload.openaiSurface = 'responses';
 		}
 		if (effectiveImageOp) {
 			payload.imageOperation = effectiveImageOp;
@@ -825,6 +844,41 @@ export default function PlaygroundPage() {
 									) : null}
 								</>
 							) : null}
+							{normalizeProtocol(selected?.upstream_protocol ?? 'openai') === 'openai' &&
+								!selectedIsImage && (
+								<fieldset className="flex flex-wrap items-center gap-4 text-sm border border-gray-200 rounded-md px-3 py-2">
+									<legend className="sr-only">{t('openaiSurface')}</legend>
+									<span className="text-gray-600 font-medium">{t('openaiSurface')}</span>
+									<label className="inline-flex items-center gap-2 cursor-pointer">
+										<input
+											type="radio"
+											name="openaiSurface"
+											className="text-blue-600 focus:ring-blue-500"
+											checked={openaiSurface === 'chat'}
+											onChange={() => {
+												setOpenaiSurface('chat');
+												setBodyText(BODY_TEMPLATES.openai);
+												setBodyError(null);
+											}}
+										/>
+										chat/completions
+									</label>
+									<label className="inline-flex items-center gap-2 cursor-pointer">
+										<input
+											type="radio"
+											name="openaiSurface"
+											className="text-blue-600 focus:ring-blue-500"
+											checked={openaiSurface === 'responses'}
+											onChange={() => {
+												setOpenaiSurface('responses');
+												setBodyText(RESPONSES_BODY_TEMPLATE);
+												setBodyError(null);
+											}}
+										/>
+										responses
+									</label>
+								</fieldset>
+							)}
 							{normalizeProtocol(selected?.upstream_protocol ?? 'openai') === 'gemini' &&
 								!selectedIsImage && (
 								<fieldset className="flex flex-wrap items-center gap-4 text-sm border border-gray-200 rounded-md px-3 py-2">

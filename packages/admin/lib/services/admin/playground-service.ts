@@ -2,6 +2,7 @@
  * Playground：按单条 `model_routes` 直连上游，不经过 Proxy、不鉴 API Key、不写 `api_key_request_logs`、不计费、无 failover。
  */
 import type { GatewayRepositories, ProviderEndpointsMap } from '@octafuse/core';
+import type { ProviderEndpointCapability } from '@octafuse/core/provider-endpoints';
 import { isImageGenerationModel } from '@octafuse/core/db/model-modalities';
 import {
 	type GeminiContentAction,
@@ -187,11 +188,20 @@ export function buildPlaygroundGeminiUpstreamRequest(
 	return { url: url.toString(), headers };
 }
 
+/** OpenAI 协议下的两个文本入口：chat/completions 或 responses。 */
+export type PlaygroundOpenAiSurface = 'chat' | 'responses';
+
 export type PlaygroundInvokeInput = {
 	routeId: string;
 	body: Record<string, unknown>;
 	/** 仅 `upstream_protocol === gemini` 时使用；缺省为 `generateContent`。 */
 	geminiAction?: GeminiContentAction;
+	/**
+	 * 仅 `upstream_protocol === openai` 且非图像模型时使用；缺省 `chat`。
+	 * `responses` → provider 必须显式声明 `endpoints.openai.endpoints.responses`
+	 * （与 Proxy `/v1/responses` 同一 capability，不从 base 派生）。
+	 */
+	openaiSurface?: PlaygroundOpenAiSurface;
 	/**
 	 * Image models: `generations` (JSON) or `edits` (multipart).
 	 * Default: generations when `isImageModel`, otherwise ignored.
@@ -395,7 +405,13 @@ export async function invokePlaygroundUpstream(
 				break;
 			}
 
-			const capability = imageOperation === 'generations' ? 'images.generations' : 'chat';
+			// 非图像模型时由 openaiSurface 决定 chat 还是 responses；
+			// responses 走与 Proxy 相同的显式声明约定（provider 未配则 resolveUpstreamEndpoint 抛错）。
+			const capability: ProviderEndpointCapability = imageOperation === 'generations'
+				? 'images.generations'
+				: input.openaiSurface === 'responses'
+					? 'responses'
+					: 'chat';
 			try {
 				url = resolveUpstreamEndpoint('openai', capability, route.providerEndpoints, {
 					providerId: route.providerId,

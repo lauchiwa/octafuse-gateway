@@ -9,6 +9,13 @@ export type SimulatorProtocol = 'openai' | 'anthropic' | 'gemini';
 
 export type SimulatorGeminiAction = 'generateContent' | 'streamGenerateContent';
 
+/**
+ * Which OpenAI-family Proxy surface to call. `chat` → `/v1/chat/completions`,
+ * `responses` → `/v1/responses` (item-centred; what Codex CLI speaks).
+ * Image models ignore this and use `/v1/images/*`.
+ */
+export type SimulatorOpenAiSurface = 'chat' | 'responses';
+
 export type BuildSimulatorRequestInput = {
 	/** Trimmed Proxy root URL without a trailing slash, e.g. https://gateway.example.com */
 	baseUrl: string;
@@ -19,6 +26,8 @@ export type BuildSimulatorRequestInput = {
 	 */
 	modelForRouting: string;
 	geminiAction?: SimulatorGeminiAction;
+	/** OpenAI non-image models: chat completions (default) or the Responses API. */
+	openaiSurface?: SimulatorOpenAiSurface;
 	/** User-edited JSON object (`model` is overwritten for OpenAI/Anthropic before send) */
 	body: Record<string, unknown>;
 	/** Full `sk-…` or already prefixed with Bearer */
@@ -126,7 +135,10 @@ export function buildSimulatorRequest(input: BuildSimulatorRequestInput): BuildS
 				};
 			}
 			const merged = { ...input.body, model: input.modelForRouting };
-			const path = imageOp === 'generations' ? '/v1/images/generations' : '/v1/chat/completions';
+			// 非图片模型时可选 Responses 面；图片模型仍走 /v1/images/*。
+			const nonImagePath =
+				input.openaiSurface === 'responses' ? '/v1/responses' : '/v1/chat/completions';
+			const path = imageOp === 'generations' ? '/v1/images/generations' : nonImagePath;
 			return {
 				url: `${base}${path}`,
 				headers: {

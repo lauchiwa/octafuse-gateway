@@ -8,6 +8,7 @@ import { requireMasterKey } from '@/lib/middleware/admin-auth';
 import type { GeminiContentAction } from '@octafuse/core/gemini-upstream-url';
 import type { ImageOperation } from '@/lib/image-generations';
 import { invokePlaygroundUpstream } from '@/lib/services/admin/playground-service';
+import type { PlaygroundOpenAiSurface } from '@/lib/services/admin/playground-service';
 import { handleAdminRouteError } from './error-response';
 
 export const adminPlaygroundRoutes = new Hono<AdminEnv>();
@@ -18,6 +19,7 @@ type PlaygroundPostBody = {
 	routeId?: unknown;
 	body?: unknown;
 	geminiAction?: unknown;
+	openaiSurface?: unknown;
 	imageOperation?: unknown;
 	providerKeyId?: unknown;
 };
@@ -46,6 +48,16 @@ adminPlaygroundRoutes.post('/', async (c) => {
 		);
 	}
 
+	let openaiSurface: PlaygroundOpenAiSurface | undefined;
+	if (parsed.openaiSurface === 'chat' || parsed.openaiSurface === 'responses') {
+		openaiSurface = parsed.openaiSurface;
+	} else if (parsed.openaiSurface != null && parsed.openaiSurface !== '') {
+		return c.json(
+			{ success: false as const, message: 'openaiSurface must be chat or responses' },
+			400
+		);
+	}
+
 	let imageOperation: ImageOperation | undefined;
 	if (parsed.imageOperation === 'generations' || parsed.imageOperation === 'edits') {
 		imageOperation = parsed.imageOperation;
@@ -64,6 +76,7 @@ adminPlaygroundRoutes.post('/', async (c) => {
 					routeId,
 					body: rawBody as Record<string, unknown>,
 					geminiAction,
+					openaiSurface,
 					imageOperation,
 					providerKeyId: typeof parsed.providerKeyId === 'string' ? parsed.providerKeyId : undefined,
 				},

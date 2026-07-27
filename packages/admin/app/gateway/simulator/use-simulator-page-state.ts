@@ -41,6 +41,7 @@ import {
 	tryParseProxyBaseUrl,
 } from './simulator-utils';
 import type { ResponseMeta, ResponseTab, RouteListRow, SendBlockReason, WirePreview } from './types';
+import type { SimulatorOpenAiSurface } from '@/lib/simulator/endpoint';
 
 export function useSimulatorPageState() {
 	const t = useTranslations('simulator');
@@ -49,6 +50,8 @@ export function useSimulatorPageState() {
 	const [proxyBaseUrl, setProxyBaseUrl] = useState('');
 	const [protocol, setProtocolState] = useState<SimulatorProtocol>('openai');
 	const [geminiAction, setGeminiAction] = useState<SimulatorGeminiAction>('streamGenerateContent');
+	/** OpenAI 协议下测 `/v1/chat/completions` 还是 `/v1/responses`（Codex 用后者）。 */
+	const [openaiSurface, setOpenaiSurfaceState] = useState<SimulatorOpenAiSurface>('chat');
 	const [imageOperation, setImageOperationState] = useState<ImageOperation>('generations');
 	const [editFiles, setEditFiles] = useState<File[]>([]);
 
@@ -211,6 +214,7 @@ export function useSimulatorPageState() {
 				protocol,
 				modelForRouting: routing,
 				geminiAction: protocol === 'gemini' ? geminiAction : undefined,
+				openaiSurface: protocol === 'openai' ? openaiSurface : undefined,
 				body: bodyObj,
 				apiKey: revealedSk,
 				imageOperation: useImages ? imageOperation : undefined,
@@ -228,6 +232,7 @@ export function useSimulatorPageState() {
 		}
 	}, [
 		proxyBaseUrl,
+		openaiSurface,
 		selectedModelId,
 		revealedSk,
 		bodyText,
@@ -477,11 +482,11 @@ export function useSimulatorPageState() {
 		(next: SimulatorProtocol, isImage = selectedModelIsImage) => {
 			setProtocolState(next);
 			setBodyText(
-				bodyTemplateForSelection(next, isImage && next === 'openai', imageOperation)
+				bodyTemplateForSelection(next, isImage && next === 'openai', imageOperation, next === 'openai' ? openaiSurface : 'chat')
 			);
 			setBodyError(null);
 		},
-		[selectedModelIsImage, imageOperation]
+		[selectedModelIsImage, imageOperation, openaiSurface]
 	);
 
 	const requestProtocolChange = useCallback(
@@ -500,10 +505,24 @@ export function useSimulatorPageState() {
 		[protocol, bodyText, t, applyProtocolTemplate, selectedModelIsImage, imageOperation]
 	);
 
+	const requestOpenaiSurfaceChange = useCallback(
+		(next: SimulatorOpenAiSurface) => {
+			if (next === openaiSurface) return;
+			if (isBodyDirty(bodyText, protocol, selectedModelIsImage, imageOperation)) {
+				const ok = window.confirm(t('protocolSwitchConfirm'));
+				if (!ok) return;
+			}
+			setOpenaiSurfaceState(next);
+			setBodyText(bodyTemplateForSelection('openai', false, imageOperation, next));
+			setBodyError(null);
+		},
+		[openaiSurface, bodyText, protocol, selectedModelIsImage, imageOperation, t]
+	);
+
 	const applyCurrentTemplate = useCallback(() => {
-		setBodyText(bodyTemplateForSelection(protocol, selectedModelIsImage, imageOperation));
+		setBodyText(bodyTemplateForSelection(protocol, selectedModelIsImage, imageOperation, openaiSurface));
 		setBodyError(null);
-	}, [protocol, selectedModelIsImage, imageOperation]);
+	}, [protocol, selectedModelIsImage, imageOperation, openaiSurface]);
 
 	const stop = useCallback(() => {
 		abortRef.current?.abort();
@@ -572,6 +591,7 @@ export function useSimulatorPageState() {
 				protocol,
 				modelForRouting: routing,
 				geminiAction: protocol === 'gemini' ? geminiAction : undefined,
+				openaiSurface: protocol === 'openai' ? openaiSurface : undefined,
 				body: bodyObj,
 				apiKey: revealedSk,
 				imageOperation: useImages ? imageOperation : undefined,
@@ -712,6 +732,7 @@ export function useSimulatorPageState() {
 		}
 	}, [
 		proxyBaseUrl,
+		openaiSurface,
 		selectedModelId,
 		selectedModelIsImage,
 		imageOperation,
@@ -743,6 +764,8 @@ export function useSimulatorPageState() {
 		bodyDirty: isBodyDirty(bodyText, protocol, selectedModelIsImage, imageOperation),
 		geminiAction,
 		setGeminiAction,
+		openaiSurface,
+		requestOpenaiSurfaceChange,
 		imageOperation,
 		setImageOperation,
 		editFiles,
