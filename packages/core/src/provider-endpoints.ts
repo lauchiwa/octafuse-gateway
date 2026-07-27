@@ -15,6 +15,8 @@ import {
 /** OpenAI / Anthropic / Gemini 出站 capability（可扩展）。 */
 export type ProviderEndpointCapability =
 	| 'chat'
+	/** OpenAI Responses API（Codex CLI 唯一支持的协议）；**必须显式配置 URL，不从 `base` 推导**。 */
+	| 'responses'
 	| 'images.generations'
 	| 'images.edits'
 	| 'messages'
@@ -23,6 +25,7 @@ export type ProviderEndpointCapability =
 
 export const OPENAI_ENDPOINT_CAPABILITIES = [
 	'chat',
+	'responses',
 	'images.generations',
 	'images.edits',
 ] as const satisfies readonly ProviderEndpointCapability[];
@@ -292,6 +295,14 @@ export function resolveUpstreamEndpoint(
 		switch (capability) {
 			case 'chat':
 				return `${root}/chat/completions`;
+			// `responses` 故意不从 `base` 推导：`listConfiguredCapabilities` 对配了 `base` 的
+			// provider 会返回全部 capability，若在此推导则 42 个内置预设中 10 个配 `base` 的会被
+			// 误判为支持 Responses（Azure 需 `?api-version=`、Gemini 兼容层与 SiliconFlow 无此路由），
+			// 网关的「不支持」拦截将永远无法触发，用户只会拿到上游 404。
+			case 'responses':
+				throw new Error(
+					`Provider ${options.providerId ?? '(unknown)'} has no explicit endpoints.openai.endpoints.responses URL; the Responses API requires an explicit endpoint (it is never derived from base)`
+				);
 			case 'images.generations':
 				return buildOpenAiCompatibleImagesUrl(root, 'generations');
 			case 'images.edits':
@@ -371,4 +382,16 @@ export function listConfiguredCapabilities(
 	const endpoints = cfg.endpoints;
 	if (!endpoints) return [];
 	return all.filter((cap) => Boolean(endpoints[cap]));
+}
+
+/**
+ * Provider 是否**显式**声明了 OpenAI Responses 端点。
+ *
+ * 刻意不用 `listConfiguredCapabilities`：那个函数在 `base` 存在时返回该协议的全部
+ * capability，会把只配了 `base` 的 provider 误判为支持 Responses。路由层的能力过滤
+ * 与（阶段 2）直通/翻译分流都必须走这里。
+ */
+export function providerDeclaresResponsesEndpoint(map: ProviderEndpointsMap): boolean {
+	const raw = map.openai?.endpoints?.responses;
+	return typeof raw === 'string' && raw.trim().length > 0;
 }

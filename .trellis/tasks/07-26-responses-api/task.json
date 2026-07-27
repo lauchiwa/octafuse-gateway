@@ -1,0 +1,29 @@
+{
+  "id": "responses-api",
+  "name": "responses-api",
+  "title": "Support OpenAI Responses API so Codex CLI can connect",
+  "description": "Codex CLI 0.144.6 removed wire_api=chat entirely, so the gateway must expose POST /v1/responses. Parent task: owns the shared ingress surface and the passthrough-vs-translate split across two independently shippable children.",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "chiwalau",
+  "assignee": "chiwalau",
+  "createdAt": "2026-07-26",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "07-26-responses-passthrough",
+    "07-26-responses-translate"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

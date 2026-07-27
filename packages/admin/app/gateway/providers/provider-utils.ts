@@ -27,6 +27,7 @@ export function capabilityDisplayBadges(
 	const badges: ProviderCapabilityBadge[] = [];
 	const set = new Set(capabilities);
 	if (set.has('chat')) badges.push('chat');
+	if (set.has('responses')) badges.push('responses');
 	if (set.has('images.generations') || set.has('images.edits')) badges.push('images');
 	if (set.has('messages')) badges.push('messages');
 	if (set.has('generateContent')) badges.push('generateContent');
@@ -98,6 +99,7 @@ function protocolFormFromConfig(
 		form.base = cfg.base ?? '';
 		const eps = cfg.endpoints ?? {};
 		form.chat = eps.chat ?? '';
+		form.responses = eps.responses ?? '';
 		form.images_generations = eps['images.generations'] ?? '';
 		form.images_edits = eps['images.edits'] ?? '';
 		form.messages = eps.messages ?? '';
@@ -131,6 +133,7 @@ function configFromProtocolForm(
 	const endpoints: NonNullable<ProtocolEndpointsConfig['endpoints']> = {};
 	if (protocol === 'openai') {
 		if (form.chat.trim()) endpoints.chat = form.chat.trim();
+		if (form.responses.trim()) endpoints.responses = form.responses.trim();
 		if (form.images_generations.trim()) endpoints['images.generations'] = form.images_generations.trim();
 		if (form.images_edits.trim()) endpoints['images.edits'] = form.images_edits.trim();
 	} else if (protocol === 'anthropic') {

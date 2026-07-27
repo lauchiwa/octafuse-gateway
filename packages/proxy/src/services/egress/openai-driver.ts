@@ -66,7 +66,7 @@ const encoder = new TextEncoder();
  * 网关内部计费公式假设：`input_tokens = regular + cache_read + cache_write`。
  * 因此这里需要把上游口径归一到该语义。
  */
-function normalizeInputTokensFromPrompt(args: {
+export function normalizeInputTokensFromPrompt(args: {
   promptTokens: number;
   completionTokens: number;
   cacheRead: number;

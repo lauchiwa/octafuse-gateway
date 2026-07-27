@@ -7,6 +7,7 @@ import type {
 /** 卡片上紧凑展示的能力标签（OpenAI images.* 合并为 images）。 */
 export type ProviderCapabilityBadge =
 	| 'chat'
+	| 'responses'
 	| 'images'
 	| 'messages'
 	| 'generateContent'
@@ -59,6 +60,8 @@ export type CustomHeaderRow = {
 export type ProtocolEndpointForm = {
 	base: string;
 	chat: string;
+	/** Responses API：必须显式配置完整 URL（永不由 base 派生，见 core/provider-endpoints） */
+	responses: string;
 	images_generations: string;
 	images_edits: string;
 	messages: string;
@@ -101,6 +104,7 @@ export type ProviderImportResult = {
 export const EMPTY_PROTOCOL_FORM: ProtocolEndpointForm = {
 	base: '',
 	chat: '',
+	responses: '',
 	images_generations: '',
 	images_edits: '',
 	messages: '',

@@ -332,7 +332,17 @@ function protocolsForPreset(p: StaticProviderImportPresetRow): AdminProviderImpo
 	return out;
 }
 
-/** 从已解析的 endpoints map 取 OpenAI 协议展示摘要（base 或 chat-only）。 */
+/**
+ * 从已解析的 endpoints map 取 OpenAI 协议展示摘要（base 或 chat-only）。
+ *
+ * 已知限制（2026-07-26，随 Responses 能力引入）：`listConfiguredCapabilities` 在只配了
+ * `base` 时返回该协议的**全部** capability，因此 base-only 的预设会把 `responses` 也列进
+ * `capabilities`，而多数中转站并不提供 `/v1/responses`。这里只影响导入目录的**展示**，
+ * 不影响实际路由 —— 出站是否走 Responses 由 `providerDeclaresResponsesEndpoint`（要求显式
+ * `endpoints.responses`）判定，见 `packages/core/src/provider-endpoints.ts`。
+ * 修正展示需要改 `capabilityDisplayBadges` 签名与 `ProviderProtocolSummary.capabilities`
+ * 的来源（3 个调用点），已明确推迟，不在 Responses 阶段 1 范围内。
+ */
 export function summarizeOpenAiImportEndpoints(
 	map: ProviderEndpointsMap
 ): ProviderImportOpenAiSummary | null {

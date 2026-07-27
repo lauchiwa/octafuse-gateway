@@ -5,6 +5,7 @@
 import type { GatewayRepositories } from '@octafuse/core';
 import type { RouteResult } from './model-router';
 import { dispatchOpenAiRoute } from './egress/openai-driver';
+import { dispatchOpenAiResponsesRoute } from './egress/openai-responses-driver';
 import {
 	dispatchOpenAiImageEdits,
 	dispatchOpenAiImageGenerations,
@@ -89,6 +90,33 @@ export async function proxyChatCompletions(
 		'openai',
 		(route, signal, timing?: RequestTimingCollector | null, attempt?: RequestTimingAttempt) =>
 			dispatchOpenAiRoute(route, body, signal, timing, attempt),
+		requestSignal,
+		options
+	);
+	return result;
+}
+
+/**
+ * 代理 OpenAI Responses API（Codex CLI 协议）：与 chat 同一 failover 编排，
+ * 但驱动为字节直通，且额外闭包 `clientIdentity`（调用方 UA / originator）。
+ *
+ * `clientIdentity` 由入口路由从请求头提取后传入 —— `DispatchFn` 契约不含请求对象，
+ * 驱动无法自行读取（与 `body` 同理，见 design.md C2）。
+ */
+export async function proxyResponses(
+	repos: GatewayRepositories,
+	routes: RouteResult[],
+	body: Record<string, unknown>,
+	clientIdentity: Record<string, string>,
+	requestSignal?: AbortSignal,
+	options?: FailoverDispatchOptions
+): Promise<ProxyResult> {
+	const result = await failoverDispatchWithKeyPool(
+		repos,
+		routes,
+		'openai',
+		(route, signal, timing?: RequestTimingCollector | null, attempt?: RequestTimingAttempt) =>
+			dispatchOpenAiResponsesRoute(route, body, clientIdentity, signal, timing, attempt),
 		requestSignal,
 		options
 	);

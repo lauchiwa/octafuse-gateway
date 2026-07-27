@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
 	listConfiguredCapabilities,
 	parseProviderEndpoints,
+	providerDeclaresResponsesEndpoint,
 	providerSupportsUpstreamProtocol,
 	resolveUpstreamEndpoint,
 	validateAndNormalizeProviderEndpoints,
@@ -99,7 +100,7 @@ describe('listConfiguredCapabilities', () => {
 				{ openai: { base: 'https://api.openai.com/v1' } },
 				'openai'
 			),
-			['chat', 'images.generations', 'images.edits']
+			['chat', 'responses', 'images.generations', 'images.edits']
 		);
 	});
 
@@ -128,11 +129,70 @@ describe('listConfiguredCapabilities', () => {
 				},
 				'openai'
 			),
-			['chat', 'images.generations', 'images.edits']
+			['chat', 'responses', 'images.generations', 'images.edits']
 		);
 	});
 
 	it('returns empty array when protocol is not configured', () => {
 		assert.deepEqual(listConfiguredCapabilities({}, 'anthropic'), []);
+	});
+});
+
+describe('responses capability (never derived from base)', () => {
+	it('resolves an explicit responses template', () => {
+		const map = parseProviderEndpoints({
+			endpoints: JSON.stringify({
+				openai: { endpoints: { responses: 'https://relay.example/v1/responses' } },
+			}),
+		});
+		assert.equal(
+			resolveUpstreamEndpoint('openai', 'responses', map, { providerId: 'p1' }),
+			'https://relay.example/v1/responses'
+		);
+	});
+
+	it('throws for base-only providers instead of deriving ${base}/responses', () => {
+		const map = parseProviderEndpoints({
+			endpoints: JSON.stringify({ openai: { base: 'https://api.openai.com/v1' } }),
+		});
+		assert.throws(
+			() => resolveUpstreamEndpoint('openai', 'responses', map, { providerId: 'p-base' }),
+			/no explicit endpoints\.openai\.endpoints\.responses/
+		);
+	});
+
+	it('providerDeclaresResponsesEndpoint is the routing gate, not listConfiguredCapabilities', () => {
+		const baseOnly = parseProviderEndpoints({
+			endpoints: JSON.stringify({ openai: { base: 'https://api.openai.com/v1' } }),
+		});
+		// listConfiguredCapabilities reports every capability when `base` is set — that is why
+		// the route gate must use the explicit-declaration helper instead.
+		assert.ok(listConfiguredCapabilities(baseOnly, 'openai').includes('responses'));
+		assert.equal(providerDeclaresResponsesEndpoint(baseOnly), false);
+
+		const declared = parseProviderEndpoints({
+			endpoints: JSON.stringify({
+				openai: { base: 'https://relay.example/v1', endpoints: { responses: 'https://relay.example/v1/responses' } },
+			}),
+		});
+		assert.equal(providerDeclaresResponsesEndpoint(declared), true);
+	});
+
+	it('accepts an explicit responses endpoint through admin validation', () => {
+		// 返回归一化后的 map；非法输入会 throw（无 { ok } 包装）。
+		const map = validateAndNormalizeProviderEndpoints(
+			JSON.stringify({ openai: { endpoints: { responses: 'https://relay.example/v1/responses' } } })
+		);
+		assert.equal(map.openai?.endpoints?.responses, 'https://relay.example/v1/responses');
+	});
+
+	it('rejects an unknown capability name so typos surface at save time', () => {
+		assert.throws(
+			() =>
+				validateAndNormalizeProviderEndpoints(
+					JSON.stringify({ openai: { endpoints: { response: 'https://relay.example/v1/responses' } } })
+				),
+			/unknown capability/
+		);
 	});
 });
