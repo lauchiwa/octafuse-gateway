@@ -51,6 +51,18 @@ These guides help you **ask the right questions before coding**.
 
 → Read [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md)
 
+### When to Think About Upstream Merges
+
+- [ ] You are resolving a conflict where **both sides added** something (usually keep both — check for a third missing field)
+- [ ] Upstream **deleted** a file or table your change depends on
+- [ ] A conflict hunk looks like a rename (`foo` → `bar`) — confirm which side is the new baseline before hand-splicing
+- [ ] You are about to renumber migrations, or two branches added the same migration number
+- [ ] **Encrypted / hashed data already exists in a database** that a migration is about to move
+- [ ] A conflict spans two of your own commits (a fix split across files lands in different commits)
+- [ ] Tests and typecheck pass — ask what they *cannot* see (fixtures are usually plaintext / happy-path)
+
+→ Read [Upstream Merge Thinking Guide](./upstream-merge-thinking-guide.md)
+
 ### When Verifying AI Cross-Review Results
 
 - [ ] Reviewer claims "user input can be malicious" → Check the actual data source (internal manifest? user config? external API?)

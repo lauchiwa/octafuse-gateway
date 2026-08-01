@@ -56,6 +56,43 @@ export function createD1StorageContext(db: D1Database): StorageContext {
   - Postgres: `npm run db:migrate:pg` (tsx) / `db:migrate:pg:docker` (built) · MySQL: `db:migrate:mysql` / `:mysql:docker`
   - Migration CLI entry: `src/migrate/cli.ts` (`octafuse-migrate` bin), driver-specific runners in `src/migrate/{postgres,mysql}.ts`.
 
+### Applied-migration identity is the full filename
+
+Runners record **the entire filename** (not the `NNNN` prefix), then skip any file whose name is already present.
+
+Postgres / MySQL use our own runner and table:
+
+```ts
+// src/migrate/postgres.ts — same shape in mysql.ts
+if (appliedVersions.has(fileName)) { skipped += 1; continue; }
+// ...
+INSERT INTO octafuse_gateway.schema_migrations (version) VALUES (${fileName})
+```
+
+D1 does **not** use that runner — `npm run db:migrate` delegates to `wrangler d1 migrations apply`,
+which keeps its own `d1_migrations` table. The identity rule is the same there, which is what makes
+the guidance below safe for all three drivers:
+
+```sql
+-- wrangler-managed, observed in .wrangler/state (local D1)
+CREATE TABLE IF NOT EXISTS "d1_migrations"(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT UNIQUE,            -- full filename, e.g. 0015_hash_api_keys.sql
+  applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+```
+
+Execution order is plain lexicographic sort of the filenames, so the `NNNN` prefix controls *order* while the whole name controls *identity*.
+
+Two consequences that matter when resolving an upstream merge:
+
+- **Renaming an already-applied migration makes it run again.** Its new filename is absent from the tracking table (`schema_migrations` / `d1_migrations`), so the runner treats it as new. Never renumber a migration that has shipped.
+- **Renaming a never-applied migration is safe.** This is the supported way to resolve a numbering collision after an upstream merge: keep our shipped numbers fixed, and renumber the incoming upstream files upward.
+
+Before renumbering, verify the two colliding migrations touch **disjoint tables**. If they do, there is no ordering dependency and either may run first. If they overlap, the relative order must be reasoned about explicitly rather than assumed from the numbers.
+
+Renumbering is not just a `git mv`: grep the repo for the old filenames and update every operator-facing reference (`docs/operators/migrations/*`, `CHANGELOG.md`, `scripts/README.md`). Those documents contain commands people copy and paste, so a stale name there is a real defect, not a cosmetic one.
+
 ---
 
 ## Naming Conventions

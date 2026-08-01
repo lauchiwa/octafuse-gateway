@@ -47,9 +47,62 @@ curl -s -o /dev/null -w "%{http_code}\n" \
 
 Upstream stores `sk-` keys in plaintext in `api_keys.key`. This fork stores `SHA-256(key)` in `key_hash` plus a display-only `key_prefix` (migration `0015`). Conflicts in `packages/core/src/db/*/api-keys.impl.ts`, the drizzle schemas, `services/key-service.ts` or `services/api-key-hash.ts` must keep ours.
 
-### 3. Provider key encryption (`provider_api_keys.api_key`)
+### 3. Provider key storage — **resolved in favour of upstream (v2.0.0)**
 
-Upstream stores upstream provider credentials in plaintext. This fork encrypts them with AES-GCM (`services/provider-key-crypto.ts`, `ofk1.` prefix), keyed by the `PROVIDER_KEY_ENCRYPTION_KEY` secret. Conflicts in `packages/core/src/db/*/provider-api-keys.impl.ts` or the storage-context/repository factories must keep ours.
+> **Superseded.** Earlier revisions of this document told you to keep a fork-local AES-GCM
+> encryption layer here. That layer no longer exists — do not try to restore it.
+
+This fork previously encrypted upstream provider credentials with AES-GCM
+(`services/provider-key-crypto.ts`, `ofk1.` prefix, keyed by `PROVIDER_KEY_ENCRYPTION_KEY`).
+
+Upstream v2.0.0 replaced the whole multi-key model with **one `api_key` per provider** stored on
+`providers.api_key` (migration `0017_single_provider_key`), deleting `provider_api_keys` and every
+`provider-api-keys.impl.ts`. We adopted upstream's architecture and **dropped our encryption layer**:
+the credential is treated as a server-side secret like `DATABASE_URL`, and the Admin API that can
+read it is already behind the master key.
+
+Consequences for future merges:
+
+- `PROVIDER_KEY_ENCRYPTION_KEY` is **no longer read anywhere**. If you find it reintroduced, that is a
+  leftover, not a feature.
+- Conflicts in `providers.impl.ts` / storage-context / repository factories should take **upstream's**
+  side, not ours.
+- Item 2 below (gateway `sk-` key hashing) is **unrelated and still ours** — it protects keys our own
+  users hold, and upstream still stores those in plaintext. Do not conflate the two.
+
+#### ⚠️ One-way data trap when cutting over from the encrypted layer
+
+If a database was ever written by the **encrypted** build, its `provider_api_keys.api_key` values are
+ciphertext (`ofk1.<iv>.<ct>`), not plaintext. Encryption was mandatory in that build — it threw rather
+than storing plaintext — so there is no mixed state to hope for.
+
+Migration `0017` copies that column verbatim:
+
+```sql
+UPDATE providers SET api_key = COALESCE((
+  SELECT k.api_key FROM provider_api_keys k ...
+), '');
+```
+
+It does **not** decrypt, and the post-merge code has no decrypt path left. The gateway would then send
+`Authorization: Bearer ofk1.…` upstream and every provider returns 401 — after `DROP TABLE
+provider_api_keys` has already discarded the only copy.
+
+> **Upstream's stated escape hatch does not work here.** `scripts/db/export-provider-api-keys.mjs`
+> reads `SELECT api_key FROM provider_api_keys` over raw SQL, so it exports the *ciphertext*. Running
+> it gives you a backup file that looks fine and restores nothing usable.
+
+Before applying `0017` on such a database, check first:
+
+```bash
+# any row starting with the cipher prefix means decrypt-before-migrate is required
+psql "$DATABASE_URL" -c \
+  "SELECT count(*) FROM provider_api_keys WHERE api_key LIKE 'ofk1.%';"
+```
+
+If the count is non-zero, decrypt those values back to plaintext (using the old
+`PROVIDER_KEY_ENCRYPTION_KEY`) *before* migrating, or accept that the credentials are lost and
+re-enter them from the provider afterwards. On the 2026-08 merge the owner chose to re-enter them.
 
 ### 4. `ADMIN_COOKIE_SECURE`
 
