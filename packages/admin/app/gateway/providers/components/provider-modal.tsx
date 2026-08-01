@@ -4,12 +4,18 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	DocumentDuplicateIcon,
+	PlusIcon,
 	TrashIcon,
 } from '@heroicons/react/24/outline';
 import { useTranslations } from 'next-intl';
 import { useId, useState } from 'react';
-import { protocolFormHasOverrides } from '../provider-utils';
-import type { GatewayProvider, ProtocolEndpointForm, ProviderFormData } from '../types';
+import { protocolFormHasCustomHeaders, protocolFormHasOverrides } from '../provider-utils';
+import type {
+	CustomHeaderRow,
+	GatewayProvider,
+	ProtocolEndpointForm,
+	ProviderFormData,
+} from '../types';
 import { ProviderProtocolIcon } from './provider-protocol-icon';
 
 type ProviderModalProps = {
@@ -41,12 +47,21 @@ function ProtocolFields(props: {
 	advancedHint: string;
 	capLabels: {
 		chat: string;
+		responses: string;
 		imagesGenerations: string;
 		imagesEdits: string;
 		audioTranscriptions: string;
 		messages: string;
 		generateContent: string;
 		streamGenerateContent: string;
+	};
+	customHeaderLabels: {
+		toggle: string;
+		hint: string;
+		namePlaceholder: string;
+		valuePlaceholder: string;
+		add: string;
+		remove: string;
 	};
 	onChange: (next: ProtocolEndpointForm) => void;
 }) {
@@ -60,10 +75,20 @@ function ProtocolFields(props: {
 		advancedToggle,
 		advancedHint,
 		capLabels,
+		customHeaderLabels,
 		onChange,
 	} = props;
 	const [advancedOpen, setAdvancedOpen] = useState(() => protocolFormHasOverrides(protocol, form));
+	const [headersOpen, setHeadersOpen] = useState(() => protocolFormHasCustomHeaders(form));
 	const overridesPanelId = useId();
+	const headersPanelId = useId();
+
+	const updateHeaders = (rows: CustomHeaderRow[]) => onChange({ ...form, customHeaders: rows });
+	const addHeaderRow = () => updateHeaders([...form.customHeaders, { name: '', value: '' }]);
+	const removeHeaderRow = (index: number) =>
+		updateHeaders(form.customHeaders.filter((_, i) => i !== index));
+	const changeHeaderRow = (index: number, patch: Partial<CustomHeaderRow>) =>
+		updateHeaders(form.customHeaders.map((row, i) => (i === index ? { ...row, ...patch } : row)));
 
 	return (
 		<div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
@@ -114,6 +139,16 @@ function ProtocolFields(props: {
 										type="url"
 										value={form.chat}
 										onChange={(e) => onChange({ ...form, chat: e.target.value })}
+										className={inputClass}
+										autoComplete="off"
+									/>
+								</div>
+								<div>
+									<label className="mb-1 block text-xs text-gray-600">{capLabels.responses}</label>
+									<input
+										type="url"
+										value={form.responses}
+										onChange={(e) => onChange({ ...form, responses: e.target.value })}
 										className={inputClass}
 										autoComplete="off"
 									/>
@@ -209,6 +244,71 @@ function ProtocolFields(props: {
 					</div>
 				) : null}
 			</div>
+
+			<div className="mt-3">
+				<button
+					type="button"
+					className="flex w-full items-center gap-1.5 rounded-md px-1 py-1.5 text-left text-xs font-medium text-blue-600 hover:bg-blue-50 hover:text-blue-800"
+					onClick={() => setHeadersOpen((v) => !v)}
+					aria-expanded={headersOpen}
+					aria-controls={headersPanelId}
+				>
+					{headersOpen ? (
+						<ChevronDownIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+					) : (
+						<ChevronRightIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+					)}
+					<span>{customHeaderLabels.toggle}</span>
+				</button>
+				{headersOpen ? (
+					<div
+						id={headersPanelId}
+						className="mt-2 space-y-3 rounded-md border border-gray-100 bg-gray-50/80 p-3"
+					>
+						<p className="text-xs text-gray-500">{customHeaderLabels.hint}</p>
+						{form.customHeaders.length > 0 ? (
+							<div className="space-y-2">
+								{form.customHeaders.map((row, index) => (
+									<div key={index} className="flex items-center gap-2">
+										<input
+											type="text"
+											value={row.name}
+											onChange={(e) => changeHeaderRow(index, { name: e.target.value })}
+											className={`${inputClass} flex-1`}
+											placeholder={customHeaderLabels.namePlaceholder}
+											autoComplete="off"
+										/>
+										<input
+											type="text"
+											value={row.value}
+											onChange={(e) => changeHeaderRow(index, { value: e.target.value })}
+											className={`${inputClass} flex-1`}
+											placeholder={customHeaderLabels.valuePlaceholder}
+											autoComplete="off"
+										/>
+										<button
+											type="button"
+											onClick={() => removeHeaderRow(index)}
+											className="shrink-0 rounded-md border border-gray-300 bg-white p-2 text-gray-400 hover:bg-red-50 hover:text-red-600"
+											aria-label={customHeaderLabels.remove}
+										>
+											<TrashIcon className="h-4 w-4" aria-hidden />
+										</button>
+									</div>
+								))}
+							</div>
+						) : null}
+						<button
+							type="button"
+							onClick={addHeaderRow}
+							className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+						>
+							<PlusIcon className="h-3.5 w-3.5" aria-hidden />
+							{customHeaderLabels.add}
+						</button>
+					</div>
+				) : null}
+			</div>
 		</div>
 	);
 }
@@ -237,12 +337,22 @@ export function ProviderModal(props: ProviderModalProps) {
 
 	const capLabels = {
 		chat: t('capChat'),
+		responses: t('capResponses'),
 		imagesGenerations: t('capImagesGenerations'),
 		imagesEdits: t('capImagesEdits'),
 		audioTranscriptions: t('capAudioTranscriptions'),
 		messages: t('capMessages'),
 		generateContent: t('capGenerateContent'),
 		streamGenerateContent: t('capStreamGenerateContent'),
+	};
+
+	const customHeaderLabels = {
+		toggle: t('customHeadersToggle'),
+		hint: t('customHeadersHint'),
+		namePlaceholder: t('customHeadersNamePlaceholder'),
+		valuePlaceholder: t('customHeadersValuePlaceholder'),
+		add: t('customHeadersAdd'),
+		remove: t('customHeadersRemove'),
 	};
 
 	return (
@@ -377,6 +487,7 @@ export function ProviderModal(props: ProviderModalProps) {
 									advancedToggle={t('advancedToggle')}
 									advancedHint={t('advancedHint')}
 									capLabels={capLabels}
+									customHeaderLabels={customHeaderLabels}
 									onChange={(openai) => onFormChange({ ...formData, openai })}
 								/>
 								<ProtocolFields
@@ -388,6 +499,7 @@ export function ProviderModal(props: ProviderModalProps) {
 									advancedToggle={t('advancedToggle')}
 									advancedHint={t('advancedHint')}
 									capLabels={capLabels}
+									customHeaderLabels={customHeaderLabels}
 									onChange={(anthropic) => onFormChange({ ...formData, anthropic })}
 								/>
 								<ProtocolFields
@@ -400,6 +512,7 @@ export function ProviderModal(props: ProviderModalProps) {
 									advancedToggle={t('advancedToggle')}
 									advancedHint={t('advancedHint')}
 									capLabels={capLabels}
+									customHeaderLabels={customHeaderLabels}
 									onChange={(gemini) => onFormChange({ ...formData, gemini })}
 								/>
 							</div>

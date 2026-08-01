@@ -9,7 +9,12 @@ import {
 	type ProtocolEndpointsConfig,
 } from '@octafuse/core/provider-endpoints';
 import type { UpstreamProtocol } from '@octafuse/core/upstream-protocol';
+import {
+	parseProviderCustomHeaders,
+	type ProviderCustomHeadersMap,
+} from '@octafuse/core/provider-custom-headers';
 import type {
+	CustomHeaderRow,
 	ProtocolEndpointForm,
 	ProviderCapabilityBadge,
 	ProviderFormData,
@@ -24,6 +29,7 @@ export function capabilityDisplayBadges(
 	const badges: ProviderCapabilityBadge[] = [];
 	const set = new Set(capabilities);
 	if (set.has('chat')) badges.push('chat');
+	if (set.has('responses')) badges.push('responses');
 	if (set.has('images.generations') || set.has('images.edits')) badges.push('images');
 	if (set.has('audio.transcriptions')) badges.push('audio');
 	if (set.has('messages')) badges.push('messages');
@@ -32,32 +38,46 @@ export function capabilityDisplayBadges(
 	return badges;
 }
 
-function protocolFormFromConfig(cfg: ProtocolEndpointsConfig | undefined): ProtocolEndpointForm {
-	const form: ProtocolEndpointForm = { ...EMPTY_PROTOCOL_FORM };
-	if (!cfg) return form;
-	form.base = cfg.base ?? '';
-	const eps = cfg.endpoints ?? {};
-	form.chat = eps.chat ?? '';
-	form.images_generations = eps['images.generations'] ?? '';
-	form.images_edits = eps['images.edits'] ?? '';
-	form.audio_transcriptions = eps['audio.transcriptions'] ?? '';
-	form.messages = eps.messages ?? '';
-	form.generateContent = eps.generateContent ?? '';
-	form.streamGenerateContent = eps.streamGenerateContent ?? '';
+function customHeadersToRows(headers: Record<string, string> | undefined): CustomHeaderRow[] {
+	if (!headers) return [];
+	return Object.entries(headers).map(([name, value]) => ({ name, value }));
+}
+
+function protocolFormFromConfig(
+	cfg: ProtocolEndpointsConfig | undefined,
+	customHeaders: Record<string, string> | undefined
+): ProtocolEndpointForm {
+	const form: ProtocolEndpointForm = { ...EMPTY_PROTOCOL_FORM, customHeaders: [] };
+	if (cfg) {
+		form.base = cfg.base ?? '';
+		const eps = cfg.endpoints ?? {};
+		form.chat = eps.chat ?? '';
+		form.responses = eps.responses ?? '';
+		form.images_generations = eps['images.generations'] ?? '';
+		form.images_edits = eps['images.edits'] ?? '';
+		form.audio_transcriptions = eps['audio.transcriptions'] ?? '';
+		form.messages = eps.messages ?? '';
+		form.generateContent = eps.generateContent ?? '';
+		form.streamGenerateContent = eps.streamGenerateContent ?? '';
+	}
+	form.customHeaders = customHeadersToRows(customHeaders);
 	return form;
 }
 
-/** Provider 行 → 弹窗表单（endpoints + status；api_key 留空表示不改）。 */
-export function providerToFormData(
-	provider: GatewayProvider
-): Omit<ProviderFormData, 'id' | 'name' | 'description'> {
+/** Provider 行 → 弹窗表单（`endpoints` + `custom_headers`；api_key 留空表示不改）。 */
+export function providerToFormData(provider: GatewayProvider): Omit<ProviderFormData, 'id' | 'name' | 'description'> & {
+	openai: ProtocolEndpointForm;
+	anthropic: ProtocolEndpointForm;
+	gemini: ProtocolEndpointForm;
+} {
 	const map = parseProviderEndpoints(provider);
+	const headers: ProviderCustomHeadersMap = parseProviderCustomHeaders(provider);
 	return {
 		api_key: '',
 		status: provider.status === 'disabled' ? 'disabled' : 'active',
-		openai: protocolFormFromConfig(map.openai),
-		anthropic: protocolFormFromConfig(map.anthropic),
-		gemini: protocolFormFromConfig(map.gemini),
+		openai: protocolFormFromConfig(map.openai, headers.openai),
+		anthropic: protocolFormFromConfig(map.anthropic, headers.anthropic),
+		gemini: protocolFormFromConfig(map.gemini, headers.gemini),
 	};
 }
 
@@ -69,6 +89,7 @@ function configFromProtocolForm(
 	const endpoints: NonNullable<ProtocolEndpointsConfig['endpoints']> = {};
 	if (protocol === 'openai') {
 		if (form.chat.trim()) endpoints.chat = form.chat.trim();
+		if (form.responses.trim()) endpoints.responses = form.responses.trim();
 		if (form.images_generations.trim()) endpoints['images.generations'] = form.images_generations.trim();
 		if (form.images_edits.trim()) endpoints['images.edits'] = form.images_edits.trim();
 		if (form.audio_transcriptions.trim()) {
@@ -103,6 +124,29 @@ export function formDataToEndpointsMap(form: ProviderFormData): ProviderEndpoint
 
 export function formDataToEndpointsJson(form: ProviderFormData): string | null {
 	return serializeProviderEndpoints(formDataToEndpointsMap(form));
+}
+
+/** 单协议表单 → 该协议自定义 header 记录；空名/空行过滤，重名后者覆盖前者。 */
+function protocolFormToHeaderRecord(form: ProtocolEndpointForm): Record<string, string> | undefined {
+	const record: Record<string, string> = {};
+	for (const row of form.customHeaders) {
+		const name = row.name.trim();
+		if (!name) continue;
+		record[name] = row.value;
+	}
+	return Object.keys(record).length > 0 ? record : undefined;
+}
+
+/** 表单 → API `customHeaders` 对象（provider × 协议粒度）。 */
+export function formDataToCustomHeadersMap(form: ProviderFormData): ProviderCustomHeadersMap {
+	const map: ProviderCustomHeadersMap = {};
+	const openai = protocolFormToHeaderRecord(form.openai);
+	const anthropic = protocolFormToHeaderRecord(form.anthropic);
+	const gemini = protocolFormToHeaderRecord(form.gemini);
+	if (openai) map.openai = openai;
+	if (anthropic) map.anthropic = anthropic;
+	if (gemini) map.gemini = gemini;
+	return map;
 }
 
 export function getProviderProtocolSummaries(provider: GatewayProvider): ProviderProtocolSummary[] {
@@ -175,4 +219,9 @@ export function protocolFormHasOverrides(
 	}
 	if (protocol === 'anthropic') return !!form.messages.trim();
 	return !!(form.generateContent.trim() || form.streamGenerateContent.trim());
+}
+
+/** 某协议是否配置了任意非空自定义 header（用于 Advanced 区默认展开）。 */
+export function protocolFormHasCustomHeaders(form: ProtocolEndpointForm): boolean {
+	return form.customHeaders.some((row) => row.name.trim() !== '');
 }

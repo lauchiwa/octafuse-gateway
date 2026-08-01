@@ -282,7 +282,8 @@ export type AdminModelRouteRow = ModelRouteJoinRow & {
 /** `GET /admin/keys` 单行 */
 export type AdminKeyListItem = {
 	id: string;
-	key: string;
+	/** 掩码展示值；明文仅创建时返回一次，之后不可还原。 */
+	key_masked: string;
 	user_id: string;
 	name: string | null;
 	user_email: string | null;
@@ -355,7 +356,8 @@ export type AdminKeyUpdateOutput =
 
 export type AdminKeyDetailOutput = {
 	id: string;
-	key: string;
+	/** 掩码展示值；明文仅创建时返回一次。 */
+	key_masked: string;
 	user_id: string;
 	name: string | null;
 	user_email: string | null;

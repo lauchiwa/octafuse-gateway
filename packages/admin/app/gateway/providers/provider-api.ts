@@ -1,6 +1,6 @@
 import { readApiJson } from '@/lib/api-json';
 import type { GatewayProvider } from '@/lib/types';
-import { formDataToEndpointsMap } from './provider-utils';
+import { formDataToCustomHeadersMap, formDataToEndpointsMap } from './provider-utils';
 import type { ProviderFormData, ProviderImportCatalogRow, ProviderImportResult } from './types';
 
 export async function fetchProvidersList(): Promise<GatewayProvider[]> {
@@ -21,6 +21,7 @@ export async function saveProvider(
 		description: formData.description,
 		endpoints: formDataToEndpointsMap(formData),
 		status: formData.status === 'disabled' ? 'disabled' : 'active',
+		customHeaders: formDataToCustomHeadersMap(formData),
 	};
 
 	const apiKey = formData.api_key.trim();

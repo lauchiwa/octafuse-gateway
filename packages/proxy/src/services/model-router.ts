@@ -18,6 +18,8 @@ import {
 	fingerprintProviderApiKey,
 	normalizeUpstreamProtocol,
 	parseProviderEndpoints,
+	parseProviderCustomHeaders,
+	resolveCustomHeadersForProtocol,
 } from '@octafuse/core';
 import { selectActiveRouteRows } from './route-selection';
 
@@ -38,6 +40,13 @@ export interface RouteResult {
 	 * Driver 按 capability 调用 `resolveUpstreamEndpoint`。
 	 */
 	providerEndpoints: ProviderEndpointsMap;
+	/**
+	 * 本次路由命中协议（`upstreamProtocol`）对应的 provider 自定义上游 header，
+	 * 已从 `providers.custom_headers` 拍平。注入上游 fetch 时驱动内置的鉴权/协议
+	 * header 永远覆盖它（`{ ...providerCustomHeaders, ...driverBaseHeaders }`）。
+	 * 缺省为空对象，下游永远拿到对象而非 undefined。
+	 */
+	providerCustomHeaders: Record<string, string>;
 	providerApiKey: string;
 	/** 原始 `model_routes.price_override` JSON，供审计与嵌套 profile 解析 */
 	priceOverrideRaw: string | null;
@@ -77,6 +86,10 @@ async function routeRowToResult(repos: GatewayRepositories, route: ModelRouteRow
 	}
 	const protocol = normalizeUpstreamProtocol(route.upstream_protocol);
 	const providerEndpoints = parseProviderEndpoints(provider);
+	const providerCustomHeaders = resolveCustomHeadersForProtocol(
+		parseProviderCustomHeaders(provider),
+		protocol
+	);
 	const customParams = parseJsonObject(route.custom_params);
 	if (route.custom_params && !customParams) {
 		console.warn(
@@ -102,6 +115,7 @@ async function routeRowToResult(repos: GatewayRepositories, route: ModelRouteRow
 		upstreamOperation: route.upstream_operation ?? '*',
 		adapter: route.adapter ?? 'passthrough',
 		providerEndpoints,
+		providerCustomHeaders,
 		providerApiKey: provider.api_key,
 		priceOverrideRaw: route.price_override,
 		routeMeteredProfileJson: extractMeteredProfileFromPriceOverrideJson(route.price_override),

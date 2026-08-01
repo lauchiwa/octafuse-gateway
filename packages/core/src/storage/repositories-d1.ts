@@ -1,5 +1,5 @@
 import type { GatewayDatabaseClient } from './database-client';
-import type { GatewayRepositories } from './repositories-types';
+import type { GatewayRepositories, GatewayRepositoriesOptions } from './repositories-types';
 import { createD1AdminAnalyticsRepository } from '../db/d1/admin-analytics.impl';
 import { createD1ApiKeysRepository } from '../db/d1/api-keys.impl';
 import { createD1ModelRoutesRepository } from '../db/d1/model-routes.impl';
@@ -11,7 +11,10 @@ import { createD1SystemConfigRepository } from '../db/d1/system-config.impl';
 import { createD1UserAuditLogsRepository } from '../db/d1/user-audit-logs.impl';
 import { createD1UsersRepository } from '../db/d1/users.impl';
 
-export function createD1Repositories(client: GatewayDatabaseClient): GatewayRepositories {
+export function createD1Repositories(
+	client: GatewayDatabaseClient,
+	options?: GatewayRepositoriesOptions
+): GatewayRepositories {
 	if (client.driver !== 'd1') {
 		throw new Error('createD1Repositories: expected D1 client');
 	}

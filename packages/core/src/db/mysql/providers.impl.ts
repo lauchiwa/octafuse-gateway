@@ -18,6 +18,7 @@ function providerRecordFromMy(r: {
 	endpoints: string | null;
 	apiKey: string;
 	status: string;
+	customHeaders: string | null;
 	description: string | null;
 	createdAt: string;
 }): ProviderAdminRow {
@@ -27,6 +28,7 @@ function providerRecordFromMy(r: {
 		endpoints: r.endpoints,
 		api_key: r.apiKey,
 		status: r.status,
+		custom_headers: r.customHeaders,
 		description: r.description,
 		created_at: r.createdAt,
 	};
@@ -38,6 +40,7 @@ function mapMyProviderRow(r: {
 	endpoints: string | null;
 	apiKey: string;
 	status: string;
+	customHeaders: string | null;
 	description: string | null;
 	createdAt: string;
 }): ProviderRow {
@@ -47,6 +50,7 @@ function mapMyProviderRow(r: {
 		endpoints: r.endpoints,
 		api_key: r.apiKey,
 		status: r.status,
+		custom_headers: r.customHeaders,
 		description: r.description,
 		created_at: r.createdAt,
 	};
@@ -74,6 +78,7 @@ export function createMySqlProvidersRepository(db: MySqlDatabaseClient): Provide
 			description: unknown;
 			apiKey?: string;
 			status?: string;
+			customHeaders?: string | null;
 		}): Promise<void> {
 			const now = new Date().toISOString();
 			await drizzle.insert(myProvidersTable).values({
@@ -82,6 +87,7 @@ export function createMySqlProvidersRepository(db: MySqlDatabaseClient): Provide
 				endpoints: params.endpoints,
 				apiKey: params.apiKey ?? '',
 				status: params.status ?? 'active',
+				customHeaders: params.customHeaders ?? null,
 				description: params.description == null ? null : String(params.description),
 				createdAt: now,
 			});

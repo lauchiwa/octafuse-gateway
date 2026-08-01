@@ -44,7 +44,8 @@ export const usersTable = pgTable(
 
 export const apiKeysTable = pgTable('api_keys', {
 	id: text('id').primaryKey(),
-	key: text('key').notNull(),
+	keyHash: text('key_hash').notNull(),
+	keyPrefix: text('key_prefix'),
 	userId: text('user_id').notNull(),
 	name: text('name'),
 	status: text('status').notNull().default('active'),
@@ -63,6 +64,8 @@ export const providersTable = pgTable('providers', {
 	apiKey: text('api_key').notNull().default(''),
 	/** `active` | `disabled` */
 	status: text('status').notNull().default('active'),
+	/** JSON: `{ openai?: { "User-Agent": … }, … }`（自定义上游 header） */
+	customHeaders: text('custom_headers'),
 	description: text('description'),
 	createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull(),
 });

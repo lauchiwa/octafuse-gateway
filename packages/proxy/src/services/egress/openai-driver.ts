@@ -2,6 +2,7 @@ import { resolveUpstreamEndpoint } from '@octafuse/core';
 import type { RouteResult } from '../model-router';
 import type { UsageFromStream } from '../proxy';
 import { buildRouteRequestBody } from '../route-default-params';
+import { mergeUpstreamHeaders } from './merge-upstream-headers';
 import { extractUpstreamRequestId, normalizeUpstreamId } from './upstream-request-id';
 import type { RequestTimingAttempt, RequestTimingCollector } from '../request-timing';
 
@@ -35,8 +36,13 @@ const EMPTY_USAGE_LOCAL: UsageFromStream = {
 /** Client disconnected后继续从上游读取以争取拿到末尾 usage 的最大时长。 */
 const POST_DISCONNECT_DRAIN_MS = 90_000;
 
-/** Provider usage object (OpenAI / Claude via OpenAI-compatible API). */
-type ProviderUsage = {
+/**
+ * Provider usage object (OpenAI / Claude via OpenAI-compatible API).
+ *
+ * 导出供 Responses→Chat 翻译驱动复用（phase 2）：翻译路径的计费必须与 chat 路径
+ * 逐字段一致，另写一份映射会与此处的缓存口径归一逻辑漂移。
+ */
+export type ProviderUsage = {
   prompt_tokens?: number;
   completion_tokens?: number;
   input_tokens?: number;
@@ -65,7 +71,7 @@ const encoder = new TextEncoder();
  * 网关内部计费公式假设：`input_tokens = regular + cache_read + cache_write`。
  * 因此这里需要把上游口径归一到该语义。
  */
-function normalizeInputTokensFromPrompt(args: {
+export function normalizeInputTokensFromPrompt(args: {
   promptTokens: number;
   completionTokens: number;
   cacheRead: number;
@@ -96,7 +102,13 @@ function normalizeInputTokensFromPrompt(args: {
   return promptTokens;
 }
 
-function usageFromProvider(u: ProviderUsage): UsageFromStream {
+/**
+ * chat usage → 网关内部 `UsageFromStream`。
+ *
+ * 导出供 phase 2 的 Responses→Chat 翻译驱动复用：R6 要求「翻译请求记的账与同一请求走
+ * /v1/chat/completions 完全一致」，唯一可靠的做法是共用这一个映射。
+ */
+export function usageFromProvider(u: ProviderUsage): UsageFromStream {
   const promptTokensRaw = u.prompt_tokens ?? u.input_tokens ?? 0;
   const completionTokens = u.completion_tokens ?? u.output_tokens ?? 0;
   const cacheRead = u.prompt_tokens_details?.cached_tokens ?? 0;
@@ -432,10 +444,13 @@ export async function dispatchOpenAiRoute(
 
   const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${route.providerApiKey}`,
-    },
+    headers: mergeUpstreamHeaders(
+      {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${route.providerApiKey}`,
+      },
+      route.providerCustomHeaders
+    ),
     body: JSON.stringify(requestBody),
   });
   timing?.markAttemptHeaders(attempt, response.status);

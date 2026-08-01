@@ -17,10 +17,13 @@ export type ApiKeyBudgetAuditEventType =
 
 export type ApiKeyBudgetAuditActorType = 'system' | 'admin' | 'service';
 
-/** `api_keys` 表行（密钥明文存库；预算在 `users`）。 */
+/** `api_keys` 表行（密钥以 SHA-256 摘要存库，明文仅创建时返回一次；预算在 `users`）。 */
 export interface ApiKeyRow {
 	id: string;
-	key: string;
+	/** SHA-256 十六进制摘要。 */
+	key_hash: string;
+	/** 展示用前缀（`sk-` + 8 位）；迁移前的历史行可能为空。 */
+	key_prefix: string | null;
 	user_id: string;
 	name: string | null;
 	status: string;
@@ -81,6 +84,11 @@ export interface ProviderRow {
   api_key?: string;
   /** `active` | `disabled`；disabled 不参与调度。 */
   status?: ProviderStatus | string;
+  /**
+   * 自定义上游 header JSON：`{ openai?: { "User-Agent": "…" }, anthropic?, gemini? }`。
+   * 见 `parseProviderCustomHeaders` / `resolveCustomHeadersForProtocol`。
+   */
+  custom_headers?: string | null;
   description: string | null;
   created_at: string;
 }

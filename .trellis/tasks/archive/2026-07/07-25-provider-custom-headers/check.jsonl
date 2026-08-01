@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/core/backend/index.md", "reason": "核对 Quality Check：core build + test:unit，三驱动同步、三份同号迁移一致"}
+{"file": ".trellis/spec/core/backend/database-guidelines.md", "reason": "核对三驱动 impl/映射 lockstep、迁移编号一致、参数化查询与白名单"}
+{"file": ".trellis/spec/proxy/backend/index.md", "reason": "核对 proxy typecheck/test:unit、运行时中立、出站走 egress 驱动"}
+{"file": ".trellis/spec/admin/backend/index.md", "reason": "核对 Admin lint/typecheck、无 SQL、响应契约、无密钥泄漏"}
+{"file": ".trellis/spec/admin/frontend/index.md", "reason": "核对四语言文案 key 结构一致（en 基线）、lint/typecheck、util 单测更新"}

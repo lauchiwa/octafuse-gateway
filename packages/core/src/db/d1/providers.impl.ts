@@ -14,7 +14,7 @@ export function createD1ProvidersRepository(db: D1DatabaseClient): ProvidersRepo
 		async listProviders(): Promise<ProviderAdminRow[]> {
 			const rows = await raw
 				.prepare(
-					`SELECT id, name, endpoints, api_key, status, description, created_at
+					`SELECT id, name, endpoints, api_key, status, custom_headers, description, created_at
 			 FROM providers ORDER BY created_at DESC`
 				)
 				.all<ProviderAdminRow>();
@@ -33,11 +33,12 @@ export function createD1ProvidersRepository(db: D1DatabaseClient): ProvidersRepo
 			description: unknown;
 			apiKey?: string;
 			status?: string;
+			customHeaders?: string | null;
 		}): Promise<void> {
 			await raw
 				.prepare(
-					`INSERT INTO providers (id, name, endpoints, api_key, status, description)
-			 VALUES (?, ?, ?, ?, ?, ?)`
+					`INSERT INTO providers (id, name, endpoints, api_key, status, description, custom_headers)
+			 VALUES (?, ?, ?, ?, ?, ?, ?)`
 				)
 				.bind(
 					params.id,
@@ -45,7 +46,8 @@ export function createD1ProvidersRepository(db: D1DatabaseClient): ProvidersRepo
 					params.endpoints,
 					params.apiKey ?? '',
 					params.status ?? 'active',
-					params.description ?? null
+					params.description ?? null,
+					params.customHeaders ?? null
 				)
 				.run();
 		},

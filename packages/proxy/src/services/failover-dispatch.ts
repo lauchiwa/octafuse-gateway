@@ -92,6 +92,7 @@ function emptyRoute(protocol: UpstreamProtocol): RouteResult {
 		upstreamOperation: '*',
 		adapter: 'passthrough',
 		providerEndpoints: {},
+		providerCustomHeaders: {},
 		providerApiKey: '',
 		priceOverrideRaw: null,
 		routeMeteredProfileJson: null,
@@ -107,6 +108,14 @@ function emptyRoute(protocol: UpstreamProtocol): RouteResult {
 }
 
 function logProviderSwitchAlert(route: RouteResult, classification: UpstreamFailureClassification, status?: number): void {
+	// 客户端身份被上游拒绝：与「凭据无效」区分，明确指出 provider 未被判定为故障。
+	// 不这样区分时，一次 UA/来源被拒会伪装成 auth 故障并熔断该 provider。
+	if (classification.clientIdentityRejected) {
+		console.warn(
+			`[Gateway Proxy] upstream rejected the CLIENT IDENTITY (not the key): providerId=${route.providerId} status=${status ?? 'fetch_error'} — provider left healthy, returning upstream error to caller`
+		);
+		return;
+	}
 	if (!classification.alertOnKeySwitch) return;
 	console.warn(
 		`[Gateway Proxy] provider auth issue, trying next provider providerId=${route.providerId} status=${status ?? 'fetch_error'}`
@@ -244,9 +253,21 @@ export async function failoverDispatch(
 			};
 		}
 
+		// 403 需要看响应体才能区分「凭据无效」与「请求身份被拒」（后者不该熔断 provider）。
+		// 401 语义明确，无需读 body。只在 403 上 clone+读取：body 尚未被消费
+		//（路由层稍后用 materializeNonOkResponse 读原始 response）。
+		let forbiddenBodyText: string | null = null;
+		if (response.status === 403) {
+			try {
+				forbiddenBodyText = await response.clone().text();
+			} catch {
+				forbiddenBodyText = null;
+			}
+		}
+
 		const classification: UpstreamFailureClassification = shouldFailImmediatelyForImageAbort(dispatchMeta)
 			? { action: 'fail_immediately' }
-			: classifyUpstreamHttpFailure(response.status);
+			: classifyUpstreamHttpFailure(response.status, forbiddenBodyText);
 		logProviderSwitchAlert(route, classification, response.status);
 
 		if (classification.action === 'fail_immediately') {

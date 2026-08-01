@@ -4,6 +4,7 @@
  */
 import { parseOpenAiImageUsage, resolveUpstreamEndpoint, type ImageTokenUsage } from '@octafuse/core';
 import type { RouteResult } from '../model-router';
+import { mergeUpstreamHeaders } from './merge-upstream-headers';
 import type { UsageFromStream } from '../proxy';
 import { EMPTY_USAGE } from '../proxy';
 import { buildRouteRequestBody } from '../route-default-params';
@@ -316,10 +317,13 @@ export async function dispatchOpenAiImageGenerations(
 	try {
 		const response = await fetch(url, {
 			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				Authorization: `Bearer ${route.providerApiKey}`,
-			},
+			headers: mergeUpstreamHeaders(
+				{
+					'Content-Type': 'application/json',
+					Authorization: `Bearer ${route.providerApiKey}`,
+				},
+				route.providerCustomHeaders
+			),
 			body: JSON.stringify(requestBody),
 			signal,
 		});
@@ -429,9 +433,12 @@ export async function dispatchOpenAiImageEdits(
 	try {
 		const response = await fetch(url, {
 			method: 'POST',
-			headers: {
-				Authorization: `Bearer ${route.providerApiKey}`,
-			},
+			headers: mergeUpstreamHeaders(
+				{
+					Authorization: `Bearer ${route.providerApiKey}`,
+				},
+				route.providerCustomHeaders
+			),
 			body: form,
 			signal,
 		});

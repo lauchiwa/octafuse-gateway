@@ -11,6 +11,10 @@ import {
 	PROVIDER_IMPORT_PENDING_API_KEY,
 } from '@octafuse/core/db/provider-key-utils';
 import {
+	serializeProviderCustomHeaders,
+	validateAndNormalizeProviderCustomHeaders,
+} from '@octafuse/core/provider-custom-headers';
+import {
 	inferStaticProviderIconKey,
 	inferStaticProviderVendorKey,
 	listStaticProviderImportPresets,
@@ -40,6 +44,17 @@ function normalizeProviderStatus(raw: unknown): 'active' | 'disabled' {
 	if (raw === 'disabled') return 'disabled';
 	if (raw === 'active' || raw === undefined || raw === null || raw === '') return 'active';
 	throw badRequest('status must be active or disabled');
+}
+
+function resolveCustomHeadersFromMutation(body: AdminProviderMutationInput): string | null {
+	if (body.customHeaders === undefined || body.customHeaders === null) {
+		return null;
+	}
+	const result = validateAndNormalizeProviderCustomHeaders(body.customHeaders);
+	if (!result.ok) {
+		throw badRequest(result.error);
+	}
+	return serializeProviderCustomHeaders(result.value);
 }
 
 /** 列表/详情脱敏：明文 `api_key` → masked；附带 `has_pending_key`。 */
@@ -81,6 +96,7 @@ export async function createProviderService(
 
 	const endpointsJson = resolveEndpointsFromMutation(body);
 	const status = normalizeProviderStatus(body.status);
+	const customHeadersJson = resolveCustomHeadersFromMutation(body);
 
 	const id = customId || crypto.randomUUID();
 	if (customId && (await repos.providers.providerIdExists(id))) {
@@ -94,6 +110,7 @@ export async function createProviderService(
 		description: body.description,
 		apiKey,
 		status,
+		customHeaders: customHeadersJson,
 	});
 
 	return { id };
@@ -153,6 +170,12 @@ export async function updateProviderService(
 	}
 
 	if (Object.keys(patch).length === 0) return;
+
+	// UI 传 camelCase `customHeaders`；patch 白名单为 snake_case `custom_headers`，需转换后再落库。
+	if ('customHeaders' in patch) {
+		delete patch.customHeaders;
+		patch.custom_headers = resolveCustomHeadersFromMutation(body);
+	}
 
 	const changes = await repos.providers.updateProviderByPatch(id, patch);
 	if (changes === 0) {

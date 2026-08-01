@@ -1,3 +1,4 @@
+import type { ProviderKeyCrypto } from '../services/provider-key-crypto';
 import type { GatewayDatabaseClient } from './database-client';
 import type {
 	AdminAnalyticsRepository,
@@ -33,4 +34,9 @@ export interface GatewayRepositories {
 /** 统一取 Hono 上下文中的 `GatewayDatabaseClient`。 */
 export function getGatewayDatabaseClient(repositories: GatewayRepositories): GatewayDatabaseClient {
 	return repositories.client;
+}
+
+/** 存储层可选能力：注入后 provider 上游密钥在库中以密文存取，对调用方透明。 */
+export interface GatewayRepositoriesOptions {
+	providerKeyCrypto?: ProviderKeyCrypto;
 }
