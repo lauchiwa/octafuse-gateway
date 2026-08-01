@@ -3,7 +3,12 @@
  * 并将推理类字段与正文分列，便于区分。
  */
 
-export type PlaygroundProtocol = 'openai' | 'anthropic' | 'gemini';
+/**
+ * `responses` 是 OpenAI 协议下的第二个文本入口（`/v1/responses`），报文形状与 chat 不同：
+ * SSE 为 `response.*` 生命周期事件（正文在 `response.output_text.delta` 的 `delta`），
+ * 非流式则是 response 对象本身（正文在 `output[].content[].text`）。
+ */
+export type PlaygroundProtocol = 'openai' | 'responses' | 'anthropic' | 'gemini';
 
 export type PlaygroundResponseParseMode = 'sse' | 'json' | 'text';
 
@@ -222,6 +227,85 @@ function mergeGeminiSseParts(raw: string): MergedAssistantParts {
 	return acc;
 }
 
+/**
+ * Responses 协议 SSE：正文取 `response.output_text.delta` 的 `delta`；
+ * reasoning 取 `response.reasoning_summary_text.delta` 一类事件（存在则分列）。
+ * 终止事件 `response.completed` 携带完整 `output`，此处不重复累加。
+ */
+function mergeResponsesSseParts(raw: string): MergedAssistantParts {
+	const parts = emptyParts();
+	for (const line of raw.split('\n')) {
+		const t = line.trim();
+		if (!t.startsWith('data:')) {
+			continue;
+		}
+		const payload = t.slice(5).trim();
+		if (payload === '' || payload === '[DONE]') {
+			continue;
+		}
+		let o: unknown;
+		try {
+			o = JSON.parse(payload) as unknown;
+		} catch {
+			continue;
+		}
+		if (!o || typeof o !== 'object') {
+			continue;
+		}
+		const evt = o as { type?: unknown; delta?: unknown };
+		const type = typeof evt.type === 'string' ? evt.type : '';
+		const delta = typeof evt.delta === 'string' ? evt.delta : '';
+		if (delta === '') {
+			continue;
+		}
+		if (type === 'response.output_text.delta') {
+			parts.body += delta;
+		} else if (type.includes('reasoning') && type.endsWith('.delta')) {
+			parts.reasoning += delta;
+		}
+	}
+	return parts;
+}
+
+/** Responses 非流式：response 对象的 `output[]`，正文在 `content[].text`。 */
+function extractResponsesOutputParts(o: unknown): MergedAssistantParts {
+	const parts = emptyParts();
+	if (!o || typeof o !== 'object') {
+		return parts;
+	}
+	const output = (o as { output?: unknown }).output;
+	if (!Array.isArray(output)) {
+		return parts;
+	}
+	for (const item of output) {
+		if (!item || typeof item !== 'object') {
+			continue;
+		}
+		const it = item as { type?: unknown; content?: unknown; summary?: unknown };
+		if (it.type === 'reasoning' && Array.isArray(it.summary)) {
+			for (const s of it.summary) {
+				if (s && typeof s === 'object' && typeof (s as { text?: unknown }).text === 'string') {
+					parts.reasoning += (s as { text: string }).text;
+				}
+			}
+			continue;
+		}
+		if (!Array.isArray(it.content)) {
+			continue;
+		}
+		for (const c of it.content) {
+			if (!c || typeof c !== 'object') {
+				continue;
+			}
+			const part = c as { type?: unknown; text?: unknown };
+			if (typeof part.text === 'string' && (part.type === 'output_text' || part.type === 'text')) {
+				parts.body += part.text;
+			}
+		}
+	}
+	return parts;
+}
+
 function mergeFromJsonObjectParts(o: unknown, protocol: PlaygroundProtocol): MergedAssistantParts {
 	const parts = emptyParts();
 	if (!o || typeof o !== 'object') {
@@ -244,6 +328,16 @@ function mergeFromJsonObjectParts(o: unknown, protocol: PlaygroundProtocol): Mer
 		}
 		parts.body += extractOpenAiMessageContent(msg.content);
 		return parts;
+	}
+	if (protocol === 'responses') {
+		// SDK 便宜フィールド：あれば最優先（実測 2026-07-27 muyuan.do は返さないが、
+		// OpenAI 公式 SDK は付与するため両形状を許容する）。
+		const convenience = (o as { output_text?: unknown }).output_text;
+		if (typeof convenience === 'string' && convenience.length > 0) {
+			parts.body += convenience;
+			return parts;
+		}
+		return extractResponsesOutputParts(o);
 	}
 	if (protocol === 'anthropic') {
 		const blocks = (o as { content?: unknown }).content;
@@ -281,6 +375,9 @@ export function mergeAssistantTextParts(
 	if (mode === 'sse') {
 		if (protocol === 'openai') {
 			return mergeOpenAiSseParts(raw);
+		}
+		if (protocol === 'responses') {
+			return mergeResponsesSseParts(raw);
 		}
 		if (protocol === 'anthropic') {
 			return mergeAnthropicSseParts(raw);

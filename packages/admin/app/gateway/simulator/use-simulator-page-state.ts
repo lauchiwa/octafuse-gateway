@@ -46,6 +46,7 @@ import {
 	tryParseProxyBaseUrl,
 } from './simulator-utils';
 import type { ResponseMeta, ResponseTab, RouteListRow, SendBlockReason, WirePreview } from './types';
+import type { SimulatorOpenAiSurface } from '@/lib/simulator/endpoint';
 
 function resolveModelKind(m: AdminModelRow | null | undefined): ModelKindFilter {
 	if (!m) return 'llm';
@@ -61,6 +62,8 @@ export function useSimulatorPageState() {
 	const [proxyBaseUrl, setProxyBaseUrl] = useState('');
 	const [protocol, setProtocolState] = useState<SimulatorProtocol>('openai');
 	const [geminiAction, setGeminiAction] = useState<SimulatorGeminiAction>('streamGenerateContent');
+	/** OpenAI 协议下测 `/v1/chat/completions` 还是 `/v1/responses`（Codex 用后者）。 */
+	const [openaiSurface, setOpenaiSurfaceState] = useState<SimulatorOpenAiSurface>('chat');
 	const [imageOperation, setImageOperationState] = useState<ImageOperation>('generations');
 	const [editFiles, setEditFiles] = useState<File[]>([]);
 	const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -292,6 +295,7 @@ export function useSimulatorPageState() {
 				protocol,
 				modelForRouting: routing,
 				geminiAction: protocol === 'gemini' ? geminiAction : undefined,
+				openaiSurface: protocol === 'openai' ? openaiSurface : undefined,
 				body: bodyObj,
 				apiKey: revealedSk,
 				audioTranscriptions: useAudio || undefined,
@@ -311,6 +315,7 @@ export function useSimulatorPageState() {
 		}
 	}, [
 		proxyBaseUrl,
+		openaiSurface,
 		selectedModelId,
 		revealedSk,
 		bodyText,
@@ -594,12 +599,13 @@ export function useSimulatorPageState() {
 					next,
 					isImage && !isAudio && next === 'openai',
 					imageOperation,
-					isAudio && next === 'openai'
+					isAudio && next === 'openai',
+					next === 'openai' ? openaiSurface : 'chat'
 				)
 			);
 			setBodyError(null);
 		},
-		[selectedModelIsImage, selectedModelIsAudio, imageOperation]
+		[selectedModelIsImage, selectedModelIsAudio, imageOperation, openaiSurface]
 	);
 
 	const requestProtocolChange = useCallback(
@@ -638,17 +644,41 @@ export function useSimulatorPageState() {
 		]
 	);
 
+	const requestOpenaiSurfaceChange = useCallback(
+		(next: SimulatorOpenAiSurface) => {
+			if (next === openaiSurface) return;
+			if (
+				isBodyDirty(
+					bodyText,
+					protocol,
+					selectedModelIsImage && !selectedModelIsAudio,
+					imageOperation,
+					selectedModelIsAudio,
+					openaiSurface
+				)
+			) {
+				const ok = window.confirm(t('protocolSwitchConfirm'));
+				if (!ok) return;
+			}
+			setOpenaiSurfaceState(next);
+			setBodyText(bodyTemplateForSelection('openai', false, imageOperation, false, next));
+			setBodyError(null);
+		},
+		[openaiSurface, bodyText, protocol, selectedModelIsImage, selectedModelIsAudio, imageOperation, t]
+	);
+
 	const applyCurrentTemplate = useCallback(() => {
 		setBodyText(
 			bodyTemplateForSelection(
 				protocol,
 				selectedModelIsImage && !selectedModelIsAudio,
 				imageOperation,
-				selectedModelIsAudio
+				selectedModelIsAudio,
+				protocol === 'openai' ? openaiSurface : 'chat'
 			)
 		);
 		setBodyError(null);
-	}, [protocol, selectedModelIsImage, selectedModelIsAudio, imageOperation]);
+	}, [protocol, selectedModelIsImage, selectedModelIsAudio, imageOperation, openaiSurface]);
 
 	const stop = useCallback(() => {
 		abortRef.current?.abort();
@@ -725,6 +755,7 @@ export function useSimulatorPageState() {
 				protocol,
 				modelForRouting: routing,
 				geminiAction: protocol === 'gemini' ? geminiAction : undefined,
+				openaiSurface: protocol === 'openai' ? openaiSurface : undefined,
 				body: bodyObj,
 				apiKey: revealedSk,
 				audioTranscriptions: useAudio || undefined,
@@ -867,6 +898,7 @@ export function useSimulatorPageState() {
 		}
 	}, [
 		proxyBaseUrl,
+		openaiSurface,
 		selectedModelId,
 		selectedModelIsImage,
 		selectedModelIsAudio,
@@ -906,6 +938,8 @@ export function useSimulatorPageState() {
 		),
 		geminiAction,
 		setGeminiAction,
+		openaiSurface,
+		requestOpenaiSurfaceChange,
 		imageOperation,
 		setImageOperation,
 		editFiles,

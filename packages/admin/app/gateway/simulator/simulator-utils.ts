@@ -4,7 +4,7 @@ import {
 	IMAGE_GENERATIONS_BODY_TEMPLATE,
 	type ImageOperation,
 } from '@/lib/image-generations';
-import type { SimulatorProtocol } from '@/lib/simulator/endpoint';
+import type { SimulatorOpenAiSurface, SimulatorProtocol } from '@/lib/simulator/endpoint';
 import type { AdminKeyListItem, AdminModelRow, RouteListRow } from './types';
 
 export const LS_PROXY = 'octafuse.simulator.proxyBaseUrl';
@@ -41,18 +41,35 @@ export const BODY_TEMPLATES: Record<SimulatorProtocol, string> = {
 }`,
 };
 
-/** Chat / Images / Audio template for the current selection. */
+/**
+ * Responses 协议模板：item 化的 `input`，而非 `messages`。
+ * `store:false` 与 Codex 一致（无服务端会话状态）。
+ */
+export const RESPONSES_BODY_TEMPLATE = `{
+  "model": "<auto>",
+  "input": "Hello",
+  "max_output_tokens": 256,
+  "stream": true,
+  "store": false
+}`;
+
+/** Chat / Responses / Images / Audio template for the current selection. */
 export function bodyTemplateForSelection(
 	protocol: SimulatorProtocol,
 	isImageModel: boolean,
 	imageOperation: ImageOperation = 'generations',
-	isAudioModel = false
+	isAudioModel = false,
+	openaiSurface: SimulatorOpenAiSurface = 'chat'
 ): string {
 	if (isAudioModel && protocol === 'openai') {
 		return AUDIO_TRANSCRIPTIONS_BODY_TEMPLATE;
 	}
 	if (isImageModel && protocol === 'openai') {
 		return imageOperation === 'edits' ? IMAGE_EDITS_BODY_TEMPLATE : IMAGE_GENERATIONS_BODY_TEMPLATE;
+	}
+	// 非图像的 OpenAI 模型才有 chat / responses 之分
+	if (protocol === 'openai' && openaiSurface === 'responses') {
+		return RESPONSES_BODY_TEMPLATE;
 	}
 	return BODY_TEMPLATES[protocol];
 }
@@ -87,12 +104,13 @@ export function isBodyDirty(
 	protocol: SimulatorProtocol,
 	isImageModel = false,
 	imageOperation: ImageOperation = 'generations',
-	isAudioModel = false
+	isAudioModel = false,
+	openaiSurface: SimulatorOpenAiSurface = 'chat'
 ): boolean {
 	return (
 		normalizeBodyWhitespace(bodyText) !==
 		normalizeBodyWhitespace(
-			bodyTemplateForSelection(protocol, isImageModel, imageOperation, isAudioModel)
+			bodyTemplateForSelection(protocol, isImageModel, imageOperation, isAudioModel, openaiSurface)
 		)
 	);
 }

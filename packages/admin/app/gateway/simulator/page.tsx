@@ -52,6 +52,8 @@ export default function SimulatorPage() {
 								protocol={s.protocol}
 								onProtocolChange={s.requestProtocolChange}
 								lockOpenaiForImage={s.selectedModelIsImage || s.selectedModelIsAudio}
+								openaiSurface={s.openaiSurface}
+								onOpenaiSurfaceChange={s.requestOpenaiSurfaceChange}
 								geminiAction={s.geminiAction}
 								onGeminiActionChange={s.setGeminiAction}
 								filterKeyEmail={s.filterKeyEmail}

@@ -43,6 +43,8 @@ export function previewPlaygroundUpstreamUrl(input: {
 	imageOperation?: 'generations' | 'edits';
 	/** Audio transcription (ASR) catalog model. */
 	isAudioModel?: boolean;
+	/** OpenAI 非图像模型：`chat`（缺省）或 `responses`（须 provider 显式声明该 endpoint）。 */
+	openaiSurface?: 'chat' | 'responses';
 	geminiAction?: GeminiContentAction;
 }): string | null {
 	const provider = input.provider;
@@ -66,7 +68,9 @@ export function previewPlaygroundUpstreamUrl(input: {
 						? input.imageOperation === 'edits'
 							? 'images.edits'
 							: 'images.generations'
-						: 'chat';
+						: input.openaiSurface === 'responses'
+							? 'responses'
+							: 'chat';
 				return resolveUpstreamEndpoint(protocol, capability, providerEndpoints, {
 					providerId: provider.id,
 				});
