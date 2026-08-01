@@ -41,7 +41,8 @@
 		"test:gateway:postgres-smoke": "dotenv -c -- tsx scripts/smoke/test-postgres-core-routes.ts",
 		"test:gateway:sql-storage-smoke": "dotenv -c -- tsx scripts/smoke/test-storage-concurrent-charge.ts",
 		"test:deploy": "node --test scripts/deploy/*.test.mjs",
-		"test:unit": "npm run test:deploy && npm run test:unit -w @octafuse/core && npm run test:unit -w @octafuse/proxy && npm run test:unit -w @octafuse/admin"
+		"test:db": "node --import tsx --test scripts/db/lib/*.test.ts",
+		"test:unit": "npm run test:deploy && npm run test:db && npm run test:unit -w @octafuse/core && npm run test:unit -w @octafuse/proxy && npm run test:unit -w @octafuse/admin"
 	},
 	"devDependencies": {
 		"@changesets/changelog-github": "^0.5.1",
