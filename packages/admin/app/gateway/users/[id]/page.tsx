@@ -42,7 +42,8 @@ type UserDetail = {
 
 type KeyRow = {
   id: string;
-  key: string;
+  /** 掩码展示值；明文仅创建时返回一次。 */
+  key_masked: string;
   user_id: string;
   name: string | null;
   status: string;
@@ -647,10 +648,7 @@ export default function GatewayUserDetailPage() {
                 {keys.map((k) => (
                   <tr key={k.id} className="border-b border-gray-100">
                     <td className="py-2 pr-4 font-mono text-xs align-top">
-                      <span title={k.key}>{maskKey(k.key)}</span>
-                      <button type="button" onClick={() => copy(k.key)} className="ml-1 text-gray-400 hover:text-gray-600 align-middle">
-                        <ClipboardDocumentIcon className="h-3.5 w-3.5 inline" />
-                      </button>
+                      <span>{k.key_masked}</span>
                       <div className="text-gray-400">{shortId(k.id)}</div>
                     </td>
                     <td className="py-2 pr-4 align-top">{k.name || '—'}</td>
@@ -869,7 +867,7 @@ export default function GatewayUserDetailPage() {
                 <div className="min-w-0">
                   <h3 className="text-lg font-bold text-gray-900">{t('detailSections.keyMetadata')}</h3>
                   <p className="mt-0.5 text-xs text-gray-500 font-mono truncate" title={metaViewKey.id}>
-                    {[metaViewKey.name, maskKey(metaViewKey.key)].filter(Boolean).join(' · ')} · {metaViewKey.id}
+                    {[metaViewKey.name, metaViewKey.key_masked].filter(Boolean).join(' · ')} · {metaViewKey.id}
                   </p>
                 </div>
                 <button

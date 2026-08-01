@@ -68,7 +68,8 @@ export async function createApiKeyWithAuditPg(
 		const status = params.insert.status ?? 'active';
 		await tx.insert(pgApiKeysTable).values({
 			id: params.insert.id,
-			key: params.insert.key,
+			keyHash: params.insert.keyHash,
+			keyPrefix: params.insert.keyPrefix,
 			userId: params.insert.userId,
 			name: params.insert.name ?? null,
 			status,

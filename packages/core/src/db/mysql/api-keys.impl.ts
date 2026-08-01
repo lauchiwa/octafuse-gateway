@@ -15,6 +15,7 @@ import {
 	type ApiKeyListSortOrder,
 } from '../api-keys-list-sort';
 import type { AdminApiKeyListItem } from '../../storage/repository-dtos';
+import { maskApiKeyFromPrefix } from '../../services/api-key-hash';
 import { parseMoney } from '../../storage/critical-write-paths-utils';
 
 function apiKeyListOrderBy(sort: ApiKeyListSortField, order: ApiKeyListSortOrder) {
@@ -31,7 +32,8 @@ function apiKeyListOrderBy(sort: ApiKeyListSortField, order: ApiKeyListSortOrder
 
 function mapMyKeyRow(r: {
 	id: string;
-	key: string;
+	keyHash: string;
+	keyPrefix: string | null;
 	userId: string;
 	name: string | null;
 	status: string;
@@ -42,7 +44,8 @@ function mapMyKeyRow(r: {
 }): ApiKeyRow {
 	return {
 		id: r.id,
-		key: r.key,
+		key_hash: r.keyHash,
+		key_prefix: r.keyPrefix ?? null,
 		user_id: r.userId,
 		name: r.name,
 		status: r.status,
@@ -56,7 +59,8 @@ function mapMyKeyRow(r: {
 function mapMyResolvedRow(
 	r: {
 		id: string;
-		key: string;
+		keyHash: string;
+		keyPrefix: string | null;
 		userId: string;
 		name: string | null;
 		status: string;
@@ -88,7 +92,7 @@ function mapMyResolvedRow(
 
 function mapMyAdminListRow(r: {
 	id: string;
-	key: string;
+	keyPrefix: string | null;
 	user_id: string;
 	name: string | null;
 	user_email: string | null;
@@ -104,7 +108,7 @@ function mapMyAdminListRow(r: {
 }): AdminApiKeyListItem {
 	return {
 		id: r.id,
-		key: r.key,
+		key_masked: maskApiKeyFromPrefix(r.keyPrefix),
 		user_id: r.user_id,
 		name: r.name,
 		user_email: r.user_email,
@@ -122,7 +126,8 @@ function mapMyAdminListRow(r: {
 
 const resolvedCols = {
 	id: myApiKeysTable.id,
-	key: myApiKeysTable.key,
+	keyHash: myApiKeysTable.keyHash,
+	keyPrefix: myApiKeysTable.keyPrefix,
 	userId: myApiKeysTable.userId,
 	name: myApiKeysTable.name,
 	status: myApiKeysTable.status,
@@ -142,17 +147,17 @@ const resolvedCols = {
 export function createMySqlApiKeysRepository(db: MySqlDatabaseClient): ApiKeysRepository {
 	const drizzle = db.drizzle;
 	return {
-		async getApiKeyByKey(key: string): Promise<ApiKeyRow | null> {
+		async getApiKeyByKeyHash(keyHash: string): Promise<ApiKeyRow | null> {
 			const rows = await drizzle
 				.select()
 				.from(myApiKeysTable)
-				.where(and(eq(myApiKeysTable.key, key), eq(myApiKeysTable.status, 'active')))
+				.where(and(eq(myApiKeysTable.keyHash, keyHash), eq(myApiKeysTable.status, 'active')))
 				.limit(1);
 			return rows[0] ? mapMyKeyRow(rows[0]) : null;
 		},
 
-		async getApiKeyByKeyAnyStatus(key: string): Promise<ApiKeyRow | null> {
-			const rows = await drizzle.select().from(myApiKeysTable).where(eq(myApiKeysTable.key, key)).limit(1);
+		async getApiKeyByKeyHashAnyStatus(keyHash: string): Promise<ApiKeyRow | null> {
+			const rows = await drizzle.select().from(myApiKeysTable).where(eq(myApiKeysTable.keyHash, keyHash)).limit(1);
 			return rows[0] ? mapMyKeyRow(rows[0]) : null;
 		},
 
@@ -161,12 +166,12 @@ export function createMySqlApiKeysRepository(db: MySqlDatabaseClient): ApiKeysRe
 			return rows[0] ? mapMyKeyRow(rows[0]) : null;
 		},
 
-		async getApiKeyWithUserByKey(key: string): Promise<ResolvedGatewayKeyRow | null> {
+		async getApiKeyWithUserByKeyHash(keyHash: string): Promise<ResolvedGatewayKeyRow | null> {
 			const rows = await drizzle
 				.select(resolvedCols)
 				.from(myApiKeysTable)
 				.innerJoin(myUsersTable, eq(myApiKeysTable.userId, myUsersTable.id))
-				.where(and(eq(myApiKeysTable.key, key), eq(myApiKeysTable.status, 'active')))
+				.where(and(eq(myApiKeysTable.keyHash, keyHash), eq(myApiKeysTable.status, 'active')))
 				.limit(1);
 			return rows[0] ? mapMyResolvedRow(rows[0]) : null;
 		},
@@ -194,7 +199,8 @@ export function createMySqlApiKeysRepository(db: MySqlDatabaseClient): ApiKeysRe
 			const status = params.status ?? 'active';
 			await drizzle.insert(myApiKeysTable).values({
 				id: params.id,
-				key: params.key,
+				keyHash: params.keyHash,
+				keyPrefix: params.keyPrefix,
 				userId: params.userId,
 				name: params.name ?? null,
 				status,
@@ -302,7 +308,8 @@ export function createMySqlApiKeysRepository(db: MySqlDatabaseClient): ApiKeysRe
 			let listQ = drizzle
 				.select({
 					id: myApiKeysTable.id,
-					key: myApiKeysTable.key,
+					keyHash: myApiKeysTable.keyHash,
+	keyPrefix: myApiKeysTable.keyPrefix,
 					user_id: myApiKeysTable.userId,
 					name: myApiKeysTable.name,
 					user_email: myUsersTable.email,

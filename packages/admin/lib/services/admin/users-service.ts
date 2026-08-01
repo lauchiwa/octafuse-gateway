@@ -674,7 +674,7 @@ export async function deleteAdminUserKey(repos: GatewayRepositories, rawUser: st
 			correlationId: crypto.randomUUID(),
 		})
 	);
-	const ok = await repos.apiKeys.deleteApiKeyHard(keyId, row.key);
+	const ok = await repos.apiKeys.deleteApiKeyHard(keyId, row.key_hash);
 	if (!ok) throw notFound('Key not found');
 }
 

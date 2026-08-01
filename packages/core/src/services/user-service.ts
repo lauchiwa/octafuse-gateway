@@ -5,6 +5,7 @@
 import type { GatewayRepositories } from '../storage/repositories';
 import type { BudgetPeriod } from '../types';
 import type { UserRow } from '../types';
+import { maskApiKeyFromPrefix } from './api-key-hash';
 import { roundGatewayMoney } from '../lib/money-precision';
 import { updateUserBudgetWithAuditTx } from '../storage/critical-write-paths';
 import { userBudgetAuditToInsertRowFull } from '../db/user-budget-audit-mapper';
@@ -434,7 +435,7 @@ export async function getKeyInfo(repos: GatewayRepositories, id: string) {
 	}
 	return {
 		id: row.id,
-		key: row.key,
+		key_masked: maskApiKeyFromPrefix(row.key_prefix),
 		user_id: row.user_id,
 		name: row.name,
 		user_email: row.user_email,
