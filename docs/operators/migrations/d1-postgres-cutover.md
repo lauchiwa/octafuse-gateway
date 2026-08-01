@@ -24,6 +24,14 @@ DATABASE_URL='postgres://...' npx tsx scripts/db/cutover/etl-d1-to-postgres.ts -
 DATABASE_URL='postgres://...' npx tsx scripts/db/cutover/etl-d1-to-postgres.ts --batch-size=1000
 ```
 
+> ⚠️ **迁移 `0018` 之后，首次 ETL 必须带 `--truncate`。**
+> `0018_route_surfaces_pools.sql` 会在**每个库各自**回填 `route_pools` / `model_surfaces`，而 pool id 是按驱动派生的（D1 用 `hex(...)`，Postgres 用 `md5(...)`），因此同一逻辑 pool 在两库中 id 不同。
+> ETL 原样复制 D1 的 id，`ON CONFLICT` 目标又是 `(id)`，于是：
+> 已跑过 `0018` 且 `model_routes` 非空的 Postgres 库，在不带 `--truncate` 的情况下灌入时，`model_surfaces` 会撞上自然键约束
+> `UNIQUE(model_id, route_group, request_protocol, request_operation)` 而报 unique violation 中断。
+> 这是**显式失败**（不会产生静默的双份路由拓扑），修复方式就是带 `--truncate` 重跑一次全量。
+> 全量之后的增量 ETL 仍然是幂等的。
+
 使用 `--help` 查看表过滤、`--d1-source` 等选项。
 
 ## 2. 对账
@@ -55,7 +63,7 @@ curl -fsS http://127.0.0.1:8789/api/admin/config -H 'Authorization: Bearer sk-de
 ## 5. Checklist（摘要）
 
 1. Postgres schema / 迁移（含 `0002_seed.sql` 默认 `system_config`）就绪  
-2. 全量 ETL（必要时 `--truncate`）  
+2. 全量 ETL —— `0018` 之后首次**必须** `--truncate`（见 §1）  
 3. 对账  
 4. 增量 ETL + 再对账  
 5. Node canary + Admin 连同一库验证  
