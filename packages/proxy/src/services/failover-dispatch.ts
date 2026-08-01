@@ -67,9 +67,19 @@ export type ProxyFailoverResult = {
 };
 
 export type FailoverDispatchOptions = {
-	affinityKey: string;
-	tierKeyPrefix: string;
-	strategy: RouteStrategyName;
+	/**
+	 * 以下三项省略时由本模块兜底（`affinityKey`/`tierKeyPrefix` → 空串，
+	 * `strategy` → `DEFAULT_ROUTE_STRATEGY`）。声明为可选是为了与实现一致：
+	 * 调用方允许只传部分字段，例如仅追加 `preferWithinTier`。
+	 */
+	affinityKey?: string;
+	tierKeyPrefix?: string;
+	strategy?: RouteStrategyName;
+	/**
+	 * 层内偏好：返回 true 的 route 在**同一 priority 层内**排到前面。
+	 * 不跨层生效，故 admin 配置的 priority 分层始终优先。见 `route-attempt-planner`。
+	 */
+	preferWithinTier?: (route: RouteResult) => boolean;
 	timing?: RequestTimingCollector | null;
 };
 
@@ -189,7 +199,11 @@ export async function failoverDispatch(
 	const strategy: RouteStrategyName = options?.strategy ?? DEFAULT_ROUTE_STRATEGY;
 
 	const circuitEvents: GatewayCircuitAlertEvent[] = [];
-	const plan = buildRouteAttemptPlan(protocolRoutes, { affinityKey, tierKeyPrefix }, strategy);
+	const plan = buildRouteAttemptPlan(
+		protocolRoutes,
+		{ affinityKey, tierKeyPrefix, preferInTier: options?.preferWithinTier },
+		strategy
+	);
 
 	if (plan.attempts.length === 0) {
 		return {

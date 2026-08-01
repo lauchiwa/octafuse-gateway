@@ -176,15 +176,16 @@ responsesRoutes.post('/', async (c) => {
 
   // phase 2：能力不再是门禁，而是**策略选择**。声明了 `endpoints.openai.endpoints.responses`
   // 的 provider 走字节直通；其余翻译成 `/chat/completions`。
-  // 排序为「直通优先」，故障转移时才回落到翻译 —— 代价是混合路由组内会覆盖 admin 配置的
-  // 权重顺序（design.md「Route ordering」已记录为决策）。
+  //
+  // 「直通优先」不在此处重排 routes，而是作为**层内偏好**下传给 failover 编排
+  // （`proxyResponses` → `preferWithinTier`）。这样 admin 配置的 priority 分层依旧优先，
+  // 只在同一层内偏向直通 —— 原设计「全局重排会覆盖 admin 权重顺序」的代价因此不再存在。
   const passthroughRoutes = routes.filter((route) =>
     providerDeclaresResponsesEndpoint(route.providerEndpoints)
   );
   const translateRoutes = routes.filter(
     (route) => !providerDeclaresResponsesEndpoint(route.providerEndpoints)
   );
-  routes = [...passthroughRoutes, ...translateRoutes];
   if (translateRoutes.length > 0) {
     console.log('[Gateway Responses] translating to chat for providers without a responses endpoint', {
       baseModelId,

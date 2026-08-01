@@ -112,6 +112,10 @@ export async function proxyChatCompletions(
  * 的 provider 走 phase 1 字节直通；其余翻译成 `/chat/completions`。
  * 判定放在 dispatch 闭包内而非路由层，是为了让「原生 provider 故障转移到 chat-only provider」
  * 这种混合路由组也能工作 —— `DispatchFn` 收到的是当次尝试的 route。
+ *
+ * 排序上「原生直通优先」，但只在**同一 priority 层内**生效（见 `preferWithinTier`）：
+ * 原生可用时行为与 phase 1 一致，翻译仅作兜底；同时不会让低优先级的原生 provider
+ * 抢占 admin 明确配置为高优先级的 chat-only provider。
  */
 export async function proxyResponses(
 	repos: GatewayRepositories,
@@ -130,7 +134,11 @@ export async function proxyResponses(
 				? dispatchOpenAiResponsesRoute(route, body, clientIdentity, signal, timing, attempt)
 				: dispatchResponsesViaChatRoute(route, body, clientIdentity, signal, timing, attempt),
 		requestSignal,
-		options
+		{
+			...options,
+			// 直通优先只在同一 priority 层内生效：admin 配的分层不被越过。
+			preferWithinTier: (route) => providerDeclaresResponsesEndpoint(route.providerEndpoints),
+		}
 	);
 	return result;
 }

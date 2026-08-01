@@ -97,4 +97,127 @@ describe('buildRouteAttemptPlan', () => {
 			['a', 'c', 'b']
 		);
 	});
+
+	describe('preferInTier', () => {
+		/** 直通 provider 显式声明 responses endpoint；chat-only 只有 base。 */
+		const native = (id: string, overrides: Partial<RouteResult> = {}): RouteResult =>
+			makeRoute(id, {
+				providerEndpoints: {
+					openai: {
+						base: 'https://example.com/v1',
+						endpoints: { responses: 'https://example.com/v1/responses' },
+					},
+				},
+				...overrides,
+			});
+		const prefersResponses = (route: RouteResult): boolean =>
+			Boolean(route.providerEndpoints.openai?.endpoints?.responses);
+
+		it('moves preferred routes ahead within the same tier', () => {
+			const routes = [makeRoute('chat-only'), native('passthrough')];
+			const plan = buildRouteAttemptPlan(
+				routes,
+				{
+					affinityKey: 'u|m|default|openai',
+					tierKeyPrefix: 'm|default|openai',
+					preferInTier: prefersResponses,
+				},
+				'strict'
+			);
+			assert.deepEqual(
+				plan.attempts.map((r) => r.providerId),
+				['passthrough', 'chat-only']
+			);
+		});
+
+		it('never lets a preferred route jump a higher priority tier', () => {
+			// admin 把 chat-only 配成高优先级：偏好不得跨层，否则等于覆盖 admin 配置。
+			const routes = [
+				native('low-native', { routePriority: 1 }),
+				makeRoute('high-chat-only', { routePriority: 10 }),
+			];
+			const plan = buildRouteAttemptPlan(
+				routes,
+				{
+					affinityKey: 'u|m|default|openai',
+					tierKeyPrefix: 'm|default|openai',
+					preferInTier: prefersResponses,
+				},
+				'strict'
+			);
+			assert.deepEqual(
+				plan.attempts.map((r) => r.providerId),
+				['high-chat-only', 'low-native']
+			);
+		});
+
+		it('keeps strategy order inside each partition', () => {
+			const routes = [
+				makeRoute('chat-low', { routeWeight: 1 }),
+				native('native-low', { routeWeight: 1 }),
+				native('native-high', { routeWeight: 9 }),
+				makeRoute('chat-high', { routeWeight: 9 }),
+			];
+			const plan = buildRouteAttemptPlan(
+				routes,
+				{
+					affinityKey: 'u|m|default|openai',
+					tierKeyPrefix: 'm|default|openai',
+					preferInTier: prefersResponses,
+				},
+				'strict'
+			);
+			// strict = weight DESC, 然后 providerId；分区稳定，故各分区内仍是 high 在前。
+			assert.deepEqual(
+				plan.attempts.map((r) => r.providerId),
+				['native-high', 'native-low', 'chat-high', 'chat-low']
+			);
+		});
+
+		it('is a no-op when every route matches or none do', () => {
+			const ctx = {
+				affinityKey: 'u|m|default|openai',
+				tierKeyPrefix: 'm|default|openai',
+				preferInTier: prefersResponses,
+			};
+			const allNative = buildRouteAttemptPlan(
+				[native('a', { routeWeight: 9 }), native('b', { routeWeight: 1 })],
+				ctx,
+				'strict'
+			);
+			assert.deepEqual(
+				allNative.attempts.map((r) => r.providerId),
+				['a', 'b']
+			);
+			const noneNative = buildRouteAttemptPlan(
+				[makeRoute('a', { routeWeight: 9 }), makeRoute('b', { routeWeight: 1 })],
+				ctx,
+				'strict'
+			);
+			assert.deepEqual(
+				noneNative.attempts.map((r) => r.providerId),
+				['a', 'b']
+			);
+		});
+
+		it('still skips circuit-open providers in the preferred partition', () => {
+			const t0 = 1_000_000;
+			markProviderFailure('native-open', 'rate_limit', 7_000, t0);
+			const plan = buildRouteAttemptPlan(
+				[native('native-open'), makeRoute('chat-ok')],
+				{
+					affinityKey: 'u|m|default|openai',
+					tierKeyPrefix: 'm|default|openai',
+					preferInTier: prefersResponses,
+				},
+				'strict',
+				t0
+			);
+			assert.deepEqual(
+				plan.attempts.map((r) => r.providerId),
+				['chat-ok']
+			);
+			assert.equal(plan.skippedByCircuit, 1);
+		});
+	});
 });
