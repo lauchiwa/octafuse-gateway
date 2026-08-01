@@ -557,7 +557,7 @@ curl "http://localhost:8787/admin/keys/uuid-here/logs?page=1&page_size=10" \
 
 ### Providers（`/admin/providers`）
 
-一个 Provider = **一把** `api_key` + **`status`**（`active` \| `disabled`）。**无** `/admin/providers/:id/keys*` 子资源（迁移 0015 已删除 `provider_api_keys`）。
+一个 Provider = **一把** `api_key` + **`status`**（`active` \| `disabled`）。**无** `/admin/providers/:id/keys*` 子资源（迁移 0017 已删除 `provider_api_keys`）。
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -690,7 +690,7 @@ curl -sS "$GATEWAY_URL/v1/images/generations" \
     - **`per_second`**：`{ "audio_billing_mode": "per_second", "audio": { "price_per_second", "minimum_seconds"? } }`（**无 `tiers`**）。扣费权威 = 计费秒数 × `price_per_second`；`pricing_audit.kind=audio_per_second`。日志列 `billing_kind=audio_per_second`、`audio_duration_seconds`。
     - **`token`**：`{ "audio_billing_mode": "token", "tiers": [ { "input_price", "output_price", "upto": null } ] }`（$/1M）。扣费权威 = 上游 transcription `usage`（`type=tokens`）；`pricing_audit.kind=audio_tokens`。日志列 `billing_kind=audio_tokens`，并写入 input/output token。
     - 预设：`whisper-1` → `per_second`；`gpt-4o-mini-transcribe` / `gpt-4o-transcribe` / `gpt-4o-transcribe-diarize` → `token`（见 [user.md「语音转写」](user.md#语音转写audio-transcriptions)）。
-  - Request log：迁移 **`0013_request_log_image_billing`** 增加 `billing_kind`、`input_image_count`、`output_image_count`；**`0014_request_log_audio_billing`** 增加 `audio_duration_seconds`。
+  - Request log：迁移 **`0013_request_log_image_billing`** 增加 `billing_kind`、`input_image_count`、`output_image_count`；**`0016_request_log_audio_billing`** 增加 `audio_duration_seconds`。
 - **模型 Kind（Admin UI，无独立 DB 列）**：
   - **Audio（语音转写）**：`pricing_profile` 含有效 `audio_billing_mode`（`per_second` + `audio`，或 `token` + `tiers`）；见 `isAudioTranscriptionModel`（`packages/core`）。
   - **Image（文生图）**：非 Audio，且 `output_modalities` 含 `image`（**不要**用 `input` 含 `image` 判断——多模态 LLM 也会有）。

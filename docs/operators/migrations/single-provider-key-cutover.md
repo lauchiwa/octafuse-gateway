@@ -1,12 +1,12 @@
-# 单键 Provider + 路由策略切换（迁移 0015）
+# 单键 Provider + 路由策略切换（迁移 0017）
 
 将 `provider_api_keys` 折叠为 **一个 Provider 一把 `api_key`**，并引入可切换路由策略（`ROUTE_STRATEGY` / `models.route_policy` / `model_routes.weight`）。
 
 **迁移文件**（三库同语义）：
 
-- `packages/core/migrations-d1/0015_single_provider_key.sql`
-- `packages/core/migrations-postgres/0015_single_provider_key.sql`
-- `packages/core/migrations-mysql/0015_single_provider_key.sql`
+- `packages/core/migrations-d1/0017_single_provider_key.sql`
+- `packages/core/migrations-postgres/0017_single_provider_key.sql`
+- `packages/core/migrations-mysql/0017_single_provider_key.sql`
 
 **行为说明**：[route-strategies.md](../../developers/reference/route-strategies.md) · [proxy-request-lifecycle.md](../../developers/architecture/proxy-request-lifecycle.md)
 
@@ -30,7 +30,7 @@ DATABASE_URL='postgres://...' node scripts/db/export-provider-api-keys.mjs > pro
 
 ---
 
-## 2. 应用迁移 0015
+## 2. 应用迁移 0017
 
 按当前部署模式选一：
 

@@ -14,7 +14,7 @@
   - 新增全局 `system_config.ROUTE_STRATEGY`（默认 `affinity`）与四策略：`affinity` / `weighted_random` / `strict` / `round_robin`
   - Proxy 调度改为 priority 分层 + 策略排序 + provider 维度熔断；请求日志 `provider_key_*` 列语义改为 provider id/name/fingerprint
 
-  上线前请用 `scripts/db/export-provider-api-keys.mjs` 导出密钥，再应用迁移 `0015_single_provider_key.sql`。详见 `docs/operators/migrations/single-provider-key-cutover.md`。
+  上线前请用 `scripts/db/export-provider-api-keys.mjs` 导出密钥，再应用迁移 `0017_single_provider_key.sql`。详见 `docs/operators/migrations/single-provider-key-cutover.md`。
 
 ### Patch Changes
 
@@ -30,7 +30,7 @@
 - [`6a236f0`](https://github.com/OctaFuse/octafuse-gateway/commit/6a236f02aace3619644a79c7dad96a50ad1f01fb) Thanks [@dyc87112](https://github.com/dyc87112)! - ### Proxy / Core
 
   - **Audio Transcriptions**：新增 OpenAI 兼容 `POST /v1/audio/transcriptions`（multipart；预算预检、OpenAI 路由故障转移；请求日志不落音频二进制）。
-  - **Audio 计费双模式**：`pricing_profile.audio_billing_mode` 支持 **`per_second`（按时长）** 与 **`token`（按上游 usage）**；日志 `billing_kind` 为 `audio_per_second` / `audio_tokens`；迁移 **`0014_request_log_audio_billing`**（`audio_duration_seconds`）。
+  - **Audio 计费双模式**：`pricing_profile.audio_billing_mode` 支持 **`per_second`（按时长）** 与 **`token`（按上游 usage）**；日志 `billing_kind` 为 `audio_per_second` / `audio_tokens`；迁移 **`0016_request_log_audio_billing`**（`audio_duration_seconds`）。
   - **`GET /v1/models`**：`kind` 支持 `audio`（默认仍仅 LLM；`kind=all` 不过滤）。
   - **Provider endpoints**：OpenAI 能力含 `audio.transcriptions`（可由 `base` 派生或显式完整 URL）。
 

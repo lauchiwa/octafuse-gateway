@@ -19,7 +19,7 @@ Non-runtime helpers: smoke tests, DB migration / reconciliation tooling, and dev
 | `d1-remote-export/` | Remote D1 schema / data export (`npm run db:export:remote:*`) |
 | `cutover/` | D1 → Postgres ETL, reconciliation (see [docs/operators/migrations/d1-postgres-cutover.md](../docs/operators/migrations/d1-postgres-cutover.md)) |
 | `diag/` | e.g. `npm run db:list:pg` |
-| `export-provider-api-keys.mjs` | **Before** migration `0015_single_provider_key`：导出 `provider_api_keys` 全量 JSON 留档（见 [single-provider-key-cutover.md](../docs/operators/migrations/single-provider-key-cutover.md)） |
+| `export-provider-api-keys.mjs` | **Before** migration `0017_single_provider_key`：导出 `provider_api_keys` 全量 JSON 留档（见 [single-provider-key-cutover.md](../docs/operators/migrations/single-provider-key-cutover.md)） |
 
 Root **`package.json`** exposes common DB commands: D1 via **`gen:wrangler`** + **`db:migrate`** / **`db:migrate:remote`** / **`db:query`** (generated **`packages/core/wrangler.d1.jsonc`**, SQL under **`packages/core/migrations-d1/`**); Cloudflare instance env: **`cloudflare-worker/`** (see **`cloudflare-worker/README.md`**). Postgres via **`db:migrate:pg`** / **`db:migrate:pg:docker`** (in-container, `DATABASE_URL` from env) / **`db:list:pg`** (SQL under **`packages/core/migrations-postgres/`**, reads **`DATABASE_URL`**). Also **`test:gateway:node-smoke`** / **`test:gateway:postgres-smoke`**, **`dev:proxy:node`** (Node Proxy after root `dotenv -c`; DB driver and URL in `.env`). Env template: **`.env.example`**. Other scripts: `npx tsx scripts/...`. See [docs/operators/migrations/d1-postgres-cutover.md](../docs/operators/migrations/d1-postgres-cutover.md) and [docs/developers/local-development.md](../docs/developers/local-development.md).
 

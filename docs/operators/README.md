@@ -17,7 +17,7 @@
 | 场景 | 文档 |
 |------|------|
 | D1 与 Postgres 之间 ETL、对账和切换 | [migrations/d1-postgres-cutover.md](./migrations/d1-postgres-cutover.md) |
-| 单键 Provider + 路由策略（迁移 0015） | [migrations/single-provider-key-cutover.md](./migrations/single-provider-key-cutover.md) |
+| 单键 Provider + 路由策略（迁移 0017） | [migrations/single-provider-key-cutover.md](./migrations/single-provider-key-cutover.md) |
 | User audit 兼容导出移除说明 | [migrations/user-audit-legacy-exports.md](./migrations/user-audit-legacy-exports.md) |
 
 ## 本地演练
