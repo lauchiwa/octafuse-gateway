@@ -187,6 +187,105 @@ curl http://localhost:8787/v1/chat/completions \
 
 ---
 
+## Responses 兼容接口（Codex CLI 协议）
+
+OpenAI Responses 协议入口。Codex CLI 0.144.6 起**只支持**该协议（`wire_api = "chat"` 已被移除），
+因此 Codex 接入网关必须走这个入口。
+
+### 请求
+
+```
+POST /v1/responses
+```
+
+### 请求体示例
+
+```json
+{
+  "model": "gpt-5.6-sol",
+  "instructions": "You are Codex, a coding agent.",
+  "input": [
+    { "type": "message", "role": "user", "content": [{ "type": "input_text", "text": "Hello" }] }
+  ],
+  "tools": [
+    { "type": "function", "name": "get_weather", "parameters": { "type": "object" } }
+  ],
+  "stream": true
+}
+```
+
+`model` 同样支持 `baseId:route_group`；仅 **OpenAI**（`upstream_protocol = openai`）路由会参与转发。
+
+### 两种出站策略（按 provider 自动选择）
+
+| provider 配置 | 出站方式 | 说明 |
+|---|---|---|
+| 显式配置 `endpoints.openai.endpoints.responses` | **字节直通** | 原样转发 SSE 帧，不解析重组。上游的 `reasoning.encrypted_content` 等字段完整保留 |
+| 仅配置 `openai.base`（或只有 chat 能力） | **翻译到 `/chat/completions`** | 网关把 Responses 请求翻译成 Chat 请求，再把 chat 响应翻译回 `response.*` 事件 |
+
+`responses` 能力**不从 `base` 派生**：Azure 需要 `?api-version=`、Gemini 兼容层与部分中转站
+根本没有该路由，派生会让网关的「不支持」拦截永远无法触发。所以未显式声明的 provider 一律走翻译。
+
+同一路由组内混合两类 provider 时，**直通优先**：先尝试所有直通路由，再回落到翻译路由。
+代价是这种混合场景下会覆盖管理端配置的权重顺序。
+
+### 翻译模式的行为与取舍
+
+翻译并非无损，以下行为是刻意设计的：
+
+- **`reasoning` item 被丢弃。** Chat 协议没有对应字段，`encrypted_content` 也只对产出它的上游有意义。
+  丢弃会降低多轮推理质量；但若改为报错，则第一轮之后的每一轮都会失败，功能等于不可用。
+- `instructions` 转成**领先的 `system` 消息**。
+- 连续的 `function_call` item 合并到**同一条** assistant 消息的 `tool_calls` 数组（Chat 协议要求并行调用同属一条消息）。
+- 流式请求会自动附加 `stream_options: {include_usage: true}`，否则多数中转站不在流里返回 usage，
+  会导致用量记为 0。
+- `include` / `truncation` / `text.format` / `reasoning.effort` 等提示类字段被丢弃（记日志，不报错）。
+
+无法在 Chat 协议中表达且**会改变语义**的字段一律显式报错，而不是静默丢弃：
+
+| 字段 | HTTP | 原因 |
+|---|---|---|
+| `previous_response_id` | 400 | 需要服务端会话状态，chat 中转站没有 |
+| `store: true` | 400 | 同上 |
+| `tools[].type` 非 `function`（`web_search` / `file_search` / `computer_use` / `mcp`） | 400 | 托管工具在上游执行，chat-only 中转站无处运行 |
+
+> 这些校验发生在**出站之前**，返回体形如
+> `{"error":{"message":"…","type":"invalid_request_error","param":"previous_response_id"}}`。
+
+### 响应
+
+流式返回 `response.*` 具名 SSE 事件，序列与 OpenAI 官方一致：
+
+```
+event: response.created
+event: response.in_progress
+event: response.output_item.added
+event: response.content_part.added
+event: response.output_text.delta      (多次)
+event: response.output_text.done
+event: response.content_part.done
+event: response.output_item.done
+event: response.completed              (携带 usage)
+```
+
+工具调用轮次没有 `output_text.*`，而是 `response.function_call_arguments.delta` /
+`.done`，输出项类型为 `function_call`（带 `call_id`，下一轮由客户端原样回传）。
+
+非流式（`stream: false`）返回单个 `response` 对象，`usage` 使用 Responses 字段名
+（`input_tokens` / `output_tokens` / `input_tokens_details.cached_tokens` /
+`output_tokens_details.reasoning_tokens`）。
+
+上游截断（未收到 `finish_reason`）时，网关仍会补齐所有未闭合的生命周期事件并发送
+`response.incomplete` —— 序列不完整会让 Codex 挂住而不是干净报错。
+
+### 错误响应
+
+除上表的 400 之外，与聊天补全一致（400 / 403 / 404 / 502）。
+
+> 用量与计费按 `request_protocol = openai` 记录（与 chat 同一取值），两种策略的 token 口径一致。
+
+---
+
 ## Anthropic Messages 兼容接口
 
 Anthropic 兼容入口，支持 `messages` 与流式。

@@ -62,6 +62,43 @@ curl -sS http://localhost:8787/v1/tools/web-search \
   -d '{"query":"OctaFuse gateway","count":5}'
 ```
 
+## Codex CLI（Responses 协议）
+
+Codex CLI 0.144.6 起只支持 Responses 协议，把它指向 Proxy 的 `/v1` 即可。编辑 `~/.codex/config.toml`：
+
+```toml
+model = "your-route-model"
+model_provider = "octafuse"
+
+[model_providers.octafuse]
+name = "OctaFuse Gateway"
+base_url = "http://localhost:8787/v1"
+env_key = "OCTAFUSE_API_KEY"
+wire_api = "responses"
+requires_openai_auth = false
+```
+
+然后导出用户 Key 并启动：
+
+```bash
+export OCTAFUSE_API_KEY=sk-your-api-key
+codex
+```
+
+也可以直接 curl 该入口：
+
+```bash
+curl -sS http://localhost:8787/v1/responses \
+  -H "Authorization: Bearer sk-your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"your-route-model","input":"Hello","stream":true}'
+```
+
+**上游要求**：任意 OpenAI 协议路由都可用。供应商若显式配置了
+`endpoints.openai.endpoints.responses`，网关走字节直通；否则自动翻译成 `/chat/completions`，
+所以只支持 chat 的中转站也能从 Codex 使用。翻译模式的取舍（推理内容丢弃、托管工具报错等）
+见 [developers/api/user.md](../developers/api/user.md#responses-兼容接口codex-cli-协议)。
+
 ## Anthropic 兼容
 
 Anthropic 风格接口使用 Proxy 的 `/v1/messages`，认证可用 `x-api-key`：

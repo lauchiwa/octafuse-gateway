@@ -90,6 +90,8 @@ export const requireApiKey = createMiddleware<Env>(async (c, next) => {
   const isModelsRoute = c.req.method === 'GET' && c.req.path.endsWith('/models');
   // Budget check for chat / images / audio is done in route after resolving model (and pre-estimate)
   const isChatRoute = c.req.method === 'POST' && c.req.path.endsWith('/chat/completions');
+  // Responses API：与 chat 一致，预算在解析 model 之后于路由内校验（否则未知模型会返回 403 而非 404）
+  const isResponsesRoute = c.req.method === 'POST' && c.req.path.endsWith('/responses');
   const isImagesRoute =
     c.req.method === 'POST' &&
     (c.req.path.endsWith('/images/generations') || c.req.path.endsWith('/images/edits'));
@@ -99,6 +101,7 @@ export const requireApiKey = createMiddleware<Env>(async (c, next) => {
     !isKeyInfoRoute &&
     !isModelsRoute &&
     !isChatRoute &&
+    !isResponsesRoute &&
     !isImagesRoute &&
     !isAudioRoute &&
     authResult.budgetMax != null &&

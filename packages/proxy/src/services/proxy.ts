@@ -2,9 +2,11 @@
  * 上游 HTTP 代理与故障转移：按协议分发到 openai/anthropic/gemini driver，并在流开始前按路由顺序重试。
  * 返回的 `usagePromise` 在流结束后解析 token 用量，供 `usage-tracker` 记账。
  */
-import type { GatewayRepositories } from '@octafuse/core';
+import { providerDeclaresResponsesEndpoint, type GatewayRepositories } from '@octafuse/core';
 import type { RouteResult } from './model-router';
 import { dispatchOpenAiRoute } from './egress/openai-driver';
+import { dispatchOpenAiResponsesRoute } from './egress/openai-responses-driver';
+import { dispatchResponsesViaChatRoute } from './egress/openai-responses-chat-driver';
 import {
 	dispatchOpenAiImageEdits,
 	dispatchOpenAiImageGenerations,
@@ -93,6 +95,40 @@ export async function proxyChatCompletions(
 		'openai',
 		(route, signal, timing?: RequestTimingCollector | null, attempt?: RequestTimingAttempt) =>
 			dispatchOpenAiRoute(route, body, signal, timing, attempt),
+		requestSignal,
+		options
+	);
+	return result;
+}
+
+/**
+ * 代理 OpenAI Responses API（Codex CLI 协议）：与 chat 同一 failover 编排，
+ * 但驱动为字节直通，且额外闭包 `clientIdentity`（调用方 UA / originator）。
+ *
+ * `clientIdentity` 由入口路由从请求头提取后传入 —— `DispatchFn` 契约不含请求对象，
+ * 驱动无法自行读取（与 `body` 同理，见 design.md C2）。
+ *
+ * **策略按 route 逐条决定**（phase 2）：显式声明 `endpoints.openai.endpoints.responses`
+ * 的 provider 走 phase 1 字节直通；其余翻译成 `/chat/completions`。
+ * 判定放在 dispatch 闭包内而非路由层，是为了让「原生 provider 故障转移到 chat-only provider」
+ * 这种混合路由组也能工作 —— `DispatchFn` 收到的是当次尝试的 route。
+ */
+export async function proxyResponses(
+	repos: GatewayRepositories,
+	routes: RouteResult[],
+	body: Record<string, unknown>,
+	clientIdentity: Record<string, string>,
+	requestSignal?: AbortSignal,
+	options?: FailoverDispatchOptions
+): Promise<ProxyResult> {
+	const result = await failoverDispatchWithKeyPool(
+		repos,
+		routes,
+		'openai',
+		(route, signal, timing?: RequestTimingCollector | null, attempt?: RequestTimingAttempt) =>
+			providerDeclaresResponsesEndpoint(route.providerEndpoints)
+				? dispatchOpenAiResponsesRoute(route, body, clientIdentity, signal, timing, attempt)
+				: dispatchResponsesViaChatRoute(route, body, clientIdentity, signal, timing, attempt),
 		requestSignal,
 		options
 	);

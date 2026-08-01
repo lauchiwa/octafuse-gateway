@@ -19,6 +19,9 @@ docker/test
 
 data/
 
+# wrangler tail 输出等本地临时产物
+admin_tail.json
+
 # Generated Wrangler configs (source: *.base.jsonc + npm run gen:wrangler)
 packages/proxy/wrangler.jsonc
 packages/admin/wrangler.jsonc

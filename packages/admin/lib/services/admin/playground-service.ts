@@ -2,6 +2,7 @@
  * Playground：按单条 `model_routes` 直连上游，不经过 Proxy、不鉴 API Key、不写 `api_key_request_logs`、不计费、无 failover。
  */
 import type { GatewayRepositories, ProviderEndpointsMap } from '@octafuse/core';
+import type { ProviderEndpointCapability } from '@octafuse/core/provider-endpoints';
 import {
 	isAudioTranscriptionModel,
 	isImageGenerationModel,
@@ -14,6 +15,11 @@ import {
 	parseProviderEndpoints,
 	resolveUpstreamEndpoint,
 } from '@octafuse/core/provider-endpoints';
+import {
+	mergeUpstreamHeaders,
+	parseProviderCustomHeaders,
+	resolveCustomHeadersForProtocol,
+} from '@octafuse/core/provider-custom-headers';
 import type { UpstreamProtocol } from '@octafuse/core/upstream-protocol';
 import { normalizeUpstreamProtocol } from '@octafuse/core/upstream-protocol';
 import { AUDIO_MAX_BYTES_PER_FILE } from '@/lib/audio-transcriptions';
@@ -38,6 +44,8 @@ export type PlaygroundResolvedRoute = {
 	isImageModel: boolean;
 	/** Catalog model is audio transcription (`audio_billing_mode: per_second | token`). */
 	isAudioModel: boolean;
+	/** provider 自定义上游 header，已按当前协议拍平；缺省 `{}`（与 Proxy `RouteResult` 一致）。 */
+	providerCustomHeaders: Record<string, string>;
 };
 
 type JsonObject = Record<string, unknown>;
@@ -156,6 +164,10 @@ export async function resolvePlaygroundRoute(
 		customParams,
 		isImageModel,
 		isAudioModel,
+		providerCustomHeaders: resolveCustomHeadersForProtocol(
+			parseProviderCustomHeaders(provider),
+			protocol
+		),
 	};
 }
 
@@ -191,11 +203,20 @@ export function buildPlaygroundGeminiUpstreamRequest(
 	return { url: url.toString(), headers };
 }
 
+/** OpenAI 协议下的两个文本入口：chat/completions 或 responses。 */
+export type PlaygroundOpenAiSurface = 'chat' | 'responses';
+
 export type PlaygroundInvokeInput = {
 	routeId: string;
 	body: Record<string, unknown>;
 	/** 仅 `upstream_protocol === gemini` 时使用；缺省为 `generateContent`。 */
 	geminiAction?: GeminiContentAction;
+	/**
+	 * 仅 `upstream_protocol === openai` 且非图像模型时使用；缺省 `chat`。
+	 * `responses` → provider 必须显式声明 `endpoints.openai.endpoints.responses`
+	 * （与 Proxy `/v1/responses` 同一 capability，不从 base 派生）。
+	 */
+	openaiSurface?: PlaygroundOpenAiSurface;
 	/**
 	 * Image models: `generations` (JSON) or `edits` (multipart).
 	 * Default: generations when `isImageModel`, otherwise ignored.
@@ -532,7 +553,13 @@ export async function invokePlaygroundUpstream(
 				break;
 			}
 
-			const capability = imageOperation === 'generations' ? 'images.generations' : 'chat';
+			// 非图像模型时由 openaiSurface 决定 chat 还是 responses；
+			// responses 走与 Proxy 相同的显式声明约定（provider 未配则 resolveUpstreamEndpoint 抛错）。
+			const capability: ProviderEndpointCapability = imageOperation === 'generations'
+				? 'images.generations'
+				: input.openaiSurface === 'responses'
+					? 'responses'
+					: 'chat';
 			try {
 				url = resolveUpstreamEndpoint('openai', capability, route.providerEndpoints, {
 					providerId: route.providerId,
@@ -595,7 +622,11 @@ export async function invokePlaygroundUpstream(
 	try {
 		response = await fetch(url, {
 			method: 'POST',
-			headers,
+			// 注入 provider 自定义上游 header（与 Proxy egress 驱动同一函数与同一安全边界）：
+			// `{ ...custom, ...base }` —— 上面各协议分支内置的鉴权/协议 header 永远覆盖 custom。
+			// images.edits 为 multipart，分支内故意不设 Content-Type（由 runtime 依 FormData 生成
+			// 带 boundary 的值）；custom 侧的 content-type 已由 core 校验器 denylist 拦在写入前。
+			headers: mergeUpstreamHeaders(headers, route.providerCustomHeaders),
 			body: fetchBody,
 			signal: requestSignal,
 		});

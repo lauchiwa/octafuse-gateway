@@ -27,9 +27,17 @@ try {
 			fs.rmSync(linkNext, { recursive: true, force: true });
 		}
 	}
-	const relative = path.relative(standaloneDir, nestedNext);
-	fs.symlinkSync(relative, linkNext, 'dir');
-	console.log('[link-standalone-next] linked', linkNext, '->', relative);
+	// Windows: 普通用户无权创建 symlink（EPERM），改用 junction。
+	// junction 仅支持目录 + 绝对路径，对上层程序读取行为与 symlink 等价。
+	// 其他平台保持原有的相对路径 + 'dir' symlink，行为不变。
+	if (process.platform === 'win32') {
+		fs.symlinkSync(nestedNext, linkNext, 'junction');
+		console.log('[link-standalone-next] junction', linkNext, '->', nestedNext);
+	} else {
+		const relative = path.relative(standaloneDir, nestedNext);
+		fs.symlinkSync(relative, linkNext, 'dir');
+		console.log('[link-standalone-next] linked', linkNext, '->', relative);
+	}
 } catch (e) {
 	console.error('[link-standalone-next] failed', e);
 	process.exit(1);

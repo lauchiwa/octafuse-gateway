@@ -14,6 +14,7 @@
 | 查 Proxy / Admin API 契约 | [api/README.md](./api/) |
 | 启动本地 D1、Node + Postgres 或 Node + MySQL 开发环境 | [local-development.md](./local-development.md) |
 | 理解运行时、数据库和请求生命周期 | [architecture/](./architecture/) |
+| 从上游仓库同步代码（含本 fork 的安全分歧点） | [upstream-sync.md](./upstream-sync.md) |
 | 查计费、审计、时间、Provider 参数、路由策略、文生图 / 语音转写等行为语义 | [reference/](./reference/)（含 [route-strategies.md](./reference/route-strategies.md)、[image-models.md](./reference/image-models.md)）；Audio 见 [api/user.md「语音转写」](./api/user.md#语音转写audio-transcriptions) |
 
 ## 代码边界

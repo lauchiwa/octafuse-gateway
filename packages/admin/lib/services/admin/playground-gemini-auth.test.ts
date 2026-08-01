@@ -13,6 +13,7 @@ function route(base: string, apiKey: string): PlaygroundResolvedRoute {
 		customParams: null,
 		isImageModel: false,
 		isAudioModel: false,
+		providerCustomHeaders: {},
 	};
 }
 
