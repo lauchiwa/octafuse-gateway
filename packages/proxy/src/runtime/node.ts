@@ -2,7 +2,6 @@ import {
 	createMySqlStorageContext,
 	createPostgresStorageContext,
 	resolveNodeDatabaseConfig,
-	createProviderKeyCrypto,
 	type StorageContext,
 } from '@octafuse/core';
 import { serve } from '@hono/node-server';
@@ -11,18 +10,14 @@ import { createProxyApp } from '../app';
 
 let nodeStoragePromise: Promise<StorageContext> | null = null;
 
-/** provider 上游密钥静态加密；未配置 secret 时历史明文仍可读（见 provider-key-crypto）。 */
-function providerKeyRepoOptions() {
-	return { providerKeyCrypto: createProviderKeyCrypto(process.env.PROVIDER_KEY_ENCRYPTION_KEY) };
-}
 
 async function resolveNodeStorage(): Promise<StorageContext> {
 	const config = resolveNodeDatabaseConfig(process.env);
 	if (nodeStoragePromise === null) {
 		const p =
 			config.driver === 'mysql'
-				? createMySqlStorageContext(config.connectionString, {}, providerKeyRepoOptions())
-				: createPostgresStorageContext(config.connectionString, {}, providerKeyRepoOptions());
+				? createMySqlStorageContext(config.connectionString, {})
+				: createPostgresStorageContext(config.connectionString, {});
 		nodeStoragePromise = p.catch((err) => {
 			nodeStoragePromise = null;
 			throw err;

@@ -121,7 +121,7 @@ export async function proxyResponses(
 	requestSignal?: AbortSignal,
 	options?: FailoverDispatchOptions
 ): Promise<ProxyResult> {
-	const result = await failoverDispatchWithKeyPool(
+	const result = await failoverDispatch(
 		repos,
 		routes,
 		'openai',

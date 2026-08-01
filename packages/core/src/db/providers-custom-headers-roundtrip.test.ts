@@ -25,12 +25,14 @@ function fakeD1Client(): { client: D1DatabaseClient } {
 				},
 				async run() {
 					if (/^\s*INSERT\s+INTO\s+providers/i.test(sql)) {
-						// 列顺序：id, name, endpoints, description, custom_headers
-						const [id, name, endpoints, description, customHeaders] = bound;
+						// 列顺序：id, name, endpoints, api_key, status, description, custom_headers
+						const [id, name, endpoints, apiKey, status, description, customHeaders] = bound;
 						store.set(String(id), {
 							id,
 							name,
 							endpoints,
+							api_key: apiKey,
+							status,
 							description,
 							custom_headers: customHeaders,
 							created_at: '2026-01-01T00:00:00.000Z',

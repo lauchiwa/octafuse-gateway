@@ -50,15 +50,15 @@ function fakeRepos(opts: FakeOpts = {}): GatewayRepositories {
 					id: 'p1',
 					name: 'P1',
 					endpoints,
+					api_key: 'sk-provider-secret',
+					status: 'active',
 					custom_headers: opts.customHeaders ?? null,
 					description: null,
 					created_at: '2026-01-01T00:00:00.000Z',
 				};
 			},
-		},
-		providerKeys: {
-			async getActiveProviderKeys() {
-				return [{ id: 'k1', label: 'default', api_key: 'sk-provider-secret' }];
+			async getProviderApiKeyPlaintext() {
+				return { api_key: 'sk-provider-secret' };
 			},
 		},
 		models: {

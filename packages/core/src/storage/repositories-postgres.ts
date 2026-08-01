@@ -1,5 +1,5 @@
 import type { GatewayDatabaseClient } from './database-client';
-import type { GatewayRepositories, GatewayRepositoriesOptions } from './repositories-types';
+import type { GatewayRepositories } from './repositories-types';
 import { createPostgresAdminAnalyticsRepository } from '../db/postgres/admin-analytics.impl';
 import { createPostgresApiKeysRepository } from '../db/postgres/api-keys.impl';
 import { createPostgresModelRoutesRepository } from '../db/postgres/model-routes.impl';
@@ -11,10 +11,7 @@ import { createPostgresSystemConfigRepository } from '../db/postgres/system-conf
 import { createPostgresUserAuditLogsRepository } from '../db/postgres/user-audit-logs.impl';
 import { createPostgresUsersRepository } from '../db/postgres/users.impl';
 
-export function createPostgresRepositories(
-	client: GatewayDatabaseClient,
-	options?: GatewayRepositoriesOptions
-): GatewayRepositories {
+export function createPostgresRepositories(client: GatewayDatabaseClient): GatewayRepositories {
 	if (client.driver !== 'postgres') {
 		throw new Error('createPostgresRepositories: expected Postgres client');
 	}

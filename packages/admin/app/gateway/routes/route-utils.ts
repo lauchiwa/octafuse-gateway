@@ -439,8 +439,13 @@ export function upstreamOperationsForProviderModel(
 	if (!provider) return [];
 	const config = parseProviderEndpoints(provider)[protocol];
 	if (!config) return [];
+	// `responses` 绝不从 `base` 派生：Responses API 必须显式配置 URL（见 provider-endpoints.ts）。
+	// 否则仅配 `base` 的 provider 会在管理端被列出 `responses`，据此建出的路由在运行时必然抛错。
 	const providerOperations = config.base
-		? CAPABILITIES_BY_PROTOCOL[protocol] ?? []
+		? (CAPABILITIES_BY_PROTOCOL[protocol] ?? []).filter(
+				(capability) =>
+					capability !== 'responses' || Boolean(config.endpoints?.responses)
+			)
 		: Object.keys(config.endpoints ?? {});
 	const modelOperations = new Set(requestOperationsForModel(model, protocol));
 	return providerOperations.filter((operation) => modelOperations.has(operation));

@@ -8,37 +8,35 @@ import {
 	type GatewayDatabaseClient,
 } from './database-client';
 import { createD1Repositories } from './repositories-d1';
-import type { GatewayRepositories, GatewayRepositoriesOptions } from './repositories-types';
+import type { GatewayRepositories } from './repositories-types';
 
 export interface StorageContext {
 	readonly client: GatewayDatabaseClient;
 	readonly repositories: GatewayRepositories;
 }
 
-export function createD1StorageContext(db: D1Database, options?: GatewayRepositoriesOptions): StorageContext {
+export function createD1StorageContext(db: D1Database): StorageContext {
 	const client = createD1DatabaseClient(db);
-	const repositories = createD1Repositories(client, options);
+	const repositories = createD1Repositories(client);
 	return { client, repositories };
 }
 
 export async function createPostgresStorageContext(
 	connectionString: string,
-	options: postgres.Options<Record<string, postgres.PostgresType>> = {},
-	repositoryOptions?: GatewayRepositoriesOptions
+	options: postgres.Options<Record<string, postgres.PostgresType>> = {}
 ): Promise<StorageContext> {
 	const client = await createPostgresDatabaseClient(connectionString, options);
 	const { createPostgresRepositories } = await import('./repositories-postgres');
-	const repositories = createPostgresRepositories(client, repositoryOptions);
+	const repositories = createPostgresRepositories(client);
 	return { client, repositories };
 }
 
 export async function createMySqlStorageContext(
 	connectionString: string,
-	options: PoolOptions = {},
-	repositoryOptions?: GatewayRepositoriesOptions
+	options: PoolOptions = {}
 ): Promise<StorageContext> {
 	const client = await createMySqlDatabaseClient(connectionString, options);
 	const { createMySqlRepositories } = await import('./repositories-mysql');
-	const repositories = createMySqlRepositories(client, repositoryOptions);
+	const repositories = createMySqlRepositories(client);
 	return { client, repositories };
 }
