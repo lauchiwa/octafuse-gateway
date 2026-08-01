@@ -4,7 +4,7 @@
  * - 外部（如 your-account-portal）：直接 `Authorization: Bearer`，须与存储中的 `system_config.MASTER_KEY` 一致。
  */
 import { getCloudflareContext } from '@opennextjs/cloudflare';
-import { checkAuth } from '@/lib/auth';
+import { verifyRequestSession } from '@/lib/auth';
 import type { AdminBindings } from '@/lib/admin-env';
 import { getAdminApp } from '@/lib/admin-app';
 import { getCloudflareEnv } from '@/lib/cloudflare';
@@ -85,6 +85,9 @@ async function handle(request: Request): Promise<Response> {
 			DATABASE_DRIVER: cloudflareRuntime
 				? (env as { DATABASE_DRIVER?: string } | undefined)?.DATABASE_DRIVER
 				: process.env.DATABASE_DRIVER,
+			PROVIDER_KEY_ENCRYPTION_KEY:
+				(env as { PROVIDER_KEY_ENCRYPTION_KEY?: string } | undefined)?.PROVIDER_KEY_ENCRYPTION_KEY ??
+				process.env.PROVIDER_KEY_ENCRYPTION_KEY,
 		};
 		const storage = await resolveAdminStorageContext(
 			runtimeBindings,
@@ -96,8 +99,14 @@ async function handle(request: Request): Promise<Response> {
 			return Response.json({ error: 'Server configuration error: MASTER_KEY not set' }, { status: 500 });
 		}
 
+		// 浏览器路径：须持有效签名的 `admin_session` cookie（密钥由 ADMIN_PASSWORD 派生）。
+		// 外部调用方直接带 `Authorization: Bearer <MASTER_KEY>`（下方 else 分支）。
+		const adminPassword =
+			(env as { ADMIN_PASSWORD?: string } | undefined)?.ADMIN_PASSWORD ??
+			process.env.ADMIN_PASSWORD;
+
 		let outbound: Request;
-		if (checkAuth(request)) {
+		if (adminPassword && (await verifyRequestSession(request, adminPassword))) {
 			const h = new Headers(request.headers);
 			h.set('Authorization', `Bearer ${masterKey}`);
 			outbound = new Request(request.url, {

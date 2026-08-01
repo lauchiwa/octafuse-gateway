@@ -2,7 +2,7 @@
  * 后台登录：`POST` 校验 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 后写入 `admin_session`（httpOnly）。
  * `DELETE` 与 `/api/auth/logout` 类似，用于清除会话（兼容旧客户端可一并保留）。
  */
-import { generateSessionToken, resolveCookieSecure } from '@/lib/auth';
+import { issueSessionToken, resolveCookieSecure } from '@/lib/auth';
 import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
@@ -46,14 +46,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const sessionToken = generateSessionToken();
+    const sessionToken = await issueSessionToken(adminPassword);
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24);
 
     const cookieStore = await cookies();
     cookieStore.set('admin_session', sessionToken, {
       httpOnly: true,
-      secure: resolveCookieSecure(),
+      secure: resolveCookieSecure(request),
       sameSite: 'strict',
       expires: expiresAt,
       path: '/',
