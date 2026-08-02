@@ -116,3 +116,36 @@ Deployed merged v2.0.0 to Cloudflare Workers production: D1 migrations 0016-0018
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: Explore free providers & tune CHY routing
+
+**Date**: 2026-08-02
+**Task**: Explore free providers & tune CHY routing
+**Branch**: `main`
+
+### Summary
+
+Diagnosed ccMesh pulling 0 models: workers.dev is GFW-blocked, must route via Clash proxy (documented in cloudflare-quickstart.md). Evaluated OmniRoute as alternative gateway (37k stars, 290+ providers) but decided against it — too complex for current needs; stopped local daemon. Tried wiring OpenCode Free / Pollinations Free into OctaFuse as keyless providers, but OctaFuse always sends Authorization header (no no-auth egress path) and free tiers are rate-limited/unstable — cleaned up all 14 models/routes/providers from D1. Analyzed CHY provider logs: 529 overload (12x), 429 rate-limit (7x), 40% success/22s avg latency vs ioll.pp.ua 85%/8s — root cause is CHY instability, not egress IP. User set CHY priority=10, ioll.pp.ua=5 for fallback.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `798896a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 3
+- **Total Sessions**: 4
 - **Last Active**: 2026-08-02
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~118 | Active |
+| `journal-1.md` | ~151 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 4 | 2026-08-02 | Explore free providers & tune CHY routing | `798896a` | `main` |
 | 3 | 2026-08-02 | Deploy v2.0.0 to Cloudflare (production cutover) | `60a8df1` | `main` |
 | 2 | 2026-08-02 | Merge upstream v2.0.0 — merge to main & finish | `766c1c8`, `8c72785`, `0528d64`, `39ed55e`, `328156f`, `aceb5bf`, `84d8ae0`, `42d614c`, `3424559`, `f42eef2`, `56ab191`, `89df1e1`, `4a6e64a` | `main` |
 | 1 | 2026-07-25 | Provider 自定义上游 header（provider × protocol） | `c2d6592` | `main` |
