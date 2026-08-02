@@ -149,3 +149,36 @@ Diagnosed ccMesh pulling 0 models: workers.dev is GFW-blocked, must route via Cl
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: Fix provider custom_headers lost after PATCH
+
+**Date**: 2026-08-02
+**Task**: Fix provider custom_headers lost after PATCH
+**Branch**: `main`
+
+### Summary
+
+User reported custom upstream headers disappearing after saving in provider edit modal. Root cause: upstream merge refactored updateProviderService from '{ ...body }' to explicit per-field patch building but left the 'customHeaders in patch' check checking patch (which never contains that key) instead of body — so custom_headers was silently never written, and the new empty-patch early-return made header-only edits a no-op. Existing rows from pre-merge (百倍/林夕/无名) survived; post-merge saves (CHY/pipi/君の公益) had been clobbered to null. Fixed check to 'customHeaders in body' + moved ahead of empty-patch return. Added 5 regression tests (mutation-verified: 4 fail on revert). Deployed admin worker (Version 7e53020c, 100%); user verified headers persist across refresh.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `46edbad` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
