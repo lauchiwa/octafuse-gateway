@@ -121,9 +121,18 @@ Ask for every feature being dropped or restructured:
 > Worse, upstream's documented escape hatch (`export-provider-api-keys.mjs`) reads over raw SQL,
 > so it "backs up" ciphertext and restores nothing usable.
 
-**Rule**: when dropping a storage-format feature, write the decrypt/decode **down-migration first**,
+**Rule**: when dropping a storage-format feature, write the decrypt/decode **down-migration first**
 or explicitly confirm with the owner that the data is disposable — and record which was chosen.
 Never infer from "tests pass" that stored data survived.
+
+> **Deployment follow-up (2026-08-02)**: the owner's "data disposable" call was made after
+> checking only the *local* D1 database (3 rows, all plaintext, `ofk1.` count 0 → "trap not
+> triggered"). The **remote production database** had never been checked: it held 9 `ofk1.`
+> ciphertext rows across 6 providers. Applying `0017` copied ciphertext into
+> `providers.api_key`, `DROP TABLE` discarded the only copy, and the deployed gateway now
+> 401s on every provider until keys are re-entered. Lesson: the Step 5 data check must run
+> against **every deployed environment** (local + each remote D1/Postgres/MySQL), not just
+> the dev database — "safe locally" is not evidence about production.
 
 ---
 

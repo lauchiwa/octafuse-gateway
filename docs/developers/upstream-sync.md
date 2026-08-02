@@ -102,7 +102,18 @@ psql "$DATABASE_URL" -c \
 
 If the count is non-zero, decrypt those values back to plaintext (using the old
 `PROVIDER_KEY_ENCRYPTION_KEY`) *before* migrating, or accept that the credentials are lost and
-re-enter them from the provider afterwards. On the 2026-08 merge the owner chose to re-enter them.
+re-enter them from the provider afterwards.
+
+**2026-08-02 production cutover — verified with the real trap**: the pre-cutover review had only
+checked the local D1 database (3 rows, all plaintext, `ofk1.` count 0) and concluded the trap did
+not apply. The remote production D1 had never been checked and actually held **9 `ofk1.`
+ciphertext rows across 6 providers**. `0017` copied the ciphertext verbatim into
+`providers.api_key` (visible as `ofk1.…` prefixes) and dropped the source table. The owner
+accepted the loss (credentials re-entered afterwards); the plaintext was unrecoverable even from
+the pre-migration `wrangler d1 export` backup, which dumps ciphertext too.
+
+Check **every deployed environment** (local + each remote D1 / Postgres / MySQL) with the SQL
+above before cutting over, not just the dev database.
 
 ### 4. `ADMIN_COOKIE_SECURE`
 
