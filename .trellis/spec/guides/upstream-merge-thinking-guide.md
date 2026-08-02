@@ -163,6 +163,20 @@ Grep for both sets of features after the merge — not just ours.
 > **Real case**: dropping the provider-key encryption left `PROVIDER_KEY_ENCRYPTION_KEY`
 > threaded through two files and an ops doc still instructing "keep ours" for a deleted feature.
 
+> **Real case (2026-08, custom headers regression)**: a fork feature's *file* survived the merge
+> but its **call site semantics** silently broke. Upstream refactored `updateProviderService` from
+> `const patch = { ...body }` (spread the whole body, then mutate) to an empty object filled
+> per-field. Our merge re-applied the fork logic (`if ('customHeaders' in patch) { ... }`) onto
+> the new shape — but `patch` no longer contained `customHeaders` (it now lives only in `body`),
+> so the branch never fired and `custom_headers` was silently never written. A second upstream
+> addition, `if (Object.keys(patch).length === 0) return`, turned header-only edits into a no-op.
+> The admin UI saved fine and the DB just lost the data; only "save then refresh the modal"
+> exposed it. Lesson: after a merge, a feature check is not "file present" — verify the *binding*
+> between the fork's shape assumptions and the merged code (camelCase→snake_case conversion,
+> spread-vs-fieldwise object building, early returns) with a regression test that asserts on the
+> actual write path, and mutate it to confirm it fails against the merged (broken) shape.
+
+
 ---
 
 ## Quick Checklist
