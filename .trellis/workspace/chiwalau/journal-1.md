@@ -83,3 +83,36 @@ Merged merge-upstream-v2 into main (reset + force-push to github & gitee). Verif
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: Deploy v2.0.0 to Cloudflare (production cutover)
+
+**Date**: 2026-08-02
+**Task**: Deploy v2.0.0 to Cloudflare (production cutover)
+**Branch**: `main`
+
+### Summary
+
+Deployed merged v2.0.0 to Cloudflare Workers production: D1 migrations 0016-0018 applied (audio billing, single provider key, route surfaces/pools), topology invariants verified (0 violations, 6 providers/10 routes/6 pools/6 surfaces), proxy & admin workers deployed (Versions 0d29ea2d/02d5617b, 100%). Pre-migration D1 backup: /tmp/octafuse-backup/production-20260802-094306.sql. VERIFIED the provider-key trap attacked production: 9 ofk1. ciphertext rows across 6 providers were copied verbatim by 0017; owner accepted loss & will re-enter keys. Deleted now-unused PROVIDER_KEY_ENCRYPTION_KEY secret from both workers. Recorded the deployment lesson in spec guide + upstream-sync docs. workers.dev locally DNS-blocked (resolves to Facebook IP) — verify via proxy/VPN/custom domain.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `60a8df1` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
