@@ -168,14 +168,15 @@ export async function updateProviderService(
 			patch.api_key = apiKey;
 		}
 	}
-
-	if (Object.keys(patch).length === 0) return;
-
 	// UI 传 camelCase `customHeaders`；patch 白名单为 snake_case `custom_headers`，需转换后再落库。
-	if ('customHeaders' in patch) {
-		delete patch.customHeaders;
+	// 注意：检查 `body` 而非 `patch` —— `patch` 只含显式逐字段添加的键，从不含 customHeaders；
+	// 若检查 `patch`，custom_headers 永远不会写入（合并上游时重构引入的回归）。
+	// 置于空 patch 检查之前，避免「仅修改 custom headers」被提前 return。
+	if ('customHeaders' in body) {
 		patch.custom_headers = resolveCustomHeadersFromMutation(body);
 	}
+
+	if (Object.keys(patch).length === 0) return;
 
 	const changes = await repos.providers.updateProviderByPatch(id, patch);
 	if (changes === 0) {
