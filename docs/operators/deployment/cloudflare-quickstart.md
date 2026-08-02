@@ -262,6 +262,26 @@ curl -sS "$GATEWAY_URL/catalog/models"
 {"object":"list","data":[],"generated_at":"..."}
 ```
 
+> **中国大陆网络环境**：`*.workers.dev` 域名已被 GFW 阻断（直连 TCP/TLS 均不通，
+> 且 DNS 常被污染成无关 IP）。`curl "$GATEWAY_URL/health"` 无响应、`wrangler tail`
+> WebSocket 连不上、`wrangler login` 反复 403，都是同一原因，不是部署或凭据问题。
+> 验证时给 curl 显式走代理：
+>
+> ```bash
+> curl -sS --proxy http://127.0.0.1:7890 "$GATEWAY_URL/v1/models" \
+>   -H "Authorization: Bearer sk-..."
+> ```
+>
+> 桌面客户端（如 ccMesh）也必须配置代理（`http://127.0.0.1:7890`）或挂 TUN 全局代理，
+> 否则拉取模型列表会得到 0 个。Clash 里加 `DOMAIN-SUFFIX,workers.dev,DIRECT` 直连规则
+> **无效**——该域名是被墙而非节点慢，直连永远不通。
+> 若需国内免代理访问，唯一正解是配置 `PROXY_CUSTOM_DOMAIN` / `ADMIN_CUSTOM_DOMAIN` 自定义域名。
+
+
+```json
+{"object":"list","data":[],"generated_at":"..."}
+```
+
 ### 7.3 Admin 首页与登录
 
 浏览器打开：
