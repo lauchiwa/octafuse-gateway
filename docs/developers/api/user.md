@@ -40,12 +40,14 @@ Authorization: Bearer sk-xxx...
 
 ### 2. 有效路由组与选路
 
-`selectActiveRouteRows` 使用的 **有效路由组** 为：
+请求使用的 **有效路由组** 为：
 
 - 客户端传入 **`baseId:group`** 且 `group` 非空 → 有效组 = 该 `group`（trim，比较时 **忽略大小写**）。
 - 仅传入 **`baseId`**（整串命中 `models.id`）→ 有效组 = **`default`**。
 
-仅保留 **`model_routes.status = active`** 且 **`route_group`**（库内空值在比较时视为 `default`）与有效组（忽略大小写）一致的行；再按入口协议过滤（如 chat 仅 OpenAI），并跳过 **disabled / 无 api_key** 的 Provider。同组内按 **priority（DESC）分层** + **路由策略 + weight** 做 failover。该有效组下 **无** 活跃路由 → **400**；有路由但当前协议无可用上游 → **502**（例如 `No OpenAI route in route group "free" for this model`，Anthropic / Gemini 同理）。
+2.0 会根据 `model_id + route_group + request_protocol + request_operation` 解析 Request Surface：先查精确 operation，再回退迁移生成的 `*` Surface。Surface 指向一个 Route Pool，Proxy 仅在该 Pool 内选择 active Target，并跳过 **disabled / 无 api_key** 的 Provider。Pool 内按 **priority（DESC）分层** + **有效策略 + weight** 做 failover；Pool 策略优先于模型与全局策略。当前版本只支持 `adapter=passthrough`，因此 Target 的上游协议必须与请求协议一致。
+
+没有匹配 Surface / active Target 或没有当前协议可用上游时，按入口返回 **400** 或 **502**。完整拓扑、operation 列表与迁移兼容路径见 [route-topology.md](../architecture/route-topology.md)。
 
 模型 **`tags` 不参与**选组或计费。需要限定某一组时，请使用 **`baseId:your_group`**。
 
@@ -55,11 +57,11 @@ Authorization: Bearer sk-xxx...
 
 `POST /v1/chat/completions`、`POST /v1/messages` 与 Gemini `POST /v1beta/models/...` 在转发上游前，对 **用户 API Key** 统一执行 **`budget_max` / `budget_spent`** 校验：当 `budget_max` 非空且 `budget_spent >= budget_max` 时返回 **403** `Budget exceeded`。
 
-路由组（`default`、`free` 等）仅影响 **选路与计费快照**（见下文用量日志），**不再**单独绕过预算或走按日免费次数表。一次性试用额度等场景请通过 **`budget_period = 'none'`** 与 `budget_max` / `budget_base` 在密钥上表达（由管理 API / 门户侧写入）。
+路由组（`default`、`free` 等）仅影响 **选路与计费快照**（见下文用量日志），**不再**单独绕过预算或走按日免费次数表。一次性试用额度等场景请通过 **`budget_period = 'none'`** 与 `budget_max` / `budget_base` 在 **User** 上表达（经管理 API / 门户侧更新 `users`；API Key 仅用于鉴权与归集）。
 
 ### 4. 用量日志 `api_key_request_logs`
 
-写入的 **`model_id` 为库内基础模型 ID**（不带 `:group` 后缀）；实际选用的 **`route_group`**、**`upstream_protocol`**（所选路由的上游协议快照）、**`provider_key_id` / `provider_key_label` / `provider_key_fingerprint`**（列名历史兼容：现为 **`providers.id` / `providers.name` / fingerprint(`providers.api_key`)**）等会随请求落库（见 **`api_key_request_logs`**），便于对账与展示（如 Account 用量详情中 free 通道可加 `:free` 说明）。相对目录标准价的倍率请见路由 **`price_override`** 中的 **`charged_factor`** / **`metered_factor`**（及兼容字段 **`provider_factor`**）。**`request_protocol`** 表示客户端调用的 Gateway 入口（`openai` / `anthropic` / `gemini`），与 **`upstream_protocol`** 语义不同。
+写入的 **`model_id` 为库内基础模型 ID**（不带 `:group` 后缀）；实际选用的 **`route_group`**、`request_protocol` / `request_operation`、`model_surface_id`、`route_pool_id`、`route_target_id`、`upstream_protocol` / `upstream_operation`、`adapter` 与 `route_trace` 会随请求落库。`provider_key_id` / `provider_key_label` / `provider_key_fingerprint` 为历史兼容列名，现对应 **`providers.id` / `providers.name` / fingerprint(`providers.api_key`)**。相对目录标准价的倍率请见 Target 的 **`price_override`** 中的 **`charged_factor`** / **`metered_factor`**（及兼容字段 **`provider_factor`**）。
 
 ### 5. 输出长度（`max_tokens` / `maxOutputTokens`）
 
@@ -580,7 +582,7 @@ curl "http://localhost:8787/catalog/models?route_groups=default,web"
 
 ## Web Search（Agent 工具）
 
-协议无关的产品 API（与 `/v1/me` 同类），供桌面 agent 在模型发起 `web_search` tool call 后调用。**不是** OpenAI / Anthropic / Gemini 推理协议的一部分。
+协议无关的产品 API（与 `/v1/me` 同类），供桌面 agent 在模型发起 `web_search` tool call 后调用。**不是** OpenAI / Anthropic / Gemini 推理协议的一部分。Agent Tools 按 Active 引擎的**三账本绝对单价**计费（联网类按次；AI 检测按计费字符单元 × 单价）：catalog 存 `metered` / `standard` / `charged`（旧键 `cost` 为 `charged` 别名；仅有 `cost` 时三列相等）。成功写入日志三列；**仅 `charged_cost` 累加 `budget_spent`**。`pricing_audit` 为 v4 `fixed_tool_cost`（含 `unit_prices` / `totals`）；不应用模型 Route 的价格倍率或时段 schedule。失败请求三列均为 0。
 
 ### 请求
 
@@ -611,10 +613,10 @@ Authorization: Bearer <USER_API_KEY>
 1. 校验用户 API Key；`budget_max` 非空且额度不足 → **403** `{ "error": "Budget exceeded" }`
 2. 从 Admin `system_config` 读取搜索配置（无环境变量回退）：
    - `WEB_SEARCH_ACTIVE`（白名单：`bocha` | `tavily` | `cleversee` | `tencent_wsa`；非法值 → **503**）
-   - `WEB_SEARCH_CATALOG`（JSON：按引擎存 `{ "apiKey", "cost" }`；Active 引擎必须有非空 `apiKey`，否则 **503**）
-   - 默认单价（catalog 未写 cost 时）**0.001**，单位随 `BILLING_CURRENCY`
+   - `WEB_SEARCH_CATALOG`（JSON：按引擎存 `{ "apiKey", "metered", "standard", "charged" }`；可带兼容键 `cost`（= charged）；Active 引擎必须有非空 `apiKey`，否则 **503**）
+   - 默认单价（catalog 未写价格时）三列均为 **0.001**，单位随 `BILLING_CURRENCY`
    - 兼容：若尚无 `WEB_SEARCH_CATALOG`，仍可读旧三键 `WEB_SEARCH_PROVIDER` / `WEB_SEARCH_API_KEY` / `WEB_SEARCH_COST`（仅读取，Admin 不再写入）
-3. 调用 Active 引擎；**仅成功**后按该引擎单价计入 `users.budget_spent`
+3. 调用 Active 引擎；**仅成功**后按该引擎 **charged** 单价计入 `users.budget_spent`
 4. 上游失败不扣费
 
 运营侧在 Admin → **Tools → Configuration** 按引擎维护 catalog 并选择 Active；调用记录见 **Tools → Invocations**（与 Request Logs 同源，`provider_id=octafuse-tools`）。
@@ -671,8 +673,8 @@ Authorization: Bearer <USER_API_KEY>
 1. 校验用户 API Key；`budget_max` 非空且额度不足 → **403** `{ "error": "Budget exceeded" }`
 2. 从 Admin `system_config` 读取抓取配置（无环境变量回退）：
    - `WEB_FETCH_ACTIVE`（白名单：`firecrawl` | `tavily` | `jina`；默认 `firecrawl`；非法值 → **503**）
-   - `WEB_FETCH_CATALOG`（JSON：按引擎存 `{ "apiKey", "cost" }`；Active 引擎必须有非空 `apiKey`，否则 **503**）
-   - 默认单价（catalog 未写 cost 时）**0.002**，单位随 `BILLING_CURRENCY`
+   - `WEB_FETCH_CATALOG`（JSON：按引擎存 `{ "apiKey", "metered", "standard", "charged" }`；可带兼容键 `cost`；Active 引擎必须有非空 `apiKey`，否则 **503**）
+   - 默认单价（catalog 未写价格时）三列均为 **0.002**，单位随 `BILLING_CURRENCY`
    - 兼容：若尚无 `WEB_FETCH_CATALOG`，仍可读旧三键 `WEB_FETCH_PROVIDER` / `WEB_FETCH_API_KEY` / `WEB_FETCH_COST`（仅读取，Admin 不再写入）
 3. URL 校验失败 → **400**
 4. 调用 Active 引擎；**仅成功**后按该引擎单价计入 `users.budget_spent`
@@ -734,8 +736,8 @@ Authorization: Bearer <USER_API_KEY>
 1. 校验用户 API Key；额度不足 → **403** `{ "error": "Budget exceeded" }`
 2. 从 Admin `system_config` 读取配置（无环境变量回退）：
    - `WEB_DEEP_SEARCH_ACTIVE`（白名单：`firecrawl` \| `jina`；非法值 → **503**）
-   - `WEB_DEEP_SEARCH_CATALOG`（JSON：按引擎 `{ "apiKey", "cost" }`；Active 必须有非空 `apiKey`，否则 **503**）
-   - 默认单价 **0.01**（catalog 未写 cost 时），单位随 `BILLING_CURRENCY`
+   - `WEB_DEEP_SEARCH_CATALOG`（JSON：按引擎 `{ "apiKey", "metered", "standard", "charged" }`；可带兼容键 `cost`；Active 必须有非空 `apiKey`，否则 **503**）
+   - 默认单价三列均为 **0.01**（catalog 未写价格时），单位随 `BILLING_CURRENCY`
 3. 调用 Active 引擎；**仅成功**后按该引擎单价计入 `users.budget_spent`
 4. 上游失败不扣费；上游 **401/403** 映射为 **502**
 
@@ -768,11 +770,131 @@ Authorization: Bearer <USER_API_KEY>
 
 ---
 
+## AI Detection（Agent 工具）
+
+协议无关的产品 API，供门户或 Agent 检测文本 AI 生成概率。**不是** OpenAI / Anthropic / Gemini 推理协议的一部分。
+
+计费与上游调用次数解耦：
+
+| 概念 | 计算 |
+|------|------|
+| 上游调用次数 | `ceil(总字数 / driver.segmentMaxChars)`（技术分段，随 Active 引擎变化） |
+| 计费单元数 | `ceil(总字数 / billingUnitChars)`（默认 2000；与引擎无关） |
+| 扣费（用户） | `计费单元数 × charged`（`budget_spent` 仅累加此项） |
+| 供应 / 目录 | 同理分别写 `metered_cost` / `standard_cost` |
+
+换引擎时调整三账本单价即可，价格量纲保持一致。响应**不暴露** Active 引擎名，避免客户端产生引擎耦合；响应体 `cost` 字段仍为本次 **charged** 总额。
+
+### 引擎支持矩阵
+
+多 provider 架构（`AI_DETECTION_CATALOG` + `AI_DETECTION_ACTIVE` + proxy driver 注册表）。当前白名单仅一项：
+
+| Provider | 状态 | 凭证 | 技术分段上限 | 分数 |
+|----------|------|------|--------------|------|
+| `tencent_tms` | 已实现 | `secretId` + `secretKey`（可选 `region` / `bizType`） | 2000 字 | TMS `Score` 0–100 |
+
+新增引擎时扩展白名单、`requiredCredentials` 与 driver 即可；未实现引擎不可设为 Active。
+
+### 请求
+
+```
+POST /v1/tools/ai-detection
+Authorization: Bearer <USER_API_KEY>
+```
+
+### 请求体
+
+```json
+{
+  "text": "待检测正文…"
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `text` | 必填；trim 后非空 |
+
+### 行为
+
+1. 校验用户 API Key；额度不足支付预计费用 → **403** `{ "error": "Budget exceeded" }`
+2. 从 Admin `system_config` 读取配置：
+   - `AI_DETECTION_ACTIVE`（白名单当前：`tencent_tms`；须为已实现引擎）
+   - `AI_DETECTION_CATALOG`（JSON：按引擎存可选凭证字段并集 + `metered` / `standard` / `charged`（或兼容 `cost`）+ 可选 `billingUnitChars`）
+   - 默认单价三列均为 **0.01**、默认计费粒度 **2000** 字符，单位随 `BILLING_CURRENCY`
+3. 按 Active 引擎切段并并发检测（并发 10）；字符加权得 `overall_score`（0–100）
+4. **仅成功**后按计费单元数 × 三账本单价写入日志，并仅用 **charged** 扣费；上游失败写 error 日志、**不扣费**
+5. 请求日志不含原文 / excerpt：`requestBody` 仅 `{ total_chars, billing_units }`；`pricing_audit`（v4 `fixed_tool_cost`）含 `unit_prices` / `totals` / `provider` / `billing_units`
+
+运营侧在 Admin → **Tools → Configuration** 配置；调用记录见 **Tools → Invocations**（`model_id=tool:ai-detection`）。
+
+### 响应
+
+```json
+{
+  "data": {
+    "overall_score": 87,
+    "total_chars": 5321,
+    "segments": [
+      { "index": 0, "chars": 2000, "score": 91, "excerpt": "…" }
+    ],
+    "billing_units": 3,
+    "cost": 0.03
+  }
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `overall_score` | 0–100；字符加权 |
+| `segments` | 展示分块（含短 excerpt）；日志侧不含 excerpt |
+| `billing_units` | 计费单元数 |
+| `cost` | 本次扣费；单位随 `BILLING_CURRENCY` |
+
+---
+
+## Tools Pricing（定价只读）
+
+用户 Key 可读各工具单价，供门户费用预估。**不返回** provider 密钥与 Active 引擎名。余额仍从 `GET /v1/me` 获取。
+
+### 请求
+
+```
+GET /v1/tools/pricing
+Authorization: Bearer <USER_API_KEY>
+```
+
+### 响应
+
+```json
+{
+  "data": {
+    "billing_currency": "USD",
+    "tools": [
+      { "id": "web-search", "unit": "request", "cost": 0.001, "metered": 0.001, "standard": 0.001, "charged": 0.001 },
+      { "id": "web-fetch", "unit": "request", "cost": 0.002, "metered": 0.002, "standard": 0.002, "charged": 0.002 },
+      { "id": "web-deep-search", "unit": "request", "cost": 0.01, "metered": 0.01, "standard": 0.01, "charged": 0.01 },
+      { "id": "ai-detection", "unit": "chars", "unit_chars": 2000, "cost": 0.01, "metered": 0.01, "standard": 0.01, "charged": 0.01 }
+    ]
+  }
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `billing_currency` | 与 `system_config.BILLING_CURRENCY` 一致 |
+| `tools[].unit` | `request`（按次）或 `chars`（按字符计费单元） |
+| `tools[].unit_chars` | 仅 `ai-detection`：计费粒度字符数 |
+| `tools[].charged` | Active 引擎用户单价（扣费） |
+| `tools[].metered` / `standard` | 供应成本 / 目录标准单价 |
+| `tools[].cost` | 兼容别名，等于 `charged`；未配置时回退代码默认值 |
+
+---
+
 ## Images（图片生成 / 编辑）
 
 > 模型清单、Provider、参数对照、计费折算与验收清单见权威整理：[文生图模型（Image Models）](../reference/image-models.md)。
 
-OpenAI 兼容 Images API，供桌面 Agent 的 `generate_image` 等工具调用。鉴权与 Chat 相同（用户 API Key）；模型须在目录中配置 **OpenAI 协议**路由，且 `pricing_profile.tiers` 含 Image token 单价（见 Admin 模型页 / 预设 `gpt-image-2`、`doubao-seedream-5-0-*`）。
+OpenAI 兼容 Images API，供桌面 Agent 的 `generate_image` 等工具调用。鉴权与 Chat 相同（用户 API Key）；模型须在目录中配置 **OpenAI 协议**路由及有效的 `image_billing_mode`：`token` 模式需在 `pricing_profile.tiers` 配置 Image token 单价，`per_image` 模式需配置 `pricing_profile.image` 按张单价（见 Admin 模型页与 [文生图模型说明](../reference/image-models.md)）。
 
 ### 生成
 
@@ -996,7 +1118,7 @@ GET /v1/me
 | `budget_period` | string | 预算周期: `"none"` \| `"daily"` \| `"weekly"` \| `"monthly"` |
 | `budget_reset_at` | string \| null | 下次预算重置时间 (ISO 8601) |
 | `billing_currency` | string | 计费币种：来自 `system_config.BILLING_CURRENCY` 的 **ISO 4217** 三字码（如 `USD`、`CNY`）；与 `pricing_profile` 单价及本接口预算数值同币；未配置或非法时回退 `USD` |
-| `metadata` | object \| null | Key 元数据（由管理端写入） |
+| `metadata` | object \| null | 优先返回 User metadata，并以 Key metadata 回退或补全（由管理端写入） |
 
 ### 示例
 
@@ -1017,9 +1139,9 @@ curl http://localhost:8787/v1/me \
 
 ### 定价模型
 
-币种由 **`system_config.BILLING_CURRENCY`** 声明（管理后台 **Gateway Config** 或迁移种子默认 `USD`）。`pricing_profile` 中的单价与 `api_keys` 的预算字段均按该币种计量。
+币种由 **`system_config.BILLING_CURRENCY`** 声明（管理后台 **Gateway Config** 或迁移种子默认 `USD`）。`pricing_profile` 中的单价与 `users` 的预算字段均按该币种计量。
 
-所有价格以每百万 token 为单位（per-million-token pricing）：
+LLM 及 token 模式的价格以每百万 token 为单位（per-million-token pricing）：
 
 ```
 费用 = (常规输入 * input_price
@@ -1029,12 +1151,13 @@ curl http://localhost:8787/v1/me \
 ```
 
 - `cache_read_price` 和 `cache_write_price` 默认等于 `input_price`
+- Images 还支持 `per_image` 按张计价，Audio 支持 `per_second` 按时长或 `token` 计价，Agent Tools 使用固定按次单价；分别见上文对应章节。
 - 路由 **`price_override`** 以 **`charged_factor` / `metered_factor`**（及可选每日 **`schedule`**）相对目录价计费；嵌套 `metered`/`charged` tiers 忽略。
 - 路由级 **`route_group`** 会写入 `api_key_request_logs` 快照。
-  - **`metered_cost`**：目录价 × `metered_factor` × `schedule.metered`
-  - **`standard_cost`**：仅 `models.pricing_profile`（不乘路由倍率）
-  - **`charged_cost`**：目录价 × `charged_factor` × `schedule.charged`（详见 `docs/developers/reference/streaming-billing.md`）
-- `api_keys.budget_spent` 仅按 `charged_cost` 累加
+  - **`standard_cost`（目录标准价）**：按当前计费模式从 `models.pricing_profile` 计算，不乘路由倍率
+  - **`metered_cost`（供应成本）**：目录价 × `metered_factor` × `schedule.metered`
+  - **`charged_cost`（用户扣费）**：目录价 × `charged_factor` × `schedule.charged`（详见 `docs/developers/reference/streaming-billing.md`）
+- `users.budget_spent` 仅按 `charged_cost` 累加
 
 ### 使用量追踪
 
@@ -1043,29 +1166,35 @@ curl http://localhost:8787/v1/me \
 - Token 使用量（输入/输出/缓存读取/缓存写入/推理等）
 - `metered_cost` / `standard_cost` / `charged_cost`（目录选档 × 路由倍率；见上）
 - `route_group`（请求时选用的路由快照）
-- `request_protocol`（入口协议）与 `upstream_protocol`（路由级上游协议快照）
+- `request_protocol` / `request_operation` 与 `upstream_protocol` / `upstream_operation`
+- `model_surface_id`、`route_pool_id`、`route_target_id`、`adapter`、`route_trace`
 - 延迟、状态（success/error/incomplete/cancelled 等）
 - 原始 usage（`raw_usage`）
 
 ### 提供商故障转移
 
-同一 `route_group` 内支持多条 **model_routes**（每条指向一个 Provider；**一个 Provider = 一把 `api_key`**）。调度由 `failoverDispatch` + `buildRouteAttemptPlan` 完成；**完整分支与场景表**见 [proxy-request-lifecycle.md](../architecture/proxy-request-lifecycle.md)；策略细节见 [route-strategies.md](../reference/route-strategies.md)。
+同一 Request Surface 指向一个 Route Pool，Pool 内支持多条 **model_routes** Target（每条指向一个 Provider；**一个 Provider = 一把 `api_key`**）。调度由 `failoverDispatch` + `buildRouteAttemptPlan` 完成；拓扑见 [route-topology.md](../architecture/route-topology.md)，完整分支与场景表见 [proxy-request-lifecycle.md](../architecture/proxy-request-lifecycle.md)。
 
 **排序与 failover**：
 
 - **层**：按 `model_routes.priority` **降序**（数字越大越先试）。
 - **同层**：按生效策略排序（默认 **`affinity`**：加权 Rendezvous，利于 prompt cache；另有 `weighted_random` / `strict` / `round_robin`），权重为 `model_routes.weight`。
 - **跳过**：`providers.status = disabled`、无 `api_key`，或处于 **provider 熔断** 的候选不参与本次 attempt。
-- **全部不可用**（均熔断）：网关直接返回 **429**，`code: upstream_capacity_exhausted`，带 `Retry-After`；**不调用上游**。
+- **全部不可用**（均熔断）：网关直接返回 **429**，响应体为 `{ "error": { "code": "upstream_capacity_exhausted", ... } }`，并带 `Retry-After`；**不调用上游**。
 - **有可试路由时**：按序打上游；可重试失败则换下一 Provider；全部 attempt 失败则返回**最后一次**上游响应。
 
-**可重试并换 Provider**：上游 `429`、`5xx`、`401`、`403`、网络/`fetch` 失败（524 / fetch 仅同次 failover，不跨请求熔断）。熔断按 **`providers.id`**：429 优先读 `Retry-After` 或递增退避；401/403 约 10min；普通 5xx 连续 3 次后约 10s。
+**可重试并换 Provider**：上游 `429`、`5xx`、`401`、`403`、网络/`fetch` 失败（524 / fetch 仅同次 failover，不跨请求熔断）。熔断按 **`providers.id`**：429 优先读 `Retry-After` 或递增退避；401/403 约 **5min**；普通 5xx 连续 3 次后约 10s。
+
+**User+model 熔断**（与 provider 熔断独立，按 `userId + modelId`，退避 **20s → 1min → 3min → 5min → 10min**；见 [proxy-request-lifecycle.md](../architecture/proxy-request-lifecycle.md) §2.2）：
+
+- **敏感内容**（上游错误文案命中内容安全关键词）：chat / messages / gemini / images / audio **均**触发；短路 **429** `circuit.sensitive_content`。
+- **普通上游 400**：chat / messages / gemini 触发；短路 **400** `circuit.client_error`（回放原文）。**`/v1/images/*`、`/v1/audio/transcriptions` 不记、不短路**普通 400，便于客户端修正尺寸/格式等后立即重试。
 
 **不重试**（立即返回）：`400`、`404` 等请求本身错误；Images 客户端取消 / Gateway 超时合成的 504。
 
-**策略配置**（运维侧，对客户端透明）：全局 `system_config.ROUTE_STRATEGY`；可选 `models.route_policy` 按协议 / capability × route group 覆盖。解析顺序见 [route-strategies.md](../reference/route-strategies.md)。
+**策略配置**（运维侧，对客户端透明）：Route Pool 可用 `route_pools.strategy` 精确覆盖；其后依次解析 `models.route_policy` 与全局 `system_config.ROUTE_STRATEGY`。解析顺序见 [route-strategies.md](../reference/route-strategies.md)。
 
-用量日志会写入最终选用（或最后失败）的 **`provider_key_id`**（= provider id）、**`provider_key_label`**（= provider name）、**`provider_key_fingerprint`**（密钥指纹，不含明文）。
+用量日志会写入最终选用（或最后失败）的 Surface / Pool / Target，以及 **`provider_key_id`**（= provider id）、**`provider_key_label`**（= provider name）、**`provider_key_fingerprint`**（密钥指纹，不含明文）。
 
 ### Route 默认参数合并
 

@@ -5,6 +5,8 @@
 import { createMiddleware } from 'hono/factory';
 import { authenticateApiKey } from '../services/api-key-auth';
 import type { Env } from '../app';
+import { GatewayErrorCode } from '../services/gateway-error-codes';
+import { gatewayErrorJson } from '../services/gateway-error-response';
 
 /** 与 `authenticateApiKey` 结果一致，供 `/v1/*` 处理器使用。 */
 export type ApiKeyContext = {
@@ -73,14 +75,22 @@ export const requireApiKey = createMiddleware<Env>(async (c, next) => {
   const key = extractApiKey(c);
   if (!key) {
     console.warn('[Gateway Auth] 401: missing API key in supported auth locations');
-    return c.json({ error: 'Missing or invalid API key' }, 401);
+    return gatewayErrorJson(c, {
+      status: 401,
+      code: GatewayErrorCode.authFailed,
+      message: 'Missing or invalid API key',
+    });
   }
 
   const repos = c.get('repositories');
   const authResult = await authenticateApiKey(repos, key);
   if (!authResult) {
     console.warn(`[Gateway Auth] 401 API key not found keyPrefix=${maskKey(key)}`);
-    return c.json({ error: 'Invalid API key' }, 401);
+    return gatewayErrorJson(c, {
+      status: 401,
+      code: GatewayErrorCode.authFailed,
+      message: 'Invalid API key',
+    });
   }
   console.log(`[Gateway Auth] key valid keyId=${authResult.keyId} userId=${authResult.userId}`);
 
@@ -107,7 +117,11 @@ export const requireApiKey = createMiddleware<Env>(async (c, next) => {
     authResult.budgetMax != null &&
     authResult.budgetSpent >= authResult.budgetMax
   ) {
-    return c.json({ error: 'Budget exceeded' }, 403);
+    return gatewayErrorJson(c, {
+      status: 403,
+      code: GatewayErrorCode.budgetExceeded,
+      message: 'Budget exceeded',
+    });
   }
 
   c.set('apiKey', {

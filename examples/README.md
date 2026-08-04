@@ -4,11 +4,11 @@
 
 | 链接 | 说明 |
 |------|------|
-| [quick-curl.md](./quick-curl.md) | `curl`：健康检查、`/v1/chat/completions`、Admin health |
+| [quick-curl.md](./quick-curl.md) | `curl`：健康检查、`/v1/chat/completions`、Admin API 鉴权探针 |
 | [README.md](../README.md) | 根入口：快速开始、常用命令 |
 | [docs/README.md](../docs/README.md) | 文档中枢 |
 | [docs/developers/api/admin.md](../docs/developers/api/admin.md) | 管理 API |
 | [docs/developers/api/user.md](../docs/developers/api/user.md) | 用户侧 `/v1/me` 等 |
-| [docker/examples/](../docker/examples/) | Compose 与 Nginx 片段 |
+| [docker/examples/](../docker/examples/) | Compose 示例与 Nginx SSE 反代说明 |
 
 环境变量从根目录 **[`.env.example`](../.env.example)** 开始。

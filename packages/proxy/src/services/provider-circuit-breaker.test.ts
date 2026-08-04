@@ -83,10 +83,10 @@ describe('rate_limit failures', () => {
 });
 
 describe('auth / server failures', () => {
-	it('opens 10min for auth failures', () => {
+	it('opens 5min for auth failures', () => {
 		const t0 = 1_000_000;
 		markProviderFailure('p', 'auth', null, t0);
-		assert.equal(getProviderCircuitRemainingMs('p', t0), 600_000);
+		assert.equal(getProviderCircuitRemainingMs('p', t0), 300_000);
 	});
 
 	it('does not open circuit on first two server failures', () => {
@@ -123,7 +123,7 @@ describe('auth / server failures', () => {
 		markProviderFailure('p', 'server', null, t0 + 1_000);
 		markProviderFailure('p', 'server', null, t0 + 2_000);
 		markProviderFailure('p', 'server', null, t0 + 3_000);
-		assert.equal(getProviderCircuitRemainingMs('p', t0 + 3_000), 597_000);
+		assert.equal(getProviderCircuitRemainingMs('p', t0 + 3_000), 297_000);
 	});
 });
 

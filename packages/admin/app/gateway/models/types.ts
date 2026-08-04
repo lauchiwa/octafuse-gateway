@@ -65,16 +65,13 @@ export const ALL_VENDORS_KEY = 'all';
 /**
  * Models / Routes Kind 视图（`?kind=llm|image|audio`）。
  * 无 All：始终只看一种；缺省 / 非法值回退 LLM。
+ * 权威定义见 `@/lib/invoke-kind`（Simulator / Playground 另含 `tool`）。
  */
-export const DEFAULT_KIND_FILTER = 'llm' as const;
-export type ModelKindFilter = 'llm' | 'image' | 'audio';
-
-export function parseKindFilterParam(value: string | null): ModelKindFilter {
-	if (value == null || value.trim() === '') return DEFAULT_KIND_FILTER;
-	const v = value.trim().toLowerCase();
-	if (v === 'llm' || v === 'image' || v === 'audio') return v;
-	return DEFAULT_KIND_FILTER;
-}
+export {
+	DEFAULT_KIND_FILTER,
+	type ModelKindFilter,
+	parseKindFilterParam,
+} from '@/lib/invoke-kind';
 
 export const EMPTY_MODEL_FORM: ModelFormData = {
 	id: '',

@@ -1,6 +1,6 @@
 {
 	"name": "@octafuse/core",
-	"version": "2.0.0",
+	"version": "2.1.1",
 	"private": true,
 	"type": "module",
 	"bin": {
@@ -49,13 +49,14 @@
 		"./lib/web-search-system-config": "./src/lib/web-search-system-config.ts",
 		"./lib/web-fetch-system-config": "./src/lib/web-fetch-system-config.ts",
 		"./lib/web-deep-search-system-config": "./src/lib/web-deep-search-system-config.ts",
+		"./lib/ai-detection-system-config": "./src/lib/ai-detection-system-config.ts",
+		"./lib/tool-pricing": "./src/lib/tool-pricing.ts",
 		"./lib/route-strategy-system-config": "./src/lib/route-strategy-system-config.ts",
 		"./lib/money-precision": "./src/lib/money-precision.ts",
 		"./lib/string-utils": "./src/lib/string-utils.ts",
 		"./lib/time-format": "./src/lib/time-format.ts",
 		"./services/key-service": "./src/services/key-service.ts",
 		"./services/api-key-hash": "./src/services/api-key-hash.ts",
-		"./services/provider-key-crypto": "./src/services/provider-key-crypto.ts",
 		"./services/user-service": "./src/services/user-service.ts",
 		"./services/budget-transition-service": "./src/services/budget-transition-service.ts",
 		"./storage/drizzle/client-d1": "./src/storage/drizzle/client-d1.ts",

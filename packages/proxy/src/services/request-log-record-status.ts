@@ -1,6 +1,7 @@
 /**
  * `api_key_request_logs` 状态与上游错误摘要：供 v1 代理路由在 `waitUntil` 记账时复用。
  */
+import { withUpstreamErrorCodeHeader } from './upstream-error-code';
 
 /** 与 `InsertRequestLogParams.status` / 白名单一致。 */
 export type RequestLogRecordedStatus = 'success' | 'error' | 'incomplete' | 'cancelled';
@@ -99,6 +100,7 @@ export function formatHttpErrorTextForRequestLog(
 
 /**
  * 非 2xx 上游响应：一次性读取 body 并重建 Response，避免客户端返回与后台日志争用同一 stream。
+ * 同时写入 `X-OctaFuse-Error-Code`（不改 body），供客户端按 code 分类。
  */
 export async function materializeNonOkResponse(response: Response): Promise<{
   response: Response;
@@ -109,11 +111,14 @@ export async function materializeNonOkResponse(response: Response): Promise<{
   }
   const errorBodyText = await response.text();
   return {
-    response: new Response(errorBodyText, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
-    }),
+    response: withUpstreamErrorCodeHeader(
+      new Response(errorBodyText, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      }),
+      errorBodyText
+    ),
     errorBodyText,
   };
 }

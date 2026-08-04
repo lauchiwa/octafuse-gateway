@@ -16,7 +16,7 @@
 | Key | 用途 | 风险 |
 |-----|------|------|
 | `GATEWAY_MASTER_KEY` / `MASTER_KEY` | 调用 `/api/admin/*`，创建用户、发 Key、读日志、改配置。 | 高权限，只能放服务端。 |
-| 用户 API Key | 客户端调用 `/v1/*`、`/v1beta/*`、`/v1/me`。 | 可发给实际使用方，按用户预算和状态控制。 |
+| 用户 API Key | 客户端调用 `/v1/*`、`/v1beta/*`（含推理、Images、Audio、Agent Tools 与 `/v1/me`）。 | 可发给实际使用方，按用户预算和状态控制。 |
 
 生产环境必须将开发默认 `sk-dev-admin-key` 轮换为强随机值。
 
@@ -37,7 +37,12 @@
 curl -sS "$GATEWAY_MASTER_URL/api/admin/keys" \
   -H "Authorization: Bearer $GATEWAY_MASTER_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"name":"customer-001","user":{"external_id":"customer-001","email":"user@example.com"}}'
+  -d '{
+    "external_system": "my-saas",
+    "external_user_id": "customer-001",
+    "email": "user@example.com",
+    "name": "default-key"
+  }'
 ```
 
 用户侧调用：
@@ -52,7 +57,7 @@ curl -sS "$GATEWAY_URL/v1/me" \
 | 目标 | 文档 |
 |------|------|
 | 创建、更新、删除用户与 Key | [api/admin.md](./api/admin.md) |
-| 用户推理、模型列表、预算状态 | [api/user.md](./api/user.md) |
+| 用户推理、Images、Audio、Agent Tools、模型列表与预算状态 | [api/user.md](./api/user.md) |
 | 公开健康检查与目录发现 | [api/public.md](./api/public.md) |
 
 ## 数据和语义

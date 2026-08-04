@@ -149,9 +149,9 @@ DATABASE_URL=postgresql://user:pass@host:5432/db?options=-c%20timezone%3DUTC
 
 | Service | 镜像示例 |
 |---------|----------|
-| proxy | `ghcr.io/octafuse/octafuse-gateway-proxy:v1.1.0` |
-| admin | `ghcr.io/octafuse/octafuse-gateway-admin:v1.1.0` |
-| migrate | `ghcr.io/octafuse/octafuse-gateway-migrate:v1.1.0` |
+| proxy | `ghcr.io/octafuse/octafuse-gateway-proxy:v2.0.0` |
+| admin | `ghcr.io/octafuse/octafuse-gateway-admin:v2.0.0` |
+| migrate | `ghcr.io/octafuse/octafuse-gateway-migrate:v2.0.0` |
 
 在 Zeabur 选择 **Docker Images** 创建 proxy/admin 常驻 Service；migrate 按 §3 方式 A 或 B 处理。
 

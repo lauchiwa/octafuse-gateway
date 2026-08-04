@@ -13,49 +13,74 @@
 
 ## 핵심 기능
 
-- 통합 AI 리소스 진입점: 하나의 Gateway 주소와 사용자 API Key로 여러 업스트림 모델, 자체 구축 또는 비공개 배포한 모델 서비스, 이미지 기능, 음성 전사, Agent Tools에 연결합니다.
-- 다중 프로토콜 호환: OpenAI Chat Completions, Anthropic Messages, Gemini, OpenAI Images, OpenAI Audio Transcriptions API와 호환되는 엔드포인트를 제공합니다.
-- Route 및 장애 조치: Route 그룹, 우선순위, 가용성을 기준으로 업스트림을 선택합니다. **스티키 라우팅**으로 프롬프트 캐시 적중률을 높이고, 속도 제한이나 장애가 발생하면 자동으로 전환합니다.
-- 업스트림 Key 풀: 여러 Provider API Key의 우선순위, 가중치, RPM / TPM 제한, 동시 실행 수, 서킷 브레이커 상태를 중앙에서 관리하고 실시간 잔여 용량에 따라 스케줄링합니다.
-- **Provider / 모델 프리셋**: 공식 모델 벤더뿐 아니라 집계 플랫폼과 각종 Coding / Token Plan을 포함한 대량의 가져오기 템플릿을 제공합니다. Base URL과 모델 카탈로그 정보가 미리 채워져, 문서를 찾아다니며 엔드포인트와 모델 목록을 수작업으로 관리하는 비용을 줄입니다. 원클릭 가져오기 지원 목록은 공식 사이트의 [Providers Catalog](https://octafuse.dev/en/catalog/providers/)와 [Models Catalog](https://octafuse.dev/en/catalog/models/)에서 확인할 수 있으며, 새 Provider / Model 추가 PR을 환영합니다.
-- 사용자 API Key 및 예산: 개인, 팀, 고객 또는 프로젝트별로 독립적인 Key를 발급하고 주기별 예산, 상태, 메타데이터를 설정할 수 있으며, 사용자는 자신의 잔여 한도를 조회할 수 있습니다.
-- 이미지 생성 및 편집: OpenAI Images API 호환 인터페이스로 이미지 모델을 호출하며, 토큰 사용량을 항목별로 산정하는 요금제와 이미지 수 기준 과금을 지원합니다.
-- 음성 전사: OpenAI 호환 `/v1/audio/transcriptions`로 ASR 모델을 호출하며, 초 단위(재생 시간)와 토큰 단위(업스트림 usage) 두 가지 카탈로그 과금 모드를 지원합니다.
-- **Agent Tools API**: `/v1/tools/*`를 통해 Agent 도구를 통합 제공하고 호출 로그와 건별 과금을 지원합니다. 현재 웹 검색(`web-search`), 웹페이지 가져오기(`web-fetch`), 심층 검색(`web-deep-search`)을 사용할 수 있습니다.
-- **공개 기능 카탈로그**: 사용자 API Key 없이도 `/catalog/models`에서 현재 사용 가능한 모델, 프로토콜, 기능을 확인할 수 있어 포털과 클라이언트가 손쉽게 기능을 탐색하고 연동할 수 있습니다.
-- **세 종류의 원장 및 시간대별 가격 정책**: 공급 비용, 모델 카탈로그 가격, 사용자 청구액을 각각 기록하며, 비즈니스 시간대를 기준으로 피크 / 비피크 배율을 설정할 수 있습니다.
-- 관측성 및 연동 테스트: 요청, 지연 시간, Token 사용량, 비용, 감사 기록을 한곳에서 확인하고 Playground / Simulator로 Route와 클라이언트 호출을 검증할 수 있습니다(Images / Audio 포함).
-- 관리 제어 플레인 및 API: Admin 관리 화면과 `/api/admin/*`를 통해 Provider, 모델, Route, 사용자, 설정을 관리하거나 자체 포털 및 자동화 시스템과 연동할 수 있습니다.
-- 유연한 배포 방식: **Cloudflare Workers + D1 무료 배포**를 지원하며, Docker + Postgres / MySQL 환경에 셀프 호스팅할 수도 있습니다.
+Octafuse Gateway의 핵심 목표는 **1인 기업(OPC) 또는 기업 내부를 위한 통합 AI 역량 허브를 구축하는 것**입니다. 보유한 멀티모달 AI 리소스와 다양한 도구를 하나로 연결하고, 배포·과금·운영 관리를 통합합니다.
 
-전체 기능, Route 동작 방식, 과금 기준은 [기능 맵](./docs/users/features.md)을 참조하세요.
+주요 기능은 다음과 같습니다.
+
+1. Provider 연결: 모델 벤더나 집계 플랫폼을 자유롭게 연결할 수 있습니다. Coding / Token Plan을 포함한 다양한 프리셋에서 엔드포인트를 원클릭으로 가져온 뒤 해당 API Key를 추가하면 됩니다. 전체 목록은 [Providers Catalog](https://octafuse.dev/en/catalog/providers/)를 참조하세요. 새로운 Provider 추가 PR도 환영합니다.
+2. AI 모델 연결: 내장 모델 데이터에서 가져올 수 있어 일반적인 모델 파라미터와 가격을 일일이 설정할 필요가 없습니다. 전체 목록은 [Models Catalog](https://octafuse.dev/en/catalog/models/)를 참조하세요. 새로운 모델 추가 PR도 환영합니다.
+3. 다중 프로토콜 지원:
+    - OpenAI 엔드포인트:
+      - Chat Completions: `POST /v1/chat/completions`
+      - Images: `POST /v1/images/generations`, `POST /v1/images/edits`
+      - Audio Transcriptions: `POST /v1/audio/transcriptions`
+      - Models: `GET /v1/models`
+    - Anthropic 엔드포인트: `POST /v1/messages`
+    - Google Gemini 엔드포인트: `POST /v1beta/models/{model}:generateContent` (`streamGenerateContent` 포함)
+4. Agent 도구 연결: `/v1/tools/*`를 통해 Agent용 도구를 통합 제공하고 로그, 과금, 비용 관리를 중앙화합니다. 모델과 도구를 하나의 Gateway에서 사용할 수 있습니다.
+    - 웹 검색(`POST /v1/tools/web-search`): Bocha, Tavily, Alibaba Cloud CleverSee, Tencent Cloud WSA
+    - 웹페이지 가져오기(`POST /v1/tools/web-fetch`): Firecrawl, Tavily Extract, Jina Reader
+    - 심층 검색(`POST /v1/tools/web-deep-search`, 검색 + 읽기): Firecrawl Search, Jina Search
+    - Agent 도구는 계속 추가할 예정이며 관련 PR도 환영합니다.
+5. 통합 AI 역량 진입점: 연결한 모델, 플랫폼, 도구는 배포된 Octafuse Gateway Base URL을 통해 제공됩니다. 클라이언트는 하나의 엔드포인트만 기억하면 됩니다.
+6. 다양한 라우팅 전략: 동일 모델에 여러 업스트림 리소스가 있는 경우 워크로드에 맞는 전략을 선택할 수 있습니다.
+    - `affinity`: 기본 전략. 동일 사용자, 모델, 프로토콜을 안정적으로 같은 업스트림에 배치해 **Prompt Cache 적중률을 높이며**, 캐시와 세션 연속성이 중요한 작업에 적합합니다. 단기 트래픽은 완전히 균등하지 않을 수 있습니다
+    - `weighted_random`: 가중치 기반 무작위 분배로 **부하 분산성이 높아**, 비용 비율 배분이나 A/B 테스트에 적합합니다. 같은 사용자도 Provider가 자주 바뀔 수 있어 캐시 적중률은 낮아질 수 있습니다
+    - `strict`: 가중치가 높은 순서로 고정 시도하는 결정적 전략입니다. 같은 우선순위 안에서 명확한 주·백업 구성을 만들기 좋지만 첫 Provider가 대부분의 트래픽을 처리합니다
+    - `round_robin`: 가중치 기반 순환으로 트래픽을 더 고르게 분배합니다. 카운터는 런타임 인스턴스별로 유지되며 여러 인스턴스 사이에서 전역 동기화되지 않습니다
+7. 사용자 관리와 회계 통합:
+    - External system, User, API Key의 3단계 구조: External system으로 시스템이나 팀을 구분하고 API Key로 인증, 과금, 감사를 수행합니다
+    - 세 가지 원장: 각 호출의 카탈로그 가격, 실제 Provider 비용, 사용자 청구액을 별도로 기록합니다
+    - 시간대별 배율: 피크 / 비피크 가격을 이용해 비용 계산 정확도를 높이고 고객 가격과 프로모션을 유연하게 구성합니다
+8. 관리 화면과 관리 API:
+    - 수동 운영과 외부 포털 연동을 모두 지원하는 관리 화면 및 API
+    - 요청 상세, 통계, 운영 분석을 제공하는 관측성과 데이터 분석
+    - Provider, 모델, Route, 클라이언트 설정을 빠르게 검증하는 Playground / Simulator
+9. 유연한 배포 방식:
+    - **Cloudflare Workers + D1 무료 배포**
+    - Docker + Postgres / MySQL 배포
 
 ## 다른 오픈 소스 AI Gateway와의 차이
 
-[New API](https://github.com/QuantumNous/new-api), [LiteLLM](https://github.com/BerriAI/litellm), [Bifrost](https://github.com/maximhq/bifrost)는 각기 다른 강점을 지닌 우수한 오픈 소스 AI Gateway입니다. 기본 기능은 비슷하지만 주요 사용자와 사용 사례가 서로 다르며, Octafuse는 Agent 기능 제공과 리소스 운영에 더 중점을 둡니다. 아래 표는 공개 버전만을 비교한 것으로, 제품의 우열을 의미하지 않습니다.
+[New API](https://github.com/QuantumNous/new-api), [LiteLLM](https://github.com/BerriAI/litellm), [Sub2API](https://github.com/Wei-Shaw/sub2api), [Bifrost](https://github.com/maximhq/bifrost)는 각각 다른 강점을 가진 성숙한 오픈 소스 AI Gateway입니다. 아래 표는 Octafuse가 강조하는 **Agent 역량 제공과 AI 리소스 운영** 관점에서 연결, Route, 거버넌스, 과금, 배포를 세부적으로 비교합니다.
 
-| 항목 | Octafuse Gateway | New API | LiteLLM | Bifrost |
-|------|------------------|---------|---------|---------|
-| 통합 제공 기능 | 모델, 이미지, 음성 전사, Agent Tools | 모델, 이미지, 오디오·비디오, 문서 리랭킹 | 모델, 이미지, 오디오, 벡터 임베딩, 문서 리랭킹 | 모델, 멀티모달, MCP |
-| Route 및 장애 조치 | Route 그룹, 우선순위, 스티키 라우팅, 서킷 브레이커 | 가중치 기반 라우팅, 실패 재시도 | 부하 분산, 재시도, 장애 조치 | 부하 분산, 자동 장애 조치 |
-| Key 및 예산 | 업스트림 Key 풀, 사용자 Key, 주기별 예산 | 토큰, 한도, 사용자 | 가상 Key, 프로젝트 / 사용자 예산 | 가상 Key, 계층형 예산 |
-| Provider / 모델 프리셋 | **공식 벤더 + 집계 플랫폼 + Coding / Token Plan; Base URL·카탈로그 가격 원클릭 가져오기** | 채널 수동 설정 | 지원 범위 가장 넓음 | 기본 수동 설정 |
-| 관리 및 관측성 | 관리 화면 및 API, 로그, 비용, 감사 | 관리 화면, 사용량, 과금 | 관리 콘솔, 로그, 사용량 및 비용 | 관리 화면, 로그, 메트릭, 분산 추적 |
-| Docker 배포 | ✓ | ✓ | ✓ | ✓ |
-| Cloudflare 엣지 배포 | ✓ | — | — | — |
-| 데이터베이스 지원 | D1/SQLite, Postgres, MySQL | SQLite, Postgres, MySQL | Postgres | SQLite, Postgres |
-| Agent 지원 | 웹 검색, 웹페이지 가져오기, 심층 검색 등 자주 쓰이는 도구를 내장 | — | MCP, A2A | MCP |
-| 과금 기능 | **세 종류의 원장, 시간대별 배율, 이미지 / 음성 이중 모드 과금, 도구 건별 과금** | 한도 및 사용량 기반 과금 | 사용량 추적 및 예산 | 계층형 예산 및 사용량 거버넌스 |
+- **✅ 완전**: 공개 버전에 해당 영역의 주요 사용 사례를 포괄하는 통합 메커니즘이 마련됨
+- **🟡 우수**: 핵심 기능은 성숙했지만 지원 범위나 운영 깊이가 상대적으로 제한됨
+- **🟠 기본**: 사용할 수 있는 기반은 있으나 외부 구성 요소나 추가 개발 의존도가 높음
+- **⚪ 없음**: 공식 공개 문서에 동급의 내장 기능이 명시되지 않음
 
-“—”는 해당 프로젝트의 공식 공개 문서에 동일한 유형의 기능이 기본 제공된다고 명시되어 있지 않다는 뜻이며, 플러그인, 외부 서비스 또는 별도 개발을 통해 구현할 수 없다는 의미는 아닙니다. 각 프로젝트는 지속적으로 발전하고 있으므로, 구체적인 기능과 라이선스 범위는 각 저장소와 공식 문서를 기준으로 확인하세요.
+| 영역 | 세부 기능 차원 | Octafuse Gateway | New API | LiteLLM | Sub2API | Bifrost |
+|------|----------------|------------------|---------|---------|---------|---------|
+| 연결 | Provider / 모델 프리셋 및 원클릭 가져오기 | **✅ 완전** | 🟡 우수 | 🟡 우수 | 🟡 우수 | 🟡 우수 |
+| 연결 | 네이티브 프로토콜 및 멀티모달 지원 | **🟡 우수(확장 중)** | ✅ 완전 | ✅ 완전 | ✅ 완전 | ✅ 완전 |
+| Agent | 웹 검색, 가져오기, 심층 검색 내장 | **✅ 완전** | ⚪ 없음 | 🟠 기본 | 🟠 기본 | 🟠 기본 |
+| Agent | 도구 Provider 설정, 호출 로그, 과금 | **✅ 완전** | ⚪ 없음 | 🟡 우수 | 🟠 기본 | 🟠 기본 |
+| Route | 프로토콜 / operation 단위 Surface 및 독립 Route Pool | **✅ 완전** | 🟠 기본 | 🟡 우수 | 🟡 우수 | 🟡 우수 |
+| Route | 다중 분배 전략 및 계층별 오버라이드 | **✅ 완전** | 🟡 우수 | ✅ 완전 | 🟡 우수 | 🟡 우수 |
+| Route | Prompt Cache 친화 라우팅 | **✅ 완전** | 🟡 우수 | ✅ 완전 | ✅ 완전 | ✅ 완전 |
+| Route | 우선순위 주·백업, 장애 조치, Provider 서킷 브레이커 | **✅ 완전** | 🟡 우수 | ✅ 완전 | 🟡 우수 | ✅ 완전 |
+| 거버넌스 | External system, User, API Key 계층 관리 | **✅ 완전** | 🟡 우수 | ✅ 완전 | 🟡 우수 | ✅ 완전 |
+| 거버넌스 | 주기별 예산, 상태, 모델 접근 제어 | **✅ 완전** | ✅ 완전 | ✅ 완전 | ✅ 완전 | ✅ 완전 |
+| 과금 | 카탈로그 가격, Provider 비용, 사용자 청구의 세 원장 | **✅ 완전** | ⚪ 없음 | ⚪ 없음 | ✅ 완전 | ⚪ 없음 |
+| 과금 | 비즈니스 시간대 기준 시간대별 배율 | **✅ 완전** | ⚪ 없음 | ⚪ 없음 | 🟡 우수 | ⚪ 없음 |
+| 과금 | 이미지 / 음성 차등 과금 | **✅ 완전** | 🟡 우수 | 🟡 우수 | 🟡 우수 | 🟠 기본 |
+| 과금 | Agent 도구 건별 과금 | **✅ 완전** | ⚪ 없음 | 🟡 우수 | 🟠 기본 | 🟠 기본 |
+| 운영 | 관리 화면, 관리 API, 관측성 | **✅ 완전** | ✅ 완전 | ✅ 완전 | ✅ 완전 | ✅ 완전 |
+| 배포 | SQLite / D1, Postgres, MySQL 지원 | **✅ 완전** | ✅ 완전 | 🟠 기본 | 🟠 기본 | 🟡 우수 |
+| 배포 | Docker 셀프 호스팅 | **✅ 완전** | ✅ 완전 | ✅ 완전 | ✅ 완전 | ✅ 완전 |
+| 배포 | Cloudflare Workers 엣지 배포 | **✅ 완전** | ⚪ 없음 | ⚪ 없음 | ⚪ 없음 | ⚪ 없음 |
 
-## 화면 미리보기
-
-| 운영 개요 | 모델 Route |
-|---|---|
-| ![Octafuse Gateway 운영 개요 화면](./docs/assets/screenshots/dashboard.png) | ![Octafuse Gateway 모델 Route 화면](./docs/assets/screenshots/routes.png) |
-
-Provider 관리, Playground 등 더 많은 화면은 [docs/assets/screenshots/](./docs/assets/screenshots/)에서 확인할 수 있습니다.
+평가는 각 프로젝트의 현재 공개 저장소와 공식 문서를 기준으로 하며, 해당 기능이 통합 메커니즘으로 내장되어 있는지를 중점적으로 봅니다. 성능, 커뮤니티 규모, 상용 지원, 추가 개발 가능성은 평가 범위에 포함하지 않습니다. 이 표는 Octafuse의 제품 포지셔닝에 따른 비교이며 모든 기능을 종합해 순위를 매기는 표가 아닙니다. 최신 기능과 라이선스는 각 프로젝트의 공식 문서를 확인하세요.
 
 ## 빠른 시작
 

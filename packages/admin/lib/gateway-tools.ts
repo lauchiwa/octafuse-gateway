@@ -11,7 +11,7 @@ export type GatewayToolDefinition = {
 	/** 写入 `api_key_request_logs.model_id` */
 	modelId: string;
 	/** next-intl key under `tools.catalog.*` */
-	nameKey: 'webSearch' | 'webFetch' | 'webDeepSearch';
+	nameKey: 'webSearch' | 'webFetch' | 'webDeepSearch' | 'aiDetection';
 	/** 配置锚点（Tools Config 页内） */
 	configAnchor: string;
 };
@@ -35,6 +35,12 @@ export const GATEWAY_TOOLS: readonly GatewayToolDefinition[] = [
 		modelId: 'tool:web-deep-search',
 		nameKey: 'webDeepSearch',
 		configAnchor: 'web-deep-search',
+	},
+	{
+		id: 'ai-detection',
+		modelId: 'tool:ai-detection',
+		nameKey: 'aiDetection',
+		configAnchor: 'ai-detection',
 	},
 ] as const;
 

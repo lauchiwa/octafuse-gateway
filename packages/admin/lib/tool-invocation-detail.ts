@@ -49,6 +49,35 @@ export function parseToolRequestSummary(requestBody: string | null | undefined):
 	return { query, provider, raw };
 }
 
+/**
+ * 解析工具调用引擎：优先 `provider_model_name`（新写入），再 requestBody / pricing_audit。
+ * 旧行曾把 tool id 写入 provider_model_name，需排除。
+ */
+export function resolveToolEngineProvider(log: {
+	model_id?: string | null;
+	provider_model_name?: string | null;
+	request_body?: string | null;
+	pricing_audit?: string | null;
+}): string | null {
+	const modelId = log.model_id?.trim() || '';
+	const fromColumn = log.provider_model_name?.trim() || '';
+	if (fromColumn && fromColumn !== modelId && !fromColumn.startsWith('tool:')) {
+		return fromColumn;
+	}
+	const fromRequest = parseToolRequestSummary(log.request_body).provider;
+	if (fromRequest?.trim()) {
+		return fromRequest.trim();
+	}
+	const audit = tryParseJson(log.pricing_audit);
+	if (audit && typeof audit === 'object') {
+		const p = (audit as Record<string, unknown>).provider;
+		if (typeof p === 'string' && p.trim()) {
+			return p.trim();
+		}
+	}
+	return null;
+}
+
 export function parseToolResponseSummary(rawUsage: string | null | undefined): ToolInvocationResponseSummary {
 	const raw = tryParseJson(rawUsage);
 	if (!raw || typeof raw !== 'object') {

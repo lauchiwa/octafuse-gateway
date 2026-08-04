@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { ImageGenerationsPreview } from '@/components/image-generations-preview';
 import type { ImagePreviewItem } from '@/lib/image-generations';
-import { buildRequestLogsHref } from '../simulator-utils';
+import { buildRequestLogsHref, buildToolsInvocationsHref } from '../simulator-utils';
 import type { ResponseMeta, ResponseTab, SimulatorProtocol } from '../types';
 
 type Props = {
@@ -23,6 +23,8 @@ type Props = {
 	selectedModelId: string;
 	routeGroup: string;
 	protocol: SimulatorProtocol;
+	isToolKind?: boolean;
+	selectedToolId?: string;
 };
 
 export function SimulatorResponsePanel({
@@ -40,16 +42,21 @@ export function SimulatorResponsePanel({
 	selectedModelId,
 	routeGroup,
 	protocol,
+	isToolKind = false,
+	selectedToolId = '',
 }: Props) {
 	const t = useTranslations('simulator');
 	const hasContent = Boolean(responseMeta || responseText || imagePreviews.length > 0);
 	const isImageResponse = imagePreviews.length > 0;
-	const logsHref = buildRequestLogsHref({
-		apiKeyId: selectedKeyId || undefined,
-		modelId: selectedModelId || undefined,
-		routeGroup: routeGroup || undefined,
-		protocol,
-	});
+	const logsHref = isToolKind
+		? buildToolsInvocationsHref({ toolId: selectedToolId || undefined })
+		: buildRequestLogsHref({
+				apiKeyId: selectedKeyId || undefined,
+				modelId: selectedModelId || undefined,
+				routeGroup: routeGroup || undefined,
+				protocol,
+			});
+	const logsLinkLabel = isToolKind ? t('openToolsInvocations') : t('openRequestLogs');
 
 	return (
 		<section className="rounded-xl border border-gray-200/80 bg-white p-4 shadow-sm space-y-3 flex flex-col min-h-0">
@@ -103,7 +110,7 @@ export function SimulatorResponsePanel({
 							href={logsHref}
 							className="ml-auto text-xs font-medium text-blue-700 hover:text-blue-900 hover:underline"
 						>
-							{t('openRequestLogs')}
+							{logsLinkLabel}
 						</Link>
 					</div>
 

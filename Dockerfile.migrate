@@ -13,6 +13,7 @@ RUN apk upgrade --no-cache \
 COPY package.json package-lock.json ./
 COPY tsconfig.json tsconfig.base.json ./
 COPY packages/core/package.json packages/core/
+COPY packages/tool-engines/package.json packages/tool-engines/
 COPY packages/proxy/package.json packages/proxy/
 COPY packages/admin/package.json packages/admin/
 

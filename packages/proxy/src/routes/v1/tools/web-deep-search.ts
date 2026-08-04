@@ -10,7 +10,7 @@ import {
 	clampDeepSearchCount,
 	deepSearchByProvider,
 	WebDeepSearchProviderError,
-} from '../../../services/web-deep-search';
+} from '@octafuse/tool-engines/web-deep-search';
 
 type ToolsEnv = Env & { Variables: { apiKey: import('../../../middleware/auth').ApiKeyContext } };
 
@@ -35,7 +35,13 @@ webDeepSearchRoutes.post('/', async (c) => {
 		return c.json({ error: 'Web deep search provider is misconfigured' }, 503);
 	}
 
-	const { provider, apiKey: providerApiKey, cost: toolCost } = resolved.config;
+	const {
+		provider,
+		apiKey: providerApiKey,
+		metered: unitMetered,
+		standard: unitStandard,
+		charged: unitCharged,
+	} = resolved.config;
 	if (!providerApiKey) {
 		return c.json({ error: 'Web deep search is not configured' }, 503);
 	}
@@ -43,7 +49,7 @@ webDeepSearchRoutes.post('/', async (c) => {
 	if (apiKey.budgetMax != null && apiKey.budgetSpent >= apiKey.budgetMax) {
 		return c.json({ error: 'Budget exceeded' }, 403);
 	}
-	if (!canAffordToolCost(apiKey.budgetMax, apiKey.budgetSpent, toolCost)) {
+	if (!canAffordToolCost(apiKey.budgetMax, apiKey.budgetSpent, unitCharged)) {
 		return c.json({ error: 'Budget exceeded' }, 403);
 	}
 
@@ -77,7 +83,13 @@ webDeepSearchRoutes.post('/', async (c) => {
 			userId: apiKey.userId,
 			userEmail: apiKey.userEmail,
 			toolId: 'tool:web-deep-search',
-			chargedCost: toolCost,
+			toolProvider: provider,
+			meteredCost: unitMetered,
+			standardCost: unitStandard,
+			chargedCost: unitCharged,
+			pricingUnit: 'request',
+			billingUnits: 1,
+			unitPrices: { metered: unitMetered, standard: unitStandard, charged: unitCharged },
 			latencyMs,
 			requestBody: JSON.stringify({ query, provider, count }),
 			responseBody: JSON.stringify({
@@ -109,7 +121,13 @@ webDeepSearchRoutes.post('/', async (c) => {
 				userId: apiKey.userId,
 				userEmail: apiKey.userEmail,
 				toolId: 'tool:web-deep-search',
+				toolProvider: provider,
+				meteredCost: 0,
+				standardCost: 0,
 				chargedCost: 0,
+				pricingUnit: 'request',
+				billingUnits: 1,
+				unitPrices: { metered: unitMetered, standard: unitStandard, charged: unitCharged },
 				latencyMs,
 				requestBody: JSON.stringify({ query, provider }),
 				errorMessage: message,

@@ -51,7 +51,10 @@ export default function SimulatorPage() {
 								onProxyBaseUrlChange={s.setProxyBaseUrl}
 								protocol={s.protocol}
 								onProtocolChange={s.requestProtocolChange}
-								lockOpenaiForImage={s.selectedModelIsImage || s.selectedModelIsAudio}
+								lockOpenaiForImage={
+									!s.isToolKind && (s.selectedModelIsImage || s.selectedModelIsAudio)
+								}
+								hideProtocolControls={s.isToolKind}
 								openaiSurface={s.openaiSurface}
 								onOpenaiSurfaceChange={s.requestOpenaiSurfaceChange}
 								geminiAction={s.geminiAction}
@@ -73,6 +76,10 @@ export default function SimulatorPage() {
 								filterKind={s.filterKind}
 								onFilterKindChange={s.setFilterKind}
 								kindCounts={s.kindCounts}
+								isToolKind={s.isToolKind}
+								gatewayTools={s.gatewayTools}
+								selectedToolId={s.selectedToolId}
+								onSelectTool={s.selectTool}
 								filterModel={s.filterModel}
 								onFilterModelChange={s.setFilterModel}
 								filteredModels={s.filteredModels}
@@ -134,6 +141,8 @@ export default function SimulatorPage() {
 							selectedModelId={s.selectedModelId}
 							routeGroup={s.routeGroup}
 							protocol={s.protocol}
+							isToolKind={s.isToolKind}
+							selectedToolId={s.selectedToolId}
 						/>
 					</section>
 				</div>

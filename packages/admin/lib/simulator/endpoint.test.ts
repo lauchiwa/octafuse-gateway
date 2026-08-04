@@ -2,6 +2,24 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { buildSimulatorRequest } from './endpoint';
 
+describe('buildSimulatorRequest tools', () => {
+	it('builds /v1/tools/{id} for kind=tool', () => {
+		const result = buildSimulatorRequest({
+			baseUrl: 'https://gateway.example.com',
+			kind: 'tool',
+			toolId: 'ai-detection',
+			protocol: 'openai',
+			modelForRouting: '',
+			body: { text: 'hello' },
+			apiKey: 'sk-test',
+		});
+		assert.equal(result.url, 'https://gateway.example.com/v1/tools/ai-detection');
+		assert.equal(result.headers['Content-Type'], 'application/json');
+		assert.equal(result.headers.Authorization, 'Bearer sk-test');
+		assert.deepEqual(JSON.parse(result.bodyText), { text: 'hello' });
+	});
+});
+
 describe('buildSimulatorRequest openai', () => {
 	it('defaults to chat/completions', () => {
 		const result = buildSimulatorRequest({

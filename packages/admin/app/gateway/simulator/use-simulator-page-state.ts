@@ -27,21 +27,34 @@ import {
 import type { AdminKeyListItem, AdminModelRow } from '@/lib/services/admin/types';
 import type { ApiResponse } from '@/lib/types';
 import {
-	DEFAULT_KIND_FILTER,
+	DEFAULT_INVOKE_KIND,
+	emptyModelKindCounts,
+	GATEWAY_TOOL_IDS,
+	isInvokeKind,
+	modelKindFromFlags,
+	parseGatewayToolId,
+	resolveRequestOperation,
+	type GatewayToolId,
+	type InvokeKind,
 	type ModelKindFilter,
-} from '../models/types';
+} from '@/lib/invoke-kind';
+import { GATEWAY_TOOLS } from '@/lib/gateway-tools';
 import {
 	BODY_TEMPLATES,
 	bodyTemplateForSelection,
+	bodyTemplateForTool,
 	KEYS_PAGE_SIZE,
+	LS_INVOKE_KIND,
 	LS_KEY_ID,
 	LS_MODEL_ID,
 	LS_PROTOCOL,
 	LS_PROXY,
 	LS_ROUTE_GROUP,
+	LS_TOOL_ID,
 	buildModelRoutingString,
 	filterMatchingActiveRoutes,
 	isBodyDirty,
+	listGatewayTools,
 	redactHeaders,
 	tryParseProxyBaseUrl,
 } from './simulator-utils';
@@ -50,9 +63,7 @@ import type { SimulatorOpenAiSurface } from '@/lib/simulator/endpoint';
 
 function resolveModelKind(m: AdminModelRow | null | undefined): ModelKindFilter {
 	if (!m) return 'llm';
-	if (isAudioRouteModel(m)) return 'audio';
-	if (isImageRouteModel(m)) return 'image';
-	return 'llm';
+	return modelKindFromFlags(isAudioRouteModel(m), isImageRouteModel(m));
 }
 
 export function useSimulatorPageState() {
@@ -73,11 +84,13 @@ export function useSimulatorPageState() {
 	const [loadingCatalog, setLoadingCatalog] = useState(true);
 	const [catalogError, setCatalogError] = useState<string | null>(null);
 
-	/** 与 Models/Routes 一致：无 All，默认 LLM，按 Kind 拆分模型列表 */
-	const [filterKind, setFilterKind] = useState<ModelKindFilter>(DEFAULT_KIND_FILTER);
+	/** llm|image|audio|tool；tool 时走 `/v1/tools/*`，隐藏 model/route */
+	const [filterKind, setFilterKind] = useState<InvokeKind>(DEFAULT_INVOKE_KIND);
 	const [filterModel, setFilterModel] = useState('');
 	const [selectedModelId, setSelectedModelId] = useState('');
+	const [selectedToolId, setSelectedToolId] = useState<GatewayToolId>(GATEWAY_TOOL_IDS[0] ?? 'web-search');
 	const [routeGroup, setRouteGroup] = useState('');
+	const isToolKind = filterKind === 'tool';
 
 	const [keys, setKeys] = useState<AdminKeyListItem[]>([]);
 	const [keysTotal, setKeysTotal] = useState(0);
@@ -110,7 +123,7 @@ export function useSimulatorPageState() {
 	const mergedStreamEndRef = useRef<HTMLSpanElement>(null);
 
 	const kindCounts = useMemo(() => {
-		const counts = { llm: 0, image: 0, audio: 0 };
+		const counts = { ...emptyModelKindCounts(), tool: GATEWAY_TOOLS.length };
 		for (const m of models) {
 			counts[resolveModelKind(m)] += 1;
 		}
@@ -118,8 +131,9 @@ export function useSimulatorPageState() {
 	}, [models]);
 
 	const modelsInKind = useMemo(
-		() => models.filter((m) => resolveModelKind(m) === filterKind),
-		[models, filterKind]
+		() =>
+			isToolKind ? [] : models.filter((m) => resolveModelKind(m) === (filterKind as ModelKindFilter)),
+		[models, filterKind, isToolKind]
 	);
 
 	const filteredModels = useMemo(() => {
@@ -134,15 +148,30 @@ export function useSimulatorPageState() {
 	}, [modelsInKind, filterModel]);
 
 	const setFilterKindAndClear = useCallback(
-		(next: ModelKindFilter) => {
+		(next: InvokeKind) => {
 			if (next === filterKind) return;
 			setFilterKind(next);
 			setFilterModel('');
 			setSelectedModelId('');
 			setRouteGroup('');
+			if (next === 'tool') {
+				setBodyText(bodyTemplateForTool(selectedToolId));
+				setBodyError(null);
+			} else if (filterKind === 'tool') {
+				setBodyText(bodyTemplateForSelection(protocol, next === 'image', imageOperation, next === 'audio'));
+				setBodyError(null);
+			}
 		},
-		[filterKind]
+		[filterKind, selectedToolId, protocol, imageOperation]
 	);
+
+	const selectTool = useCallback((id: string) => {
+		const parsed = parseGatewayToolId(id);
+		if (!parsed) return;
+		setSelectedToolId(parsed);
+		setBodyText(bodyTemplateForTool(parsed));
+		setBodyError(null);
+	}, []);
 
 	const modelIdsWithActiveRouter = useMemo(() => {
 		const s = new Set<string>();
@@ -185,52 +214,60 @@ export function useSimulatorPageState() {
 		return buildModelRoutingString(selectedModelId, routeGroup);
 	}, [selectedModelId, routeGroup]);
 
-	const requestOperation = selectedModelIsAudio
-		? 'audio.transcriptions'
-		: selectedModelIsImage
-			? `images.${imageOperation}`
-			: protocol === 'openai'
-				? 'chat'
-				: protocol === 'anthropic'
-					? 'messages'
-					: geminiAction;
+	const requestOperation = isToolKind
+		? null
+		: resolveRequestOperation({
+				kind: filterKind,
+				protocol,
+				imageOperation,
+				geminiAction,
+			});
 	const matchingRoutes = useMemo(
-		() => filterMatchingActiveRoutes(
-			routes,
-			selectedModelId,
-			routeGroup,
-			protocol,
-			requestOperation
-		),
-		[routes, selectedModelId, routeGroup, protocol, requestOperation]
+		() =>
+			isToolKind
+				? []
+				: filterMatchingActiveRoutes(
+						routes,
+						selectedModelId,
+						routeGroup,
+						protocol,
+						requestOperation ?? undefined
+					),
+		[routes, selectedModelId, routeGroup, protocol, requestOperation, isToolKind]
 	);
 
 	const sendBlockReason = useMemo((): SendBlockReason => {
 		const parsed = tryParseProxyBaseUrl(proxyBaseUrl);
 		if (!parsed.ok) return 'proxyBaseUrl';
-		if (!selectedModelId) return 'model';
-		if (selectedModelIsAudio && protocol !== 'openai') return 'audioProtocol';
-		if (selectedModelIsImage && !selectedModelIsAudio && protocol !== 'openai') {
-			return 'imageProtocol';
-		}
-		if (selectedModelIsAudio && protocol === 'openai') {
-			const validated = validateAudioTranscriptionFile(audioFile);
-			if (!validated.ok) return 'audioFile';
-		}
-		if (
-			selectedModelIsImage &&
-			!selectedModelIsAudio &&
-			protocol === 'openai' &&
-			imageOperation === 'edits'
-		) {
-			const validated = validateEditImageFiles(editFiles);
-			if (!validated.ok) return 'editImages';
+		if (isToolKind) {
+			if (!selectedToolId) return 'tool';
+		} else {
+			if (!selectedModelId) return 'model';
+			if (selectedModelIsAudio && protocol !== 'openai') return 'audioProtocol';
+			if (selectedModelIsImage && !selectedModelIsAudio && protocol !== 'openai') {
+				return 'imageProtocol';
+			}
+			if (selectedModelIsAudio && protocol === 'openai') {
+				const validated = validateAudioTranscriptionFile(audioFile);
+				if (!validated.ok) return 'audioFile';
+			}
+			if (
+				selectedModelIsImage &&
+				!selectedModelIsAudio &&
+				protocol === 'openai' &&
+				imageOperation === 'edits'
+			) {
+				const validated = validateEditImageFiles(editFiles);
+				if (!validated.ok) return 'editImages';
+			}
 		}
 		if (revealLoading && selectedKeyId) return 'keyLoading';
 		if (!revealedSk || !revealedSk.startsWith('sk-')) return 'key';
 		return null;
 	}, [
 		proxyBaseUrl,
+		isToolKind,
+		selectedToolId,
 		selectedModelId,
 		selectedModelIsImage,
 		selectedModelIsAudio,
@@ -249,6 +286,8 @@ export function useSimulatorPageState() {
 				return t('readyNeedProxyUrl');
 			case 'model':
 				return t('readyNeedModel');
+			case 'tool':
+				return t('readyNeedTool');
 			case 'imageProtocol':
 				return t('readyNeedOpenaiForImage');
 			case 'audioProtocol':
@@ -275,7 +314,12 @@ export function useSimulatorPageState() {
 
 	const liveWirePreview = useMemo((): WirePreview | null => {
 		const parsed = tryParseProxyBaseUrl(proxyBaseUrl);
-		if (!parsed.ok || !selectedModelId || !revealedSk?.startsWith('sk-')) return null;
+		if (!parsed.ok || !revealedSk?.startsWith('sk-')) return null;
+		if (isToolKind) {
+			if (!selectedToolId) return null;
+		} else if (!selectedModelId) {
+			return null;
+		}
 		let bodyObj: Record<string, unknown>;
 		try {
 			bodyObj = JSON.parse(bodyText) as Record<string, unknown>;
@@ -284,16 +328,19 @@ export function useSimulatorPageState() {
 			return null;
 		}
 		const routing = modelRoutingString;
-		if (protocol === 'openai' || protocol === 'anthropic') {
+		if (!isToolKind && (protocol === 'openai' || protocol === 'anthropic')) {
 			bodyObj = { ...bodyObj, model: routing };
 		}
 		try {
-			const useAudio = selectedModelIsAudio && protocol === 'openai';
-			const useImages = selectedModelIsImage && !selectedModelIsAudio && protocol === 'openai';
+			const useAudio = !isToolKind && selectedModelIsAudio && protocol === 'openai';
+			const useImages =
+				!isToolKind && selectedModelIsImage && !selectedModelIsAudio && protocol === 'openai';
 			const built = buildSimulatorRequest({
 				baseUrl: parsed.base,
+				kind: filterKind,
+				toolId: isToolKind ? selectedToolId : undefined,
 				protocol,
-				modelForRouting: routing,
+				modelForRouting: routing || selectedToolId,
 				geminiAction: protocol === 'gemini' ? geminiAction : undefined,
 				openaiSurface: protocol === 'openai' ? openaiSurface : undefined,
 				body: bodyObj,
@@ -316,12 +363,15 @@ export function useSimulatorPageState() {
 	}, [
 		proxyBaseUrl,
 		openaiSurface,
+		isToolKind,
+		selectedToolId,
 		selectedModelId,
 		revealedSk,
 		bodyText,
 		modelRoutingString,
 		protocol,
 		geminiAction,
+		filterKind,
 		selectedModelIsImage,
 		selectedModelIsAudio,
 		imageOperation,
@@ -366,6 +416,18 @@ export function useSimulatorPageState() {
 			if (p === 'openai' || p === 'anthropic' || p === 'gemini') {
 				setProtocolState(p);
 				setBodyText(BODY_TEMPLATES[p]);
+			}
+			const kindRaw = localStorage.getItem(LS_INVOKE_KIND);
+			if (kindRaw && isInvokeKind(kindRaw)) {
+				setFilterKind(kindRaw);
+			}
+			const toolRaw = localStorage.getItem(LS_TOOL_ID);
+			const toolParsed = parseGatewayToolId(toolRaw);
+			if (toolParsed) {
+				setSelectedToolId(toolParsed);
+				if (kindRaw === 'tool') {
+					setBodyText(bodyTemplateForTool(toolParsed));
+				}
 			}
 			const mid = localStorage.getItem(LS_MODEL_ID);
 			if (mid) setSelectedModelId(mid);
@@ -427,6 +489,24 @@ export function useSimulatorPageState() {
 	}, [selectedKeyId, hydrated]);
 
 	useEffect(() => {
+		if (!hydrated) return;
+		try {
+			localStorage.setItem(LS_INVOKE_KIND, filterKind);
+		} catch {
+			// ignore
+		}
+	}, [filterKind, hydrated]);
+
+	useEffect(() => {
+		if (!hydrated) return;
+		try {
+			localStorage.setItem(LS_TOOL_ID, selectedToolId);
+		} catch {
+			// ignore
+		}
+	}, [selectedToolId, hydrated]);
+
+	useEffect(() => {
 		let cancelled = false;
 		(async () => {
 			setLoadingCatalog(true);
@@ -466,9 +546,10 @@ export function useSimulatorPageState() {
 
 	/**
 	 * localStorage 恢复的模型可能是 Image/Audio：把 Kind 对齐到该模型，
-	 * 避免默认 LLM 视图立刻把选中项清掉。
+	 * 避免默认 LLM 视图立刻把选中项清掉。Tools 模式不跟模型对齐。
 	 */
 	useEffect(() => {
+		if (isToolKind) return;
 		if (!selectedModelId || models.length === 0) return;
 		const m = models.find((x) => x.id === selectedModelId);
 		if (!m) return;
@@ -476,7 +557,7 @@ export function useSimulatorPageState() {
 		if (k !== filterKind) {
 			setFilterKind(k);
 		}
-	}, [models, selectedModelId, filterKind]);
+	}, [models, selectedModelId, filterKind, isToolKind]);
 
 	const prevSelectedSpecialKindRef = useRef<'none' | 'image' | 'audio'>('none');
 
@@ -600,6 +681,7 @@ export function useSimulatorPageState() {
 					isImage && !isAudio && next === 'openai',
 					imageOperation,
 					isAudio && next === 'openai',
+					null,
 					next === 'openai' ? openaiSurface : 'chat'
 				)
 			);
@@ -654,6 +736,7 @@ export function useSimulatorPageState() {
 					selectedModelIsImage && !selectedModelIsAudio,
 					imageOperation,
 					selectedModelIsAudio,
+					null,
 					openaiSurface
 				)
 			) {
@@ -661,7 +744,9 @@ export function useSimulatorPageState() {
 				if (!ok) return;
 			}
 			setOpenaiSurfaceState(next);
-			setBodyText(bodyTemplateForSelection('openai', false, imageOperation, false, next));
+			setBodyText(
+				bodyTemplateForSelection('openai', false, imageOperation, false, null, next)
+			);
 			setBodyError(null);
 		},
 		[openaiSurface, bodyText, protocol, selectedModelIsImage, selectedModelIsAudio, imageOperation, t]
@@ -669,16 +754,27 @@ export function useSimulatorPageState() {
 
 	const applyCurrentTemplate = useCallback(() => {
 		setBodyText(
-			bodyTemplateForSelection(
-				protocol,
-				selectedModelIsImage && !selectedModelIsAudio,
-				imageOperation,
-				selectedModelIsAudio,
-				protocol === 'openai' ? openaiSurface : 'chat'
-			)
+			isToolKind
+				? bodyTemplateForTool(selectedToolId)
+				: bodyTemplateForSelection(
+						protocol,
+						selectedModelIsImage && !selectedModelIsAudio,
+						imageOperation,
+						selectedModelIsAudio,
+						null,
+						protocol === 'openai' ? openaiSurface : 'chat'
+					)
 		);
 		setBodyError(null);
-	}, [protocol, selectedModelIsImage, selectedModelIsAudio, imageOperation, openaiSurface]);
+	}, [
+		isToolKind,
+		selectedToolId,
+		protocol,
+		selectedModelIsImage,
+		selectedModelIsAudio,
+		imageOperation,
+		openaiSurface,
+	]);
 
 	const stop = useCallback(() => {
 		abortRef.current?.abort();
@@ -694,7 +790,12 @@ export function useSimulatorPageState() {
 		}
 		const base = parsed.base;
 
-		if (!selectedModelId) {
+		if (isToolKind) {
+			if (!selectedToolId) {
+				setBodyError(t('errSelectTool'));
+				return;
+			}
+		} else if (!selectedModelId) {
 			setBodyError(t('errSelectModel'));
 			return;
 		}
@@ -723,7 +824,7 @@ export function useSimulatorPageState() {
 		setResponseProtocol(protoNorm);
 
 		const routing = modelRoutingString;
-		if (protocol === 'openai' || protocol === 'anthropic') {
+		if (!isToolKind && (protocol === 'openai' || protocol === 'anthropic')) {
 			const prev = bodyObj.model;
 			bodyObj = { ...bodyObj, model: routing };
 			if (prev !== routing) {
@@ -731,8 +832,9 @@ export function useSimulatorPageState() {
 			}
 		}
 
-		const useAudio = selectedModelIsAudio && protocol === 'openai';
-		const useImages = selectedModelIsImage && !selectedModelIsAudio && protocol === 'openai';
+		const useAudio = !isToolKind && selectedModelIsAudio && protocol === 'openai';
+		const useImages =
+			!isToolKind && selectedModelIsImage && !selectedModelIsAudio && protocol === 'openai';
 		if (useAudio) {
 			const validated = validateAudioTranscriptionFile(audioFile);
 			if (!validated.ok) {
@@ -752,8 +854,10 @@ export function useSimulatorPageState() {
 		try {
 			built = buildSimulatorRequest({
 				baseUrl: base,
+				kind: filterKind,
+				toolId: isToolKind ? selectedToolId : undefined,
 				protocol,
-				modelForRouting: routing,
+				modelForRouting: routing || selectedToolId,
 				geminiAction: protocol === 'gemini' ? geminiAction : undefined,
 				openaiSurface: protocol === 'openai' ? openaiSurface : undefined,
 				body: bodyObj,
@@ -899,6 +1003,9 @@ export function useSimulatorPageState() {
 	}, [
 		proxyBaseUrl,
 		openaiSurface,
+		isToolKind,
+		filterKind,
+		selectedToolId,
 		selectedModelId,
 		selectedModelIsImage,
 		selectedModelIsAudio,
@@ -934,7 +1041,9 @@ export function useSimulatorPageState() {
 			protocol,
 			selectedModelIsImage && !selectedModelIsAudio,
 			imageOperation,
-			selectedModelIsAudio
+			selectedModelIsAudio,
+			isToolKind ? selectedToolId : null,
+			protocol === 'openai' ? openaiSurface : 'chat'
 		),
 		geminiAction,
 		setGeminiAction,
@@ -948,6 +1057,7 @@ export function useSimulatorPageState() {
 		setAudioFile,
 		filterKind,
 		setFilterKind: setFilterKindAndClear,
+		isToolKind,
 		kindCounts,
 		filterModel,
 		setFilterModel,
@@ -957,6 +1067,9 @@ export function useSimulatorPageState() {
 		modelIdsWithActiveRouter,
 		selectedModelId,
 		selectModel,
+		selectedToolId,
+		selectTool,
+		gatewayTools: listGatewayTools(),
 		routeGroup,
 		setRouteGroup,
 		routeGroupsForModel,

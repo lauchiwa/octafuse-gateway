@@ -26,9 +26,12 @@ import {
   materializeNonOkResponse,
 } from '../../services/request-log-record-status';
 import {
-  maybeBlockSensitiveContentCircuit,
-  maybeTriggerSensitiveContentCircuitFromUpstream,
-} from '../../services/sensitive-content-circuit-route';
+  maybeBlockUserModelCircuit,
+  maybeTriggerUserModelCircuitFromUpstream,
+  markUserModelSuccess,
+} from '../../services/user-model-circuit-route';
+import { GatewayErrorCode } from '../../services/gateway-error-codes';
+import { gatewayErrorJson } from '../../services/gateway-error-response';
 import { RequestTimingCollector } from '../../services/request-timing';
 
 /** 同 chat：usage Promise 兜底超时，避免永久挂起。 */
@@ -87,23 +90,39 @@ messagesRoutes.post('/', async (c) => {
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: 'Invalid JSON body' }, 400);
+    return gatewayErrorJson(c, {
+      status: 400,
+      code: GatewayErrorCode.invalidJson,
+      message: 'Invalid JSON body',
+    });
   }
 
   const rawModelId = typeof body.model === 'string' ? body.model.trim() : null;
   if (!rawModelId) {
-    return c.json({ error: 'Missing model' }, 400);
+    return gatewayErrorJson(c, {
+      status: 400,
+      code: GatewayErrorCode.missingModel,
+      message: 'Missing model',
+    });
   }
 
   const resolved = await resolveModelRouting(repos, rawModelId);
   if (!resolved) {
-    return c.json({ error: 'Model not found' }, 404);
+    return gatewayErrorJson(c, {
+      status: 404,
+      code: GatewayErrorCode.modelNotFound,
+      message: 'Model not found',
+    });
   }
   const { model, baseModelId, explicitGroup } = resolved;
   const effectiveRouteGroup = explicitGroup?.trim() || 'default';
 
   if (apiKey.budgetMax != null && apiKey.budgetSpent >= apiKey.budgetMax) {
-    return c.json({ error: 'Budget exceeded' }, 403);
+    return gatewayErrorJson(c, {
+      status: 403,
+      code: GatewayErrorCode.budgetExceeded,
+      message: 'Budget exceeded',
+    });
   }
 
   let routes: RouteResult[];
@@ -119,15 +138,18 @@ messagesRoutes.post('/', async (c) => {
     poolStrategy = resolvedSurface.surface?.pool_strategy ?? null;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Model route resolution failed';
-    return c.json({ error: message }, 502);
+    return gatewayErrorJson(c, {
+      status: 502,
+      code: GatewayErrorCode.routeResolutionFailed,
+      message,
+    });
   }
   if (routes.length === 0) {
-    return c.json(
-      {
-        error: `No Anthropic route in route group "${effectiveRouteGroup}" for this model`,
-      },
-      502
-    );
+    return gatewayErrorJson(c, {
+      status: 502,
+      code: GatewayErrorCode.noRoute,
+      message: `No Anthropic route in route group "${effectiveRouteGroup}" for this model`,
+    });
   }
 
   const modelNameForLog =
@@ -136,7 +158,7 @@ messagesRoutes.post('/', async (c) => {
       : baseModelId;
   const requestBodyForLog = anthropicRequestBodyForLog(body as Record<string, unknown>);
 
-  const circuitBlocked = maybeBlockSensitiveContentCircuit(c, repos, apiKey, {
+  const circuitBlocked = maybeBlockUserModelCircuit(c, repos, apiKey, {
     baseModelId,
     modelNameForLog,
     requestBodyForLog,
@@ -169,9 +191,11 @@ messagesRoutes.post('/', async (c) => {
   const { usagePromise, chosenRoute, upstreamRequestId, circuitEvents, suppressErrorAlert } = proxyResult;
   const { response, errorBodyText } = await materializeNonOkResponse(proxyResult.response);
 
-  let sensitiveCircuitEvent = null;
-  if (errorBodyText != null) {
-    sensitiveCircuitEvent = maybeTriggerSensitiveContentCircuitFromUpstream(
+  let userModelCircuitEvent = null;
+  if (response.ok) {
+    markUserModelSuccess(apiKey.userId, baseModelId);
+  } else if (errorBodyText != null) {
+    userModelCircuitEvent = maybeTriggerUserModelCircuitFromUpstream(
       apiKey.userId,
       baseModelId,
       response.status,
@@ -185,8 +209,8 @@ messagesRoutes.post('/', async (c) => {
     );
   }
 
-  const alertCircuitEvents = sensitiveCircuitEvent
-    ? [...circuitEvents, sensitiveCircuitEvent]
+  const alertCircuitEvents = userModelCircuitEvent
+    ? [...circuitEvents, userModelCircuitEvent]
     : circuitEvents;
 
   const usageOrSafety = Promise.race([

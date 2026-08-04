@@ -16,6 +16,8 @@ type Props = {
 	onProtocolChange: (p: SimulatorProtocol) => void;
 	/** Image-generation catalog models: only openai /images/generations is supported. */
 	lockOpenaiForImage?: boolean;
+	/** Tools mode: protocol / Gemini action do not apply. */
+	hideProtocolControls?: boolean;
 	geminiAction: SimulatorGeminiAction;
 	onGeminiActionChange: (a: SimulatorGeminiAction) => void;
 	/** OpenAI 协议下选择 Proxy 入口：chat/completions 或 responses。 */
@@ -41,6 +43,7 @@ export function SimulatorSetupPanel({
 	protocol,
 	onProtocolChange,
 	lockOpenaiForImage = false,
+	hideProtocolControls = false,
 	geminiAction,
 	onGeminiActionChange,
 	openaiSurface,
@@ -77,84 +80,90 @@ export function SimulatorSetupPanel({
 					/>
 					<p className="mt-1.5 text-xs text-amber-800/90">{t('localDevHint')}</p>
 				</div>
-				<div>
-					<label className={labelClass}>{t('protocol')}</label>
-					<div className="flex flex-wrap gap-3 pt-1 text-sm">
-						{(['openai', 'anthropic', 'gemini'] as const).map((p) => {
-							const disabled = lockOpenaiForImage && p !== 'openai';
-							return (
-								<label
-									key={p}
-									className={`inline-flex items-center gap-2 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
-								>
+				{hideProtocolControls ? (
+					<p className="text-xs text-gray-500">{t('toolProtocolHidden')}</p>
+				) : (
+					<>
+						<div>
+							<label className={labelClass}>{t('protocol')}</label>
+							<div className="flex flex-wrap gap-3 pt-1 text-sm">
+								{(['openai', 'anthropic', 'gemini'] as const).map((p) => {
+									const disabled = lockOpenaiForImage && p !== 'openai';
+									return (
+										<label
+											key={p}
+											className={`inline-flex items-center gap-2 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+										>
+											<input
+												type="radio"
+												name="simProtocol"
+												checked={protocol === p}
+												disabled={disabled}
+												onChange={() => onProtocolChange(p)}
+												className="text-blue-600 focus:ring-blue-500"
+											/>
+											{p}
+										</label>
+									);
+								})}
+							</div>
+							{lockOpenaiForImage ? (
+								<p className="mt-1.5 text-xs text-amber-800/90">{t('protocolLockedImage')}</p>
+							) : null}
+						</div>
+						{protocol === 'gemini' && !lockOpenaiForImage ? (
+							<fieldset className="flex flex-wrap items-center gap-3 text-sm border border-gray-200 rounded-md px-3 py-2">
+								<legend className="sr-only">{t('geminiAction')}</legend>
+								<span className="text-gray-600 font-medium">{t('geminiAction')}</span>
+								<label className="inline-flex items-center gap-2 cursor-pointer">
 									<input
 										type="radio"
-										name="simProtocol"
-										checked={protocol === p}
-										disabled={disabled}
-										onChange={() => onProtocolChange(p)}
+										name="geminiActionSim"
 										className="text-blue-600 focus:ring-blue-500"
+										checked={geminiAction === 'generateContent'}
+										onChange={() => onGeminiActionChange('generateContent')}
 									/>
-									{p}
+									generateContent
 								</label>
-							);
-						})}
-					</div>
-					{lockOpenaiForImage ? (
-						<p className="mt-1.5 text-xs text-amber-800/90">{t('protocolLockedImage')}</p>
-					) : null}
-				</div>
-				{protocol === 'openai' && !lockOpenaiForImage ? (
-					<fieldset className="flex flex-wrap items-center gap-3 text-sm border border-gray-200 rounded-md px-3 py-2">
-						<legend className="sr-only">{t('openaiSurface')}</legend>
-						<span className="text-gray-600 font-medium">{t('openaiSurface')}</span>
-						<label className="inline-flex items-center gap-2 cursor-pointer">
-							<input
-								type="radio"
-								name="openaiSurfaceSim"
-								className="text-blue-600 focus:ring-blue-500"
-								checked={openaiSurface === 'chat'}
-								onChange={() => onOpenaiSurfaceChange('chat')}
-							/>
-							chat/completions
-						</label>
-						<label className="inline-flex items-center gap-2 cursor-pointer">
-							<input
-								type="radio"
-								name="openaiSurfaceSim"
-								className="text-blue-600 focus:ring-blue-500"
-								checked={openaiSurface === 'responses'}
-								onChange={() => onOpenaiSurfaceChange('responses')}
-							/>
-							responses
-						</label>
-					</fieldset>
-				) : null}
-				{protocol === 'gemini' && !lockOpenaiForImage ? (
-					<fieldset className="flex flex-wrap items-center gap-3 text-sm border border-gray-200 rounded-md px-3 py-2">
-						<legend className="sr-only">{t('geminiAction')}</legend>
-						<span className="text-gray-600 font-medium">{t('geminiAction')}</span>
-						<label className="inline-flex items-center gap-2 cursor-pointer">
-							<input
-								type="radio"
-								name="geminiActionSim"
-								className="text-blue-600 focus:ring-blue-500"
-								checked={geminiAction === 'generateContent'}
-								onChange={() => onGeminiActionChange('generateContent')}
-							/>
-							generateContent
-						</label>
-						<label className="inline-flex items-center gap-2 cursor-pointer">
-							<input
-								type="radio"
-								name="geminiActionSim"
-								checked={geminiAction === 'streamGenerateContent'}
-								onChange={() => onGeminiActionChange('streamGenerateContent')}
-							/>
-							streamGenerateContent
-						</label>
-					</fieldset>
-				) : null}
+								<label className="inline-flex items-center gap-2 cursor-pointer">
+									<input
+										type="radio"
+										name="geminiActionSim"
+										checked={geminiAction === 'streamGenerateContent'}
+										onChange={() => onGeminiActionChange('streamGenerateContent')}
+									/>
+									streamGenerateContent
+								</label>
+							</fieldset>
+						) : null}
+						{protocol === 'openai' && !lockOpenaiForImage ? (
+							<fieldset className="flex flex-wrap items-center gap-3 text-sm border border-gray-200 rounded-md px-3 py-2">
+								<legend className="sr-only">{t('openaiSurface')}</legend>
+								<span className="text-gray-600 font-medium">{t('openaiSurface')}</span>
+								<label className="inline-flex items-center gap-2 cursor-pointer">
+									<input
+										type="radio"
+										name="openaiSurfaceSim"
+										className="text-blue-600 focus:ring-blue-500"
+										checked={openaiSurface === 'chat'}
+										onChange={() => onOpenaiSurfaceChange('chat')}
+									/>
+									chat/completions
+								</label>
+								<label className="inline-flex items-center gap-2 cursor-pointer">
+									<input
+										type="radio"
+										name="openaiSurfaceSim"
+										className="text-blue-600 focus:ring-blue-500"
+										checked={openaiSurface === 'responses'}
+										onChange={() => onOpenaiSurfaceChange('responses')}
+									/>
+									responses
+								</label>
+							</fieldset>
+						) : null}
+					</>
+				)}
 			</section>
 
 			<section className={panelClass}>

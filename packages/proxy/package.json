@@ -1,6 +1,6 @@
 {
 	"name": "@octafuse/proxy",
-	"version": "2.0.0",
+	"version": "2.1.1",
 	"private": true,
 	"type": "module",
 	"scripts": {
@@ -10,16 +10,17 @@
 		"dev:node": "dotenv -c -- tsx src/runtime/node.ts",
 		"start:node": "tsx src/runtime/node.ts",
 		"prebuild": "node -e \"try{require('fs').rmSync('dist',{recursive:true,force:true})}catch(e){}\"",
-		"build": "esbuild src/runtime/node.ts --bundle --platform=node --format=esm --outfile=dist/runtime/node.js --packages=external --log-level=warning",
+		"build": "node ./scripts/build.mjs",
 		"start:node:dist": "node dist/runtime/node.js",
 		"typecheck": "tsc -p tsconfig.json --noEmit",
 		"pretest:unit": "npm run build -w @octafuse/core",
-		"test:unit": "tsx --test src/services/egress/responses-to-chat-request.test.ts src/services/egress/chat-to-responses-object.test.ts src/services/egress/chat-to-responses-stream.test.ts src/services/egress/openai-responses-chat-driver.test.ts src/services/upstream-failure-classifier.test.ts src/routes/v1/responses-redact.test.ts src/services/egress/openai-responses-driver.test.ts src/services/egress/openai-responses-usage.test.ts src/services/egress/openai-usage-normalize.test.ts src/lib/model-list-parse.test.ts src/services/image-usage-charge.test.ts src/services/image-generation-extras.test.ts src/services/egress/openai-images-driver.test.ts src/services/egress/openai-audio-driver.test.ts src/services/request-timing.test.ts src/services/egress/timing-delta.test.ts src/services/provider-circuit-breaker.test.ts src/services/route-attempt-planner.test.ts src/services/route-strategies/route-strategies.test.ts src/services/failover-dispatch.test.ts src/routes/v1/images-multipart.test.ts",
+		"test:unit": "tsx --test src/services/egress/responses-to-chat-request.test.ts src/services/egress/chat-to-responses-object.test.ts src/services/egress/chat-to-responses-stream.test.ts src/services/egress/openai-responses-chat-driver.test.ts src/services/upstream-failure-classifier.test.ts src/routes/v1/responses-redact.test.ts src/services/egress/openai-responses-driver.test.ts src/services/egress/openai-responses-usage.test.ts src/services/egress/openai-usage-normalize.test.ts src/lib/model-list-parse.test.ts src/services/image-usage-charge.test.ts src/services/image-generation-extras.test.ts src/services/egress/openai-images-driver.test.ts src/services/egress/openai-audio-driver.test.ts src/services/request-timing.test.ts src/services/egress/timing-delta.test.ts src/services/provider-circuit-breaker.test.ts src/services/user-model-circuit-breaker.test.ts src/services/gateway-error-response.test.ts src/services/route-attempt-planner.test.ts src/services/route-strategies/route-strategies.test.ts src/services/failover-dispatch.test.ts src/routes/v1/images-multipart.test.ts",
 		"test": "npm run test:unit"
 	},
 	"dependencies": {
 		"@hono/node-server": "^1.19.13",
 		"@octafuse/core": "*",
+		"@octafuse/tool-engines": "*",
 		"hono": "^4.12.9",
 		"postgres": "^3.4.9"
 	},

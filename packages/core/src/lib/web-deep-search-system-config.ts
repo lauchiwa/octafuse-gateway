@@ -2,10 +2,17 @@
  * Agent Web Deep Search（`POST /v1/tools/web-deep-search`）的 `system_config` 键与解析。
  * 权威配置：`WEB_DEEP_SEARCH_ACTIVE` + `WEB_DEEP_SEARCH_CATALOG`（JSON）；无旧三键兼容。
  * 引擎为「搜 + 读」一体（Firecrawl Search / Jina Search），有别于普通 `web-search`。
+ * Catalog 单价为三账本：metered / standard / charged（旧 `cost` 为 charged 别名）。
  */
 
 import type { GatewayRepositories } from '../storage/repositories';
 import { roundGatewayMoney } from './money-precision';
+import {
+	normalizeToolUnitPrices,
+	parseToolMoneyField,
+	toToolPricingFields,
+	type ToolUnitPrices,
+} from './tool-pricing';
 
 export const WEB_DEEP_SEARCH_ACTIVE_KEY = 'WEB_DEEP_SEARCH_ACTIVE';
 export const WEB_DEEP_SEARCH_CATALOG_KEY = 'WEB_DEEP_SEARCH_CATALOG';
@@ -20,7 +27,11 @@ export const DEFAULT_WEB_DEEP_SEARCH_COST = 0.01;
 
 export type WebDeepSearchCatalogEntry = {
 	apiKey: string;
+	/** @deprecated 兼容别名；等于 charged */
 	cost: number;
+	metered: number;
+	standard: number;
+	charged: number;
 };
 
 export type WebDeepSearchCatalog = Partial<Record<WebDeepSearchProvider, WebDeepSearchCatalogEntry>>;
@@ -38,18 +49,28 @@ export function parseWebDeepSearchProviderInput(raw: string | null | undefined):
 }
 
 export function parseWebDeepSearchCostInput(raw: string | null | undefined): number | null {
-	if (raw == null || !String(raw).trim()) {
-		return null;
-	}
-	const n = Number(String(raw).trim());
-	if (!Number.isFinite(n) || n < 0) {
-		return null;
-	}
-	return roundGatewayMoney(n);
+	return parseToolMoneyField(raw);
 }
 
 export function parseWebDeepSearchActiveInput(raw: string | null | undefined): WebDeepSearchProvider | null {
 	return parseWebDeepSearchProviderInput(raw);
+}
+
+function parseEntry(
+	rec: Record<string, unknown>,
+	strict: boolean
+): WebDeepSearchCatalogEntry | null {
+	if (typeof rec.apiKey !== 'string') {
+		return null;
+	}
+	const prices = normalizeToolUnitPrices(rec, DEFAULT_WEB_DEEP_SEARCH_COST, strict);
+	if (!prices) {
+		return null;
+	}
+	return {
+		apiKey: rec.apiKey.trim(),
+		...toToolPricingFields(prices),
+	};
 }
 
 /** 严格解析（Admin 写入校验）；未知 provider / 非法项 → `null`。 */
@@ -75,29 +96,11 @@ export function parseWebDeepSearchCatalogInput(raw: string | null | undefined): 
 		if (!value || typeof value !== 'object' || Array.isArray(value)) {
 			return null;
 		}
-		const rec = value as Record<string, unknown>;
-		if (typeof rec.apiKey !== 'string') {
+		const entry = parseEntry(value as Record<string, unknown>, true);
+		if (!entry) {
 			return null;
 		}
-		const costRaw = rec.cost;
-		let cost: number;
-		if (costRaw === undefined || costRaw === null || costRaw === '') {
-			cost = DEFAULT_WEB_DEEP_SEARCH_COST;
-		} else if (typeof costRaw === 'number') {
-			if (!Number.isFinite(costRaw) || costRaw < 0) {
-				return null;
-			}
-			cost = roundGatewayMoney(costRaw);
-		} else if (typeof costRaw === 'string') {
-			const parsedCost = parseWebDeepSearchCostInput(costRaw);
-			if (parsedCost == null) {
-				return null;
-			}
-			cost = parsedCost;
-		} else {
-			return null;
-		}
-		out[provider] = { apiKey: rec.apiKey.trim(), cost };
+		out[provider] = entry;
 	}
 	return out;
 }
@@ -122,32 +125,44 @@ export function parseWebDeepSearchCatalogLenient(raw: string | null | undefined)
 		if (!provider || !value || typeof value !== 'object' || Array.isArray(value)) {
 			continue;
 		}
-		const rec = value as Record<string, unknown>;
-		if (typeof rec.apiKey !== 'string') {
+		const entry = parseEntry(value as Record<string, unknown>, false);
+		if (!entry) {
 			continue;
 		}
-		let cost = DEFAULT_WEB_DEEP_SEARCH_COST;
-		if (typeof rec.cost === 'number' && Number.isFinite(rec.cost) && rec.cost >= 0) {
-			cost = roundGatewayMoney(rec.cost);
-		} else if (typeof rec.cost === 'string') {
-			const parsedCost = parseWebDeepSearchCostInput(rec.cost);
-			if (parsedCost != null) {
-				cost = parsedCost;
-			}
-		}
-		out[provider] = { apiKey: rec.apiKey.trim(), cost };
+		out[provider] = entry;
 	}
 	return out;
 }
 
 export function serializeWebDeepSearchCatalog(catalog: WebDeepSearchCatalog): string {
-	return JSON.stringify(catalog);
+	const normalized: WebDeepSearchCatalog = {};
+	for (const [key, entry] of Object.entries(catalog) as [
+		WebDeepSearchProvider,
+		WebDeepSearchCatalogEntry | undefined,
+	][]) {
+		if (!entry) continue;
+		normalized[key] = {
+			apiKey: entry.apiKey,
+			...toToolPricingFields({
+				metered: entry.metered,
+				standard: entry.standard,
+				charged: entry.charged ?? entry.cost,
+			}),
+		};
+	}
+	return JSON.stringify(normalized);
 }
 
 export type ResolvedWebDeepSearchConfig = {
 	provider: WebDeepSearchProvider;
 	apiKey: string | null;
+	/**
+	 * @deprecated 等于 {@link charged}；保留给旧调用方。
+	 */
 	cost: number;
+	metered: number;
+	standard: number;
+	charged: number;
 	sources: {
 		provider: 'system_config' | 'default';
 		apiKey: 'system_config' | 'missing';
@@ -161,6 +176,18 @@ export type ResolveWebDeepSearchConfigResult =
 	| { ok: false; reason: 'invalid_provider'; raw: string }
 	| { ok: false; reason: 'invalid_catalog' }
 	| { ok: false; reason: 'active_missing_key'; provider: string };
+
+function pricesFromEntry(entry: WebDeepSearchCatalogEntry | undefined): ToolUnitPrices {
+	if (!entry) {
+		const d = roundGatewayMoney(DEFAULT_WEB_DEEP_SEARCH_COST);
+		return { metered: d, standard: d, charged: d };
+	}
+	return {
+		metered: entry.metered,
+		standard: entry.standard,
+		charged: entry.charged ?? entry.cost,
+	};
+}
 
 /**
  * 从 `system_config` 解析 Web Deep Search。
@@ -176,12 +203,16 @@ export async function resolveWebDeepSearchConfig(
 
 	const catalogPresent = catalogRaw != null && String(catalogRaw).trim().length > 0;
 	if (!catalogPresent) {
+		const unit = roundGatewayMoney(DEFAULT_WEB_DEEP_SEARCH_COST);
 		return {
 			ok: true,
 			config: {
 				provider: DEFAULT_WEB_DEEP_SEARCH_PROVIDER,
 				apiKey: null,
-				cost: DEFAULT_WEB_DEEP_SEARCH_COST,
+				cost: unit,
+				metered: unit,
+				standard: unit,
+				charged: unit,
 				sources: {
 					provider: 'default',
 					apiKey: 'missing',
@@ -218,17 +249,19 @@ export async function resolveWebDeepSearchConfig(
 		return { ok: false, reason: 'active_missing_key', provider };
 	}
 
-	const cost = entry?.cost ?? DEFAULT_WEB_DEEP_SEARCH_COST;
+	const prices = pricesFromEntry(entry);
+	const fromConfig = entry != null;
 	return {
 		ok: true,
 		config: {
 			provider,
 			apiKey,
-			cost,
+			cost: prices.charged,
+			...prices,
 			sources: {
 				provider: providerSource,
 				apiKey: 'system_config',
-				cost: entry?.cost != null ? 'system_config' : 'default',
+				cost: fromConfig ? 'system_config' : 'default',
 				mode: 'catalog',
 			},
 		},

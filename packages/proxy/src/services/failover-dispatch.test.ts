@@ -61,7 +61,7 @@ describe('failoverDispatch — all providers unavailable', () => {
 		const body = (await result.response.json()) as {
 			error: { code: string; retry_after_seconds: number; message: string };
 		};
-		assert.equal(body.error.code, 'upstream_capacity_exhausted');
+		assert.equal(body.error.code, 'circuit.upstream_capacity_exhausted');
 		assert.equal(body.error.retry_after_seconds, retryAfter);
 		assert.match(body.error.message, /providers are cooling down/i);
 		assert.equal(result.suppressErrorAlert, true);
@@ -270,6 +270,41 @@ describe('failoverDispatch — soft server failures', () => {
 		assert.equal(result.circuitEvents[0]?.failureKind, 'rate_limit');
 		assert.equal(result.circuitEvents[0]?.openedOrExtended, true);
 		assert.equal(result.suppressErrorAlert, false);
+	});
+
+	it('skips same providerId mid-request after first target opens circuit', async () => {
+		let calls = 0;
+		const dispatch = mock.fn(async (route: RouteResult) => {
+			calls += 1;
+			if (calls === 1) {
+				return {
+					response: new Response('rate limited', {
+						status: 429,
+						headers: { 'Retry-After': '30' },
+					}),
+					usagePromise: Promise.resolve(EMPTY_USAGE),
+					upstreamRequestId: null,
+				};
+			}
+			return {
+				response: new Response('ok', { status: 200 }),
+				usagePromise: Promise.resolve(EMPTY_USAGE),
+				upstreamRequestId: null,
+			};
+		});
+		// Two targets on same provider, then a different provider
+		const routes = [
+			makeRoute('p1', { targetId: 't1', routePriority: 10 }),
+			makeRoute('p1', { targetId: 't2', routePriority: 10 }),
+			makeRoute('p2', { targetId: 't3', routePriority: 1 }),
+		];
+
+		const result = await failoverDispatch(emptyRepos, routes, 'openai', dispatch, undefined, defaultOptions);
+
+		assert.equal(dispatch.mock.callCount(), 2);
+		assert.equal(result.response.status, 200);
+		assert.equal(result.chosenRoute.providerId, 'p2');
+		assert.equal(isProviderCircuitOpen('p1'), true);
 	});
 
 	it('failovers across providers in priority order', async () => {

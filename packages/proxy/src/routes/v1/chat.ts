@@ -27,9 +27,12 @@ import {
   materializeNonOkResponse,
 } from '../../services/request-log-record-status';
 import {
-  maybeBlockSensitiveContentCircuit,
-  maybeTriggerSensitiveContentCircuitFromUpstream,
-} from '../../services/sensitive-content-circuit-route';
+  maybeBlockUserModelCircuit,
+  maybeTriggerUserModelCircuitFromUpstream,
+  markUserModelSuccess,
+} from '../../services/user-model-circuit-route';
+import { GatewayErrorCode } from '../../services/gateway-error-codes';
+import { gatewayErrorJson } from '../../services/gateway-error-response';
 import { RequestTimingCollector } from '../../services/request-timing';
 
 /** 流若长期不结束（上游挂死），超过此时长仍无 usage 则按 incomplete 记账；正常/取消场景通常很快结束。 */
@@ -88,23 +91,39 @@ chatRoutes.post('/', async (c) => {
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: 'Invalid JSON body' }, 400);
+    return gatewayErrorJson(c, {
+      status: 400,
+      code: GatewayErrorCode.invalidJson,
+      message: 'Invalid JSON body',
+    });
   }
 
   const rawModelId = typeof body.model === 'string' ? body.model.trim() : null;
   if (!rawModelId) {
-    return c.json({ error: 'Missing model' }, 400);
+    return gatewayErrorJson(c, {
+      status: 400,
+      code: GatewayErrorCode.missingModel,
+      message: 'Missing model',
+    });
   }
 
   const resolved = await resolveModelRouting(repos, rawModelId);
   if (!resolved) {
-    return c.json({ error: 'Model not found' }, 404);
+    return gatewayErrorJson(c, {
+      status: 404,
+      code: GatewayErrorCode.modelNotFound,
+      message: 'Model not found',
+    });
   }
   const { model, baseModelId, explicitGroup } = resolved;
   const effectiveRouteGroup = explicitGroup?.trim() || 'default';
 
   if (apiKey.budgetMax != null && apiKey.budgetSpent >= apiKey.budgetMax) {
-    return c.json({ error: 'Budget exceeded' }, 403);
+    return gatewayErrorJson(c, {
+      status: 403,
+      code: GatewayErrorCode.budgetExceeded,
+      message: 'Budget exceeded',
+    });
   }
 
   let routes: RouteResult[];
@@ -121,17 +140,20 @@ chatRoutes.post('/', async (c) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Model route resolution failed';
     console.error('[Gateway Chat] model route resolution failed', { baseModelId, err });
-    return c.json({ error: message }, 502);
+    return gatewayErrorJson(c, {
+      status: 502,
+      code: GatewayErrorCode.routeResolutionFailed,
+      message,
+    });
   }
 
   if (routes.length === 0) {
     console.warn('[Gateway Chat] no openai route for model', { baseModelId, effectiveRouteGroup });
-    return c.json(
-      {
-        error: `No OpenAI route in route group "${effectiveRouteGroup}" for this model`,
-      },
-      502
-    );
+    return gatewayErrorJson(c, {
+      status: 502,
+      code: GatewayErrorCode.noRoute,
+      message: `No OpenAI route in route group "${effectiveRouteGroup}" for this model`,
+    });
   }
 
   console.log(
@@ -144,7 +166,7 @@ chatRoutes.post('/', async (c) => {
       : baseModelId;
   const requestBodyForLog = openAiRequestBodyForLog(body as Record<string, unknown>);
 
-  const circuitBlocked = maybeBlockSensitiveContentCircuit(c, repos, apiKey, {
+  const circuitBlocked = maybeBlockUserModelCircuit(c, repos, apiKey, {
     baseModelId,
     modelNameForLog,
     requestBodyForLog,
@@ -177,9 +199,11 @@ chatRoutes.post('/', async (c) => {
   const { usagePromise, chosenRoute, upstreamRequestId, circuitEvents, suppressErrorAlert } = proxyResult;
   const { response, errorBodyText } = await materializeNonOkResponse(proxyResult.response);
 
-  let sensitiveCircuitEvent = null;
-  if (errorBodyText != null) {
-    sensitiveCircuitEvent = maybeTriggerSensitiveContentCircuitFromUpstream(
+  let userModelCircuitEvent = null;
+  if (response.ok) {
+    markUserModelSuccess(apiKey.userId, baseModelId);
+  } else if (errorBodyText != null) {
+    userModelCircuitEvent = maybeTriggerUserModelCircuitFromUpstream(
       apiKey.userId,
       baseModelId,
       response.status,
@@ -193,8 +217,8 @@ chatRoutes.post('/', async (c) => {
     );
   }
 
-  const alertCircuitEvents = sensitiveCircuitEvent
-    ? [...circuitEvents, sensitiveCircuitEvent]
+  const alertCircuitEvents = userModelCircuitEvent
+    ? [...circuitEvents, userModelCircuitEvent]
     : circuitEvents;
 
   const usageOrSafety = Promise.race([

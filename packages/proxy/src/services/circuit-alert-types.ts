@@ -19,7 +19,7 @@ export type UserModelCircuitAlertEvent = {
 	kind: 'user_model';
 	userId: string;
 	modelId: string;
-	reason: 'sensitive_content';
+	reason: 'sensitive_content' | 'client_error';
 	openUntil: number;
 	cooldownMs: number;
 };

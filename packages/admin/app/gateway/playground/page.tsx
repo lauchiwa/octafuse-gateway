@@ -3,13 +3,15 @@
 /**
  * Playground：选定单条 model_route，编辑 JSON 请求体，直连上游验证连通性（不计费、不入库）。
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { flushSync } from 'react-dom';
 import { PaperAirplaneIcon } from '@heroicons/react/24/outline';
 import { ImageGenerationsPreview } from '@/components/image-generations-preview';
 import { RequestTargetUrl } from '@/components/request-target-url';
 import { readApiJson } from '@/lib/api-json';
+import { PlaygroundToolsPanel } from './playground-tools-panel';
 import {
 	AUDIO_TRANSCRIPTIONS_BODY_TEMPLATE,
 	isAudioRouteModel,
@@ -157,10 +159,19 @@ function decodeWireRequestBodyHeader(res: Response): string | null {
 	}
 }
 
-export default function PlaygroundPage() {
+function PlaygroundPageInner() {
 	const t = useTranslations('playground');
 	const tBrand = useTranslations('brand');
 	const tCommon = useTranslations('common');
+	const searchParams = useSearchParams();
+	const initialMode =
+		searchParams.get('mode') === 'tools' || searchParams.get('tool')
+			? 'tools'
+			: 'routes';
+	const [playgroundMode, setPlaygroundMode] = useState<'routes' | 'tools'>(initialMode);
+	const initialToolId = searchParams.get('tool');
+	const initialProvider = searchParams.get('provider');
+
 	const [routes, setRoutes] = useState<RouteListRow[]>([]);
 	const [modelsById, setModelsById] = useState<Map<string, AdminModelRow>>(new Map());
 	const [providersById, setProvidersById] = useState<Map<string, GatewayProvider>>(new Map());
@@ -670,7 +681,7 @@ export default function PlaygroundPage() {
 		}
 	};
 
-	if (loadingRoutes) {
+	if (loadingRoutes && playgroundMode === 'routes') {
 		return (
 			<div className="flex items-center justify-center h-full min-h-[240px]">
 				<div className="text-gray-600">{tCommon('loading')}</div>
@@ -683,13 +694,50 @@ export default function PlaygroundPage() {
 			<div className="mb-6">
 				<h1 className="text-3xl font-bold text-gray-900">{t('title')}</h1>
 				<p className="text-sm text-gray-500 mt-1">
-					{t('subtitle', { product: tBrand('product') })}
+					{playgroundMode === 'tools'
+						? t('toolsSubtitle', { product: tBrand('product') })
+						: t('subtitle', { product: tBrand('product') })}
 					<span className="text-gray-400"> · </span>
 					{t('usageNote')}
 				</p>
+				<div
+					className="mt-4 inline-flex rounded-md border border-gray-200 bg-gray-50 p-0.5"
+					role="group"
+					aria-label={t('mode')}
+				>
+					{(
+						[
+							{ id: 'routes' as const, label: t('modeRoutes') },
+							{ id: 'tools' as const, label: t('modeTools') },
+						] as const
+					).map((opt) => {
+						const active = playgroundMode === opt.id;
+						return (
+							<button
+								key={opt.id}
+								type="button"
+								onClick={() => setPlaygroundMode(opt.id)}
+								className={
+									active
+										? 'rounded px-3 py-1.5 text-sm font-medium bg-white text-gray-900 shadow-sm'
+										: 'rounded px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900'
+								}
+							>
+								{opt.label}
+							</button>
+						);
+					})}
+				</div>
 			</div>
 
-			{loadError ? (
+			{playgroundMode === 'tools' ? (
+				<div className="max-w-3xl">
+					<PlaygroundToolsPanel
+						initialToolId={initialToolId}
+						initialProvider={initialProvider}
+					/>
+				</div>
+			) : loadError ? (
 				<div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm max-w-3xl">{loadError}</div>
 			) : (
 				<div className="flex flex-col gap-6">
@@ -1198,5 +1246,19 @@ export default function PlaygroundPage() {
 				</div>
 			)}
 		</div>
+	);
+}
+
+export default function PlaygroundPage() {
+	return (
+		<Suspense
+			fallback={
+				<div className="flex items-center justify-center h-full min-h-[240px]">
+					<div className="text-gray-600">Loading…</div>
+				</div>
+			}
+		>
+			<PlaygroundPageInner />
+		</Suspense>
 	);
 }

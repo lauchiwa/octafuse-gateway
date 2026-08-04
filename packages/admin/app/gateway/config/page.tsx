@@ -48,6 +48,10 @@ import {
 	WEB_DEEP_SEARCH_ACTIVE_KEY,
 	WEB_DEEP_SEARCH_CATALOG_KEY,
 } from '@/lib/web-deep-search-options';
+import {
+	AI_DETECTION_ACTIVE_KEY,
+	AI_DETECTION_CATALOG_KEY,
+} from '@/lib/ai-detection-options';
 import { useTranslations } from 'next-intl';
 import { useBusinessTimezoneContext } from '@/components/BusinessTimezoneProvider';
 
@@ -302,7 +306,9 @@ export default function GatewayConfigPage() {
       k === WEB_FETCH_ACTIVE_KEY ||
       k === WEB_FETCH_CATALOG_KEY ||
       k === WEB_DEEP_SEARCH_ACTIVE_KEY ||
-      k === WEB_DEEP_SEARCH_CATALOG_KEY
+      k === WEB_DEEP_SEARCH_CATALOG_KEY ||
+      k === AI_DETECTION_ACTIVE_KEY ||
+      k === AI_DETECTION_CATALOG_KEY
     ) {
       clearSaveSuccess();
       setSaveError(t('errors.useToolsSection'));

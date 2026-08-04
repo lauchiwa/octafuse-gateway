@@ -845,7 +845,19 @@
 		"audioTranscriptionsHint": "音频模型：JSON 字段（language、response_format）加上方音频文件。文件以 multipart 发往上游 transcriptions。不计费、不写请求日志。",
 		"audioFile": "音频文件",
 		"audioFileHint": "选择一个音频文件（mp3、wav、m4a、webm…）。以 multipart 发送（不写入 JSON 编辑器）。",
-		"audioFileRequired": "发送前必须选择音频文件。"
+		"audioFileRequired": "发送前必须选择音频文件。",
+		"mode": "模式",
+		"modeRoutes": "路由",
+		"modeTools": "Tools",
+		"toolsSubtitle": "{product} — 直连 catalog 引擎（可测非 Active）。不计费、不写请求日志。",
+		"toolsSection": "工具与引擎",
+		"toolsHint": "凭证来自 system_config catalog。切 Active 前可在此验证密钥。",
+		"tool": "工具",
+		"engineProvider": "引擎 Provider",
+		"engineProviderHint": "不限于当前 Active；可测 catalog 中已实现的任意引擎。",
+		"toolsBodyMustBeObject": "请求体必须是 JSON 对象。",
+		"toolsNeedProvider": "请选择引擎 Provider。",
+		"applyTemplate": "套用模板"
 	},
 	"simulator": {
 		"title": "模拟器",
@@ -932,7 +944,16 @@
 		"audioTranscriptionsHint": "转写：JSON 字段（language、response_format）加上音频文件 → multipart POST /v1/audio/transcriptions。",
 		"audioFile": "音频文件",
 		"audioFileHint": "选择一个音频文件用于 multipart 上传。",
-		"audioFileRequired": "发送前必须选择音频文件。"
+		"audioFileRequired": "发送前必须选择音频文件。",
+		"kindTool": "Tools",
+		"tool": "工具",
+		"toolHint": "使用所选 API Key 调用 Proxy POST /v1/tools/{id}（鉴权、计费、请求日志）。",
+		"toolNoRoutes": "Agent Tools 不绑定 model_routes；此模式下隐藏模型与路由组。",
+		"toolEndpoint": "Proxy 路径",
+		"toolProtocolHidden": "Tools 固定走 JSON POST /v1/tools/*，无需选择协议。",
+		"readyNeedTool": "请选择工具。",
+		"errSelectTool": "发送前请先选择工具。",
+		"openToolsInvocations": "打开 Tools 调用记录"
 	},
 	"users": {
 		"title": "用户",
@@ -1384,20 +1405,33 @@
 		"catalog": {
 			"webSearch": "Web Search",
 			"webFetch": "Web Fetch",
-			"webDeepSearch": "Web Deep Search"
+			"webDeepSearch": "Web Deep Search",
+			"aiDetection": "AI 率检测"
 		},
 		"config": {
 			"title": "Tools",
-			"subtitle": "配置 /v1/tools/* 产品工具（引擎、API Key、单价）。写入 system_config，与对话共用用户额度。",
+			"subtitle": "配置 /v1/tools/* 产品工具（引擎、API Key、三账本单价）。写入 system_config；用户额度仅累加 charged。",
 			"viewInvocations": "查看调用记录 →",
+			"showSecrets": "显示密钥",
+			"hideSecrets": "隐藏密钥",
 			"saveWebSearch": "保存 Web Search",
 			"saveWebFetch": "保存 Web Fetch",
-			"saveWebDeepSearch": "保存 Web Deep Search"
+			"saveWebDeepSearch": "保存 Web Deep Search",
+			"saveAiDetection": "保存 AI 率检测",
+			"testInPlayground": "在 Playground 测试"
+		},
+		"unitPrices": {
+			"title": "单价（{currency}）",
+			"legend": "标准价 → 用户扣费 → 供应价",
+			"standard": "标准价",
+			"charged": "用户扣费",
+			"metered": "供应价",
+			"lossHint": "用户扣费低于供应价（亏本）"
 		},
 		"webSearch": {
 			"title": "Web Search",
 			"description": "供 POST /v1/tools/web-search 使用。仅可选已实现的引擎，禁止自由文本。留空 API Key 并保存将清除密钥（未配置时接口返回 503）。",
-			"descriptionCatalog": "供 POST /v1/tools/web-search 使用。为每个引擎分别配置 API Key 与单价，再选择 Active。切换 Active 会自动使用该引擎已保存的密钥与单价；未配置 Key 的引擎不可激活。",
+			"descriptionCatalog": "供 POST /v1/tools/web-search 使用。为每个引擎分别配置 API Key 与三账本单价（供应 / 目录 / 用户），再选择 Active。仅 charged 计入用户额度；未配置 Key 的引擎不可激活。",
 			"provider": "搜索引擎",
 			"active": "当前 Active 引擎",
 			"catalogProvider": "引擎",
@@ -1405,7 +1439,7 @@
 			"needKeyToActivate": "请先为至少一个引擎填写 API Key 再保存。",
 			"providerGuideLink": "引擎说明",
 			"providerDocs": "官网与 API Key →",
-			"cost": "成功单价（{currency}）",
+			"cost": "用户扣费单价（{currency}）",
 			"apiKey": "引擎 API Key",
 			"apiKeyPlaceholder": "粘贴引擎 API Key",
 			"apiKeyHint": "有流量前必须配置；清除后不会回退到环境变量。",
@@ -1456,14 +1490,14 @@
 		"webFetch": {
 			"title": "Web Fetch",
 			"description": "供 POST /v1/tools/web-fetch 使用。仅可选已实现的抓取引擎，禁止自由文本。留空 API Key 并保存将清除密钥（未配置时接口返回 503）。",
-			"descriptionCatalog": "供 POST /v1/tools/web-fetch 使用。为每个抓取引擎分别配置 API Key 与单价，再选择 Active。切换 Active 会自动使用该引擎已保存的密钥与单价；未配置 Key 的引擎不可激活。",
+			"descriptionCatalog": "供 POST /v1/tools/web-fetch 使用。为每个抓取引擎分别配置 API Key 与三账本单价（供应 / 目录 / 用户），再选择 Active。仅 charged 计入用户额度；未配置 Key 的引擎不可激活。",
 			"provider": "抓取引擎",
 			"active": "当前 Active 引擎",
 			"catalogProvider": "引擎",
 			"noKey": "无 Key",
 			"needKeyToActivate": "请先为至少一个引擎填写 API Key 再保存。",
 			"providerDocs": "官网与 API Key →",
-			"cost": "成功单价（{currency}）",
+			"cost": "用户扣费单价（{currency}）",
 			"apiKey": "引擎 API Key",
 			"apiKeyPlaceholder": "粘贴引擎 API Key",
 			"apiKeyHint": "有流量前必须配置；清除后不会回退到环境变量。",
@@ -1475,18 +1509,42 @@
 		},
 		"webDeepSearch": {
 			"title": "Web Deep Search",
-			"descriptionCatalog": "供 POST /v1/tools/web-deep-search 使用。搜+读一体引擎（Firecrawl Search / Jina Search），结果含页面正文，比普通 Web Search 更重、更贵。为每个引擎配置 Key 与单价后选择 Active。",
+			"descriptionCatalog": "供 POST /v1/tools/web-deep-search 使用。搜+读一体引擎（Firecrawl Search / Jina Search），结果含页面正文，比普通 Web Search 更重、更贵。为每个引擎配置 Key 与三账本单价后选择 Active。",
 			"active": "当前 Active 引擎",
 			"catalogProvider": "引擎",
 			"noKey": "无 Key",
 			"needKeyToActivate": "请先为至少一个引擎填写 API Key 再保存。",
 			"providerDocs": "官网与 API Key →",
-			"cost": "成功单价（{currency}）",
+			"cost": "用户扣费单价（{currency}）",
 			"apiKey": "引擎 API Key",
 			"apiKeyPlaceholder": "粘贴引擎 API Key",
 			"providers": {
 				"firecrawl": "Firecrawl Search",
 				"jina": "Jina Search"
+			}
+		},
+		"aiDetection": {
+			"title": "AI 率检测",
+			"descriptionCatalog": "供 POST /v1/tools/ai-detection 使用。多引擎 catalog：为每个引擎配置凭证与三账本单价后选择 Active。计费按字符单元（billingUnitChars）缩放三列金额。当前仅实现腾讯云 TMS。",
+			"active": "当前 Active 引擎",
+			"catalogProvider": "引擎",
+			"noKey": "无凭证",
+			"needKeyToActivate": "请先为至少一个已实现引擎填写凭证再保存。",
+			"providerDocs": "官网与 API Key →",
+			"cost": "每计费单元用户扣费（{currency}）",
+			"billingUnitChars": "计费单元（字符）",
+			"credentials": "凭证",
+			"fields": {
+				"apiKey": "API Key",
+				"secretId": "SecretId",
+				"secretKey": "SecretKey",
+				"email": "Email",
+				"region": "Region",
+				"bizType": "BizType",
+				"bizTypeOptional": "可选 BizType"
+			},
+			"providers": {
+				"tencent_tms": "腾讯云 TMS"
 			}
 		},
 		"invocations": {
@@ -1501,12 +1559,22 @@
 			"columns": {
 				"time": "时间",
 				"tool": "工具",
+				"provider": "引擎",
 				"query": "查询",
 				"user": "用户",
 				"status": "状态",
 				"results": "结果数",
-				"cost": "费用",
+				"standard": "标准价（{currency}）",
+				"charged": "用户扣费（{currency}）",
+				"metered": "供应价（{currency}）",
+				"profit": "毛利（{currency}）",
 				"latency": "延迟"
+			},
+			"titles": {
+				"profit": "用户扣费 − 供应价（单次）",
+				"standard": "标准价（目录）",
+				"charged": "用户扣费",
+				"metered": "供应价"
 			},
 			"detail": {
 				"request": "请求",
@@ -1521,10 +1589,12 @@
 		},
 		"errors": {
 			"invalidWebSearchProvider": "搜索引擎必须为已实现的选项之一。",
-			"invalidWebSearchCost": "每个引擎的单价须为非负数字。",
+			"invalidWebSearchCost": "每个引擎的供应 / 目录 / 用户单价均须为非负数字。",
 			"invalidWebFetchProvider": "抓取引擎必须为已实现的选项之一。",
-			"invalidWebFetchCost": "每个引擎的单价须为非负数字。",
-			"invalidWebDeepSearchCost": "每个 Deep Search 引擎的单价须为非负数字。",
+			"invalidWebFetchCost": "每个引擎的供应 / 目录 / 用户单价均须为非负数字。",
+			"invalidWebDeepSearchCost": "每个 Deep Search 引擎的供应 / 目录 / 用户单价均须为非负数字。",
+			"invalidAiDetectionCost": "每个引擎的供应 / 目录 / 用户单价须为非负数字，计费单元字符数须为正整数。",
+			"aiDetectionNotImplemented": "尚未实现的引擎不能设为 Active。",
 			"noKeyCannotActivate": "未配置 API Key 的引擎不能设为 Active。",
 			"switchActiveBeforeClearingKey": "若要清空当前 Active 引擎的 Key，请先把 Active 切到仍有 Key 的引擎并保存，再清空旧 Key。"
 		}

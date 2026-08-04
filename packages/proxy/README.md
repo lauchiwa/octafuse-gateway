@@ -4,8 +4,15 @@
 
 - `GET /`、`GET /health`
 - 公开目录：`GET /catalog/models`（无需用户 Key）
-- OpenAI / Anthropic / Gemini 兼容：`/v1/*`、`/v1beta/*`（含 `POST /v1/images/*`）
-- Agent Tools（可扩展 `/v1/tools/*`；当前含）：`web-search`、`web-fetch`、`web-deep-search`
+- OpenAI：`POST /v1/chat/completions`、`POST /v1/images/generations`、`POST /v1/images/edits`、`POST /v1/audio/transcriptions`、`GET /v1/models`
+- Anthropic：`POST /v1/messages`
+- Google Gemini：`POST /v1beta/models/{model}:generateContent`（含 `streamGenerateContent`）
+- Agent Tools（可扩展 `/v1/tools/*`）：
+  - `web-search`：博查、Tavily、阿里云 CleverSee、腾讯云联网搜索 WSA
+  - `web-fetch`：Firecrawl、Tavily Extract、Jina Reader
+  - `web-deep-search`：Firecrawl Search、Jina Search
+
+2.0 按 Request Surface → Route Pool → Upstream Target 解析路由；Pool 内以 priority 分层，同层使用 `affinity`（默认）/ `weighted_random` / `strict` / `round_robin` 与 weight 排序，并按 Provider 维度熔断。一个 Provider 维护一把上游 API Key。
 
 **不提供** `/admin/*`。管理 API 由 **`@octafuse/admin`** 在 **`/api/admin/*`** 提供。Tools 引擎 Key 与单价在 Admin → **Tools** 维护。
 
@@ -17,4 +24,4 @@ npm run dev:proxy:node     # Node + SQL（根 `.env`）
 npm run deploy:proxy
 ```
 
-文档：[docs/README.md](../../docs/README.md) · [docs/developers/local-development.md](../../docs/developers/local-development.md)
+文档：[docs/README.md](../../docs/README.md) · [route-topology.md](../../docs/developers/architecture/route-topology.md) · [local-development.md](../../docs/developers/local-development.md)

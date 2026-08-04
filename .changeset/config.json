@@ -5,7 +5,7 @@
 		{ "repo": "OctaFuse/octafuse-gateway" }
 	],
 	"commit": false,
-	"fixed": [["octafuse", "@octafuse/core", "@octafuse/proxy", "@octafuse/admin"]],
+	"fixed": [["octafuse", "@octafuse/core", "@octafuse/tool-engines", "@octafuse/proxy", "@octafuse/admin"]],
 	"linked": [],
 	"access": "restricted",
 	"baseBranch": "main",

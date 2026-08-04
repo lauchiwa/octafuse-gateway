@@ -6,7 +6,7 @@
 
 | 场景 | 文档 |
 |------|------|
-| 部署模式总览（Cloudflare 默认） | [deployment/README.md](./deployment/) |
+| 部署模式总览（Cloudflare 默认） | [deployment/README.md](./deployment/README.md) |
 | Cloudflare 外部用户快速部署 | [deployment/cloudflare-quickstart.md](./deployment/cloudflare-quickstart.md) |
 | Cloudflare Worker + Admin + D1（运维） | [deployment/cloudflare.md](./deployment/cloudflare.md) |
 | Docker / 自托管 / Postgres / MySQL | [deployment/docker.md](./deployment/docker.md) |
@@ -17,7 +17,7 @@
 | 场景 | 文档 |
 |------|------|
 | D1 与 Postgres 之间 ETL、对账和切换 | [migrations/d1-postgres-cutover.md](./migrations/d1-postgres-cutover.md) |
-| 单键 Provider + 路由策略（迁移 0017） | [migrations/single-provider-key-cutover.md](./migrations/single-provider-key-cutover.md) |
+| 1.11.x → 2.0：单键 Provider + 路由拓扑（本 fork 迁移 0017 / 0018） | [migrations/single-provider-key-cutover.md](./migrations/single-provider-key-cutover.md) |
 | User audit 兼容导出移除说明 | [migrations/user-audit-legacy-exports.md](./migrations/user-audit-legacy-exports.md) |
 
 ## 本地演练

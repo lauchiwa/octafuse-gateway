@@ -299,7 +299,13 @@ function formatCircuitEventLine(event: GatewayCircuitAlertEvent): string {
 		const fingerprint = (event.keyFingerprint ?? '').trim() || '(未记录)';
 		return `provider providerId=${event.providerId} name=${name} fingerprint=${fingerprint} reason=${formatCircuitFailureKind(event.failureKind)}，持续 ${duration}，恢复时间 ${recoverAt}`;
 	}
-	return `user_model user=${event.userId} model=${event.modelId} reason=${event.reason}，持续 ${duration}，恢复时间 ${recoverAt}`;
+	const reasonLabel =
+		event.reason === 'sensitive_content'
+			? '敏感内容'
+			: event.reason === 'client_error'
+				? '上游客户端错误(400)'
+				: event.reason;
+	return `user_model user=${event.userId} model=${event.modelId} reason=${reasonLabel}，持续 ${duration}，恢复时间 ${recoverAt}`;
 }
 
 function buildCircuitMeasuresSection(ctx: GatewayErrorAlertContext): string[] {

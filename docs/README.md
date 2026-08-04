@@ -22,7 +22,7 @@
 | 用 Gateway 接入自己的门户、后台或 SaaS | [developers/integration.md](./developers/integration.md) |
 | 查 Proxy / Admin API | [developers/api/README.md](./developers/api/README.md) |
 | 本地二开或贡献代码 | [developers/local-development.md](./developers/local-development.md) |
-| 部署到生产环境 | [operators/deployment/README.md](./operators/deployment/) |
+| 部署到生产环境 | [operators/deployment/README.md](./operators/deployment/README.md) |
 | Cloudflare 外部一键上云 | [operators/deployment/cloudflare-quickstart.md](./operators/deployment/cloudflare-quickstart.md) |
 
 ## Canonical 文档（改一处即可）
@@ -36,8 +36,9 @@
 | Docker / PG / MySQL 自托管 | [operators/deployment/docker.md](./operators/deployment/docker.md) |
 | 下游集成 env | [developers/integration.md](./developers/integration.md) |
 | 文生图模型（gpt-image-2 / Seedream） | [developers/reference/image-models.md](./developers/reference/image-models.md) |
+| 2.0 路由拓扑（Surface → Pool → Target） | [developers/architecture/route-topology.md](./developers/architecture/route-topology.md) |
 | 路由策略（affinity / weighted_random / …） | [developers/reference/route-strategies.md](./developers/reference/route-strategies.md) |
-| 单键 Provider 迁移（0015） | [operators/migrations/single-provider-key-cutover.md](./operators/migrations/single-provider-key-cutover.md) |
+| 2.0 升级（单键 Provider + 路由拓扑，0015 / 0016） | [operators/migrations/single-provider-key-cutover.md](./operators/migrations/single-provider-key-cutover.md) |
 | 文档规范 | [CONVENTIONS.md](./CONVENTIONS.md) |
 
 ## 文档规范

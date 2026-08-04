@@ -104,6 +104,25 @@ export function formatGatewayMoneyCompact(
 	return joinSymbolAmount(sym, fixed);
 }
 
+/** 紧凑金额带符号：`+$0.001` / `-$0.001` / `$0`。 */
+export function formatGatewayMoneyCompactSigned(
+	amount: number | string | null | undefined,
+	currencyCode: string,
+	maxDecimals: number = GATEWAY_MONEY_DECIMAL_PLACES
+): string {
+	const sym = getGatewayCurrencySymbol(currencyCode);
+	const normalized = coerceMoneyAmount(amount);
+	const fixed = trimGatewayDecimalZeros(Math.abs(normalized).toFixed(maxDecimals));
+	const body = joinSymbolAmount(sym, fixed);
+	if (normalized > 0) {
+		return `+${body}`;
+	}
+	if (normalized < 0) {
+		return `-${body}`;
+	}
+	return body;
+}
+
 /** 表头或说明：`¥/1M` */
 export function formatPerMillionTokenUnit(currencyCode: string): string {
 	return `${getGatewayCurrencySymbol(currencyCode)}/1M`;

@@ -845,7 +845,19 @@
 		"audioTranscriptionsHint": "音声モデル：JSON フィールド（language、response_format）と下の音声ファイル。ファイルは multipart で transcriptions に送信されます。課金・リクエストログなし。",
 		"audioFile": "音声ファイル",
 		"audioFileHint": "音声ファイルを 1 つ選択（mp3、wav、m4a、webm…）。multipart で送信（JSON エディタには入りません）。",
-		"audioFileRequired": "送信前に音声ファイルが必要です。"
+		"audioFileRequired": "送信前に音声ファイルが必要です。",
+		"mode": "モード",
+		"modeRoutes": "Routes",
+		"modeTools": "Tools",
+		"toolsSubtitle": "{product} — catalog エンジンへ直接接続（Active 以外も可）。課金なし・リクエストログなし。",
+		"toolsSection": "ツールとエンジン",
+		"toolsHint": "認証情報は system_config catalog から読みます。Active 切替前のキー検証に使えます。",
+		"tool": "ツール",
+		"engineProvider": "エンジン Provider",
+		"engineProviderHint": "Active 以外でも、実装済み catalog エントリを検証できます。",
+		"toolsBodyMustBeObject": "リクエストボディは JSON オブジェクトである必要があります。",
+		"toolsNeedProvider": "エンジン Provider を選択してください。",
+		"applyTemplate": "テンプレートを適用"
 	},
 	"simulator": {
 		"title": "Simulator",
@@ -932,7 +944,16 @@
 		"audioTranscriptionsHint": "文字起こし：JSON フィールド（language、response_format）と音声ファイル → multipart POST /v1/audio/transcriptions。",
 		"audioFile": "音声ファイル",
 		"audioFileHint": "multipart アップロード用の音声ファイルを 1 つ選択。",
-		"audioFileRequired": "送信前に音声ファイルが必要です。"
+		"audioFileRequired": "送信前に音声ファイルが必要です。",
+		"kindTool": "Tools",
+		"tool": "ツール",
+		"toolHint": "選択した API キーで Proxy POST /v1/tools/{id} を呼び出します（認証・課金・ログ）。",
+		"toolNoRoutes": "Agent Tools は model_routes に束縛されません。このモードではモデルとルートグループを非表示にします。",
+		"toolEndpoint": "Proxy パス",
+		"toolProtocolHidden": "Tools は常に JSON POST /v1/tools/* です。プロトコル選択は不要です。",
+		"readyNeedTool": "ツールを選択してください。",
+		"errSelectTool": "送信前にツールを選択してください。",
+		"openToolsInvocations": "Tools Invocations を開く"
 	},
 	"users": {
 		"title": "ユーザー",
@@ -1384,20 +1405,25 @@
 		"catalog": {
 			"webSearch": "Web Search",
 			"webFetch": "Web Fetch",
-			"webDeepSearch": "Web Deep Search"
+			"webDeepSearch": "Web Deep Search",
+			"aiDetection": "AI Detection"
 		},
 		"config": {
 			"title": "Tools",
-			"subtitle": "/v1/tools/* 配下の製品ツール（エンジン、API Key、単価）を設定します。設定は system_config に保存され、ユーザーの chat 予算を共有します。",
+			"subtitle": "/v1/tools/* の製品ツール（エンジン、API キー、三帳簿単価）を設定します。system_config に保存され、ユーザー予算は charged のみ加算されます。",
 			"viewInvocations": "呼び出し履歴を表示 →",
 			"saveWebSearch": "Web Search を保存",
 			"saveWebFetch": "Web Fetch を保存",
-			"saveWebDeepSearch": "Web Deep Search を保存"
+			"saveWebDeepSearch": "Web Deep Search を保存",
+			"saveAiDetection": "AI Detection を保存",
+			"testInPlayground": "Playground でテスト",
+			"showSecrets": "APIキーを表示",
+			"hideSecrets": "APIキーを隠す"
 		},
 		"webSearch": {
 			"title": "Web Search",
 			"description": "POST /v1/tools/web-search を提供します。実装済みのエンジンのみ選択でき、自由入力は拒否されます。API Key を空欄にして保存すると削除されます（再設定するまでエンドポイントは 503 を返します）。",
-			"descriptionCatalog": "POST /v1/tools/web-search を提供します。エンジンごとに API Key とコストを設定してから Active を選択してください。Active の切り替え時は、そのエンジンに保存された Key とコストが使用されます。Key がないエンジンは有効化できません。",
+			"descriptionCatalog": "POST /v1/tools/web-search 用。エンジンごとに API キーと三帳簿単価（metered / standard / charged）を設定し Active を選びます。ユーザー予算に加算されるのは charged のみです。キー未設定のエンジンは有効化できません。",
 			"provider": "検索エンジン",
 			"active": "Active エンジン",
 			"catalogProvider": "エンジン",
@@ -1405,7 +1431,7 @@
 			"needKeyToActivate": "保存する前に、少なくとも 1 つのエンジンに API Key を追加してください。",
 			"providerGuideLink": "エンジンガイド",
 			"providerDocs": "Docs & API Key →",
-			"cost": "成功 1 件あたりのコスト（{currency}）",
+			"cost": "成功時の charged（{currency}）",
 			"apiKey": "Provider API Key",
 			"apiKeyPlaceholder": "エンジンの API Key を貼り付け",
 			"apiKeyHint": "ツールでトラフィックを受け付けるために必須です。削除した Key は環境変数にフォールバックしません。",
@@ -1456,14 +1482,14 @@
 		"webFetch": {
 			"title": "Web Fetch",
 			"description": "POST /v1/tools/web-fetch を提供します。実装済みのスクレイパーのみ選択でき、自由入力は拒否されます。API Key を空欄にして保存すると削除されます（再設定するまでエンドポイントは 503 を返します）。",
-			"descriptionCatalog": "POST /v1/tools/web-fetch を提供します。スクレイパーごとに API Key とコストを設定してから Active を選択してください。Active の切り替え時は、そのスクレイパーに保存された Key とコストが使用されます。Key がないスクレイパーは有効化できません。",
+			"descriptionCatalog": "POST /v1/tools/web-fetch 用。スクレイパーごとに API キーと三帳簿単価を設定し Active を選びます。ユーザー予算に加算されるのは charged のみです。",
 			"provider": "Fetch Provider",
 			"active": "Active Provider",
 			"catalogProvider": "Provider",
 			"noKey": "Key なし",
 			"needKeyToActivate": "保存する前に、少なくとも 1 つの Provider に API Key を追加してください。",
 			"providerDocs": "Docs & API Key →",
-			"cost": "成功 1 件あたりのコスト（{currency}）",
+			"cost": "成功時の charged（{currency}）",
 			"apiKey": "Provider API Key",
 			"apiKeyPlaceholder": "Provider API Key を貼り付け",
 			"apiKeyHint": "ツールでトラフィックを受け付けるために必須です。削除した Key は環境変数にフォールバックしません。",
@@ -1475,18 +1501,42 @@
 		},
 		"webDeepSearch": {
 			"title": "Web Deep Search",
-			"descriptionCatalog": "POST /v1/tools/web-deep-search を提供します。検索と読み取りを統合したエンジン（Firecrawl Search / Jina Search）は検索結果とともにページ本文を返すため、通常の Web Search より処理が重く高コストです。Provider ごとに Key とコストを設定してから Active を選択してください。",
+			"descriptionCatalog": "POST /v1/tools/web-deep-search 用。検索+読取エンジン（Firecrawl Search / Jina Search）。プロバイダーごとにキーと三帳簿単価を設定して Active を選びます。",
 			"active": "Active Provider",
 			"catalogProvider": "Provider",
 			"noKey": "Key なし",
 			"needKeyToActivate": "保存する前に、少なくとも 1 つの Provider に API Key を追加してください。",
 			"providerDocs": "Docs & API Key →",
-			"cost": "成功 1 件あたりのコスト（{currency}）",
+			"cost": "成功時の charged（{currency}）",
 			"apiKey": "Provider API Key",
 			"apiKeyPlaceholder": "Provider API Key を貼り付け",
 			"providers": {
 				"firecrawl": "Firecrawl Search",
 				"jina": "Jina Search"
+			}
+		},
+		"aiDetection": {
+			"title": "AI Detection",
+			"descriptionCatalog": "POST /v1/tools/ai-detection 用。エンジンごとに認証情報と三帳簿単価を設定し Active を選びます。課金は文字ユニット（billingUnitChars）で三列をスケール。現在は Tencent Cloud TMS のみ実装。",
+			"active": "Active エンジン",
+			"catalogProvider": "エンジン",
+			"noKey": "認証情報なし",
+			"needKeyToActivate": "保存する前に、実装済みエンジンの少なくとも 1 つに認証情報を追加してください。",
+			"providerDocs": "Docs & API Key →",
+			"cost": "課金ユニットあたりの charged（{currency}）",
+			"billingUnitChars": "課金ユニット（文字）",
+			"credentials": "認証情報",
+			"fields": {
+				"apiKey": "API Key",
+				"secretId": "SecretId",
+				"secretKey": "SecretKey",
+				"email": "Email",
+				"region": "Region",
+				"bizType": "BizType",
+				"bizTypeOptional": "任意の BizType"
+			},
+			"providers": {
+				"tencent_tms": "Tencent Cloud TMS"
 			}
 		},
 		"invocations": {
@@ -1505,8 +1555,12 @@
 				"user": "ユーザー",
 				"status": "ステータス",
 				"results": "結果",
-				"cost": "コスト",
-				"latency": "レイテンシ"
+				"latency": "レイテンシ",
+				"provider": "エンジン",
+				"profit": "粗利（{currency}）",
+				"standard": "標準（{currency}）",
+				"charged": "ユーザー課金（{currency}）",
+				"metered": "供給（{currency}）"
 			},
 			"detail": {
 				"request": "リクエスト",
@@ -1517,16 +1571,32 @@
 				"noListResults": "リスト表示できる項目はありません。raw payload がある場合は JSON に切り替えてください。",
 				"noResponseStored": "レスポンス概要は保存されていません（古い行にはクエリのみが保存されているか、結果を返す前に呼び出しが失敗しています）。",
 				"hint": "運用確認用にレスポンス概要は切り詰められています。完全な chat transcript はクライアントに保持されます。"
+			},
+			"titles": {
+				"profit": "ユーザー課金 − 供給コスト（1回）",
+				"standard": "標準（カタログ）",
+				"charged": "ユーザー課金",
+				"metered": "供給コスト"
 			}
 		},
 		"errors": {
 			"invalidWebSearchProvider": "検索エンジンは実装済みの選択肢から選んでください。",
-			"invalidWebSearchCost": "各エンジンのコストには 0 以上の数値を指定してください。",
+			"invalidWebSearchCost": "各エンジンの metered / standard / charged はいずれも 0 以上の数値である必要があります。",
 			"invalidWebFetchProvider": "Fetch Provider は実装済みの選択肢から選んでください。",
-			"invalidWebFetchCost": "各 Provider のコストには 0 以上の数値を指定してください。",
-			"invalidWebDeepSearchCost": "各 Deep Search Provider のコストには 0 以上の数値を指定してください。",
+			"invalidWebFetchCost": "各プロバイダーの metered / standard / charged はいずれも 0 以上の数値である必要があります。",
+			"invalidWebDeepSearchCost": "各 deep-search プロバイダーの metered / standard / charged はいずれも 0 以上の数値である必要があります。",
+			"invalidAiDetectionCost": "各エンジンの metered / standard / charged は 0 以上、billing unit chars は正の整数である必要があります。",
+			"aiDetectionNotImplemented": "未実装のエンジンは Active にできません。",
 			"noKeyCannotActivate": "API Key がない Provider は有効化できません。",
 			"switchActiveBeforeClearingKey": "現在のエンジンの Key を削除する前に、Key が残っている別のエンジンへ Active を切り替えて保存し、その後もう一度保存して Key を削除してください。"
+		},
+		"unitPrices": {
+			"title": "単価（{currency}）",
+			"legend": "標準 → ユーザー課金 → 供給",
+			"standard": "標準",
+			"charged": "ユーザー課金",
+			"metered": "供給",
+			"lossHint": "ユーザー課金が供給単価を下回っています（赤字）"
 		}
 	},
 	"pricing": {

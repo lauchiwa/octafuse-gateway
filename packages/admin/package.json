@@ -1,6 +1,6 @@
 {
 	"name": "@octafuse/admin",
-	"version": "2.0.0",
+	"version": "2.1.1",
 	"private": true,
 	"scripts": {
 		"dev": "next dev",
@@ -20,6 +20,7 @@
 		"@heroicons/react": "^2.2.0",
 		"@lobehub/icons-static-svg": "1.94.0",
 		"@octafuse/core": "*",
+		"@octafuse/tool-engines": "*",
 		"@opennextjs/cloudflare": "1.19.4",
 		"@swc/helpers": "^0.5.18",
 		"hono": "^4.12.9",

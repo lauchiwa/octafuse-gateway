@@ -13,49 +13,85 @@
 
 ## 核心能力
 
-- 统一 AI 资源入口：用一个 Gateway 地址和用户 API Key 接入多上游模型、自建或私有部署的模型服务、图像能力、语音转写与 Agent Tools。
-- 多协议兼容：提供兼容 OpenAI Chat Completions、Anthropic Messages、Gemini、OpenAI Images 与 OpenAI Audio Transcriptions API 的接入点。
-- 路由与故障转移：按路由组、优先级和可用性选择上游；通过**粘性路由**提高提示词缓存命中率，并在遇到限流或故障时自动切换。
-- 上游密钥池：集中管理多把 Provider API Key 的优先级、权重、RPM / TPM 限额、并发和熔断状态，并根据实时剩余容量进行调度。
-- **预置 Provider 与 Models**：内置大量导入模板，除官方模型厂外，还覆盖聚合平台与各类 Coding / Token Plan；预填 Base URL 与模型目录信息，减少四处查文档、手工维护端点与模型清单的成本。支持一键导入的完整列表见官网 [Providers Catalog](https://octafuse.dev/zh/catalog/providers/) 与 [Models Catalog](https://octafuse.dev/zh/catalog/models/)；若希望接入新的 Provider 或 Model，欢迎提交 PR。
-- 用户 API Key 与预算：为个人、团队、客户或项目签发独立 Key，设置周期预算、状态和元数据，并允许用户查询自身额度。
-- 图像生成与编辑：通过兼容 OpenAI Images API 的接口调用图像模型，支持按 Token 用量分项计价与按张计价。
-- 语音转写：通过兼容 OpenAI `/v1/audio/transcriptions` 的接口调用 ASR 模型，支持按秒（时长）与按 Token（上游 usage）两种目录计价。
-- **Agent Tools 能力接口**：通过 `/v1/tools/*` 统一接入 Agent 工具，并提供调用日志与按次计费；当前支持联网搜索（`web-search`）、网页抓取（`web-fetch`）和深度搜索（`web-deep-search`）。
-- **公开能力目录**：无需用户 API Key 即可通过 `/catalog/models` 发现当前可用模型、协议与能力，方便门户和客户端发现并接入。
-- **三账本与分时计价**：分别记录供应成本、模型目录价和用户计费，并可按业务时区设置高峰 / 闲时倍率。
-- 可观测性与联调：集中查看请求、延迟、Token 用量、成本和审计记录，并用 Playground / Simulator 验证路由和客户端调用（含 Images / Audio）。
-- 管理控制面与 API：通过 Admin 管理界面和 `/api/admin/*` 管理 Provider、模型、路由、用户与配置，或接入自有门户和自动化系统。
-- 灵活部署方式：支持 **Cloudflare Workers + D1 免费部署**，也可通过 Docker + Postgres / MySQL 自托管。
+Octafuse Gateway 的核心目标是**构建统一超级个体（OPC）或企业内部的 AI 能力中枢**。通过 Octafuse 将你所持有的各种模态的 AI 能力和多种多样的工具能力实现统一接入、分发、计费等企业级管理控制。
 
-完整能力、路由语义与计费口径见 [功能地图](./docs/users/features.md)。
+所以它具备以下这些核心能力：
+
+1. 供应商接入：支持接入任意模型厂商或聚合平台的模型服务。同时，内置大量导入模板（含各种 Coding/Token Plan），无需复制黏贴各平台的接入端点，直接一键导入，然后复制对应的 ApiKey 即可完成接入。支持一键导入的完整列表见官网 [Providers Catalog](https://octafuse.dev/zh/catalog/providers/)，若有希望加入预置 Provider 的供应商，欢迎提交 PR。
+2. AI模型接入：需要提供哪些 AI 模型的接入，也可以通过预置的模型数据直接导入，无需配置各种模型参数、价格等基本信息。支持一键导入的模型列表见官网 [Models Catalog](https://octafuse.dev/zh/catalog/models/)；若希望接入新的模型，欢迎提交 PR。
+3. 多协议接入：AI 模型全协议接入，目前支持:
+    - OpenAI 端点：
+      - Chat Completions：`POST /v1/chat/completions`
+      - Images：`POST /v1/images/generations`、`POST /v1/images/edits`
+      - Audio Transcriptions：`POST /v1/audio/transcriptions`
+      - Models：`GET /v1/models`
+    - Anthropic 端点：`POST /v1/messages`
+    - Google Gemini 端点：`POST /v1beta/models/{model}:generateContent`（含 `streamGenerateContent`）
+4. Agent 工具接入：通过 `/v1/tools/*` 统一接入各种供 Agent 使用的工具，并提供日志、计费、成本管控，以方便 Agent 同时从 Gateway 接入模型和工具。当前预置工具如下：
+    - 联网搜索（`POST /v1/tools/web-search`）：博查、Tavily、阿里云 CleverSee、腾讯云联网搜索 WSA
+    - 网页抓取（`POST /v1/tools/web-fetch`）：Firecrawl、Tavily Extract、Jina Reader
+    - 深度搜索（`POST /v1/tools/web-deep-search`，搜+读一体）：Firecrawl Search、Jina Search
+    - 更多工具持续接入中，也欢迎 PR 继续丰富 Agent 常用工具。
+5. AI 能力统一出口：与所有网关一样，它是请求的中枢，即使能力汇总的地方，也是能力集中分发的地方。上面所有接入的 AI 能力都通过Octafuse Gateway 部署后的地址提供统一的接入 BaseUrl。换言之，上面你接入的各种平台、工具的 BaseUrl都不需要记了，只需要记住网关的即可。
+6. 多样的路由策略：当一个模型我们有多个资源的时候，为了更高效的使用资源，可以根据情况配置不同的路由策略。目前支持四种策略：
+    - affinity：默认策略；同用户、模型、协议稳定首选上游，**缓存命中率高**，适合依赖 Prompt Cache、会话连续性的场景；短时流量不一定完全均匀
+    - weighted_random：按权重加权随机分流，**负载均衡性高**，适合按比例分摊成本或 A/B；同一用户可能频繁切换 Provider，缓存命中率较低
+    - strict：按权重从高到低固定排序，结果可预测，适合同层明确主备；首选 Provider 会承担大部分流量
+    - round_robin：按权重轮转分摊，流量更均匀；计数器按运行实例维护，多实例间不保证全局同步
+7. 用户管理与记账一体化：有了统一接入点之后，剩下用户管理、额度管理、成本管理一堆下游的功能。Octafuse 提供了一套企业化的管理机制，包括：
+    - 支持系统（External system）、用户（User）、ApiKey 三层维度：每个用户因为有一个External system字段，所以可以区分不同的系统或者团队。用户下面是 ApiKey，真正调用 Gateway 能力通过 ApiKey 完成鉴权、扣费和审计。
+    - 三账本设计：每一个调用对于计费涵盖三个费用计算，包括：目录价（模型/工具标准价）、成本价（实际采购价格）、用户价（用户扣除额度）
+    - 分时倍率：有的模型有峰谷计费的设计，利用分时倍率可以更精准的计算成本数据；同时如果对外服务，也可以更配置灵活的计价方案来支持运营促销
+8. 管理后台与管理API：
+    - 具备完善的管理后台和管理接口，可以手工维护也可以接入其他系统门户使用
+    - 可观测性与数据分析：详细记录了请求细节和各类数据，可以方便查看、统计、分析
+    - 测试与联调：提供 Playground / Simulator 页面功能，用户在接入新供应商和模型的时候，可以快速检验接口配置是否正确，服务商模型是否可靠
+9. 灵活的部署方式：
+    - 支持 **Cloudflare Workers + D1 免费部署**
+    - 支持 Docker + Postgres / MySQL 部署
+
+## 管理后台一览
+
+| Provider 接入 | Surface → Policy → Upstream 路由拓扑 |
+|---|---|
+| ![新建 Provider：配置单个上游账号的 API Key 与多协议端点](./docs/assets/screenshots/providers.png) | ![Routes：按协议、operation 和 route group 组织路由策略与上游 Target](./docs/assets/screenshots/routes.png) |
+
+Provider 页面负责接入上游账号与协议端点；Routes 页面把客户端 Request Surface、路由策略和 Upstream Target 放在一条可视链路中。完整配置顺序见 [Admin 配置指南](./docs/users/configuration.md)。
 
 ## 与其他开源 AI Gateway 的差异
 
-[New API](https://github.com/QuantumNous/new-api)、[LiteLLM](https://github.com/BerriAI/litellm) 和 [Bifrost](https://github.com/maximhq/bifrost) 都是优秀且各有所长的开源 AI Gateway。它们的基础能力相近，但面向的用户和场景不同；Octafuse 更强调 Agent 能力交付和资源运营。下表仅比较公开版本，不代表优劣。
+[New API](https://github.com/QuantumNous/new-api)、[LiteLLM](https://github.com/BerriAI/litellm)、[Sub2API](https://github.com/Wei-Shaw/sub2api) 和 [Bifrost](https://github.com/maximhq/bifrost) 都是成熟且各有所长的开源 AI Gateway。下表以 Octafuse 所强调的 **Agent 能力交付与 AI 资源运营** 为观察视角，将接入、路由、治理、计费和部署能力拆分后进行比较：
 
-| 维度 | Octafuse Gateway | New API | LiteLLM | Bifrost |
-|------|------------------|---------|---------|---------|
-| 统一能力入口 | LLM、图像、语音转写、Agent Tools | LLM、图像、音视频、文档重排 | LLM、图像、音频、向量嵌入、文档重排 | LLM、多模态、MCP |
-| 路由与故障转移 | 路由组、优先级、粘性路由、熔断 | 加权路由、失败重试 | 负载均衡、重试、故障转移 | 负载均衡、自动故障转移 |
-| 密钥与预算 | 上游密钥池、用户密钥、周期预算 | 令牌、额度、用户 | 虚拟密钥、项目 / 用户预算 | 虚拟密钥、分层预算 |
-| 供应商 / 模型预设 | **官方厂 + 聚合平台 + Coding / Token Plan；一键导入 Base URL 与模型目录价** | 多渠道手动配置 | 适配覆盖最广 | 常规手动配置 |
-| 管理与可观测性 | 管理界面与 API、日志、成本、审计 | 管理界面、用量、计费 | 管理后台、日志、用量与成本 | 管理界面、日志、指标、链路追踪 |
-| Docker 部署 | ✓ | ✓ | ✓ | ✓ |
-| Cloudflare 边缘部署 | ✓ | — | — | — |
-| 数据库支持 | D1/SQLite、Postgres、MySQL | SQLite、Postgres、MySQL | Postgres | SQLite、Postgres |
-| Agent 支持 | 内置常用工具，如：联网搜索、网页抓取、深度搜索等 | — | MCP、A2A | MCP |
-| 计费能力 | **三账本、分时倍率、图像 / 语音双模式计价、工具按次计费** | 额度与用量计费 | 用量追踪与预算 | 分层预算与用量治理 |
 
-“—”表示对应项目的官方公开文档未将其列为同类内建能力，不代表无法通过插件、外部服务或二次开发实现。各项目都在持续演进，具体能力和授权范围请以各自仓库与官方文档为准。
 
-## 界面预览
+| 领域 | 细分能力维度 | Octafuse Gateway | New API | LiteLLM | Sub2API | Bifrost |
+|------|--------------|------------------|---------|---------|---------|---------|
+| 能力接入 | 供应商 / 模型预设与一键导入 | **✅ 完善** | 🟡 良好 | 🟡 良好 | 🟡 良好 | 🟡 良好 |
+| 能力接入 | 原生协议与多模态覆盖 | **🟡 良好（完善中）** | ✅ 完善 | ✅ 完善 | ✅ 完善 | ✅ 完善 |
+| Agent | 内置联网搜索、抓取与深度搜索 | **✅ 完善** | ⚪ 无 | 🟠 基础 | 🟠 基础 | 🟠 基础 |
+| Agent | 工具 Provider 配置、调用日志与计费 | **✅ 完善** | ⚪ 无 | 🟡 良好 | 🟠 基础 | 🟠 基础 |
+| 路由 | 协议 / operation 级 Surface 与独立 Route Pool | **✅ 完善** | 🟠 基础 | 🟡 良好 | 🟡 良好 | 🟡 良好 |
+| 路由 | 多策略分流与分层覆盖 | **✅ 完善** | 🟡 良好 | ✅ 完善 | 🟡 良好 | 🟡 良好 |
+| 路由 | Prompt Cache 亲和路由 | **✅ 完善** | 🟡 良好 | ✅ 完善 | ✅ 完善 | ✅ 完善 |
+| 路由 | 优先级主备、故障转移与 Provider 熔断 | **✅ 完善** | 🟡 良好 | ✅ 完善 | 🟡 良好 | ✅ 完善 |
+| 治理 | 外部系统、用户与 API Key 分层治理 | **✅ 完善** | 🟡 良好 | ✅ 完善 | 🟡 良好 | ✅ 完善 |
+| 治理 | 周期预算、状态与模型访问控制 | **✅ 完善** | ✅ 完善 | ✅ 完善 | ✅ 完善 | ✅ 完善 |
+| 计费 | 目录价、供应成本、用户扣费三账本 | **✅ 完善** | ⚪ 无 | ⚪ 无 | ✅ 完善 | ⚪ 无 |
+| 计费 | 按业务时区的分时计价倍率 | **✅ 完善** | ⚪ 无 | ⚪ 无 | 🟡 良好 | ⚪ 无 |
+| 计费 | 图像 / 语音差异化计价 | **✅ 完善** | 🟡 良好 | 🟡 良好 | 🟡 良好 | 🟠 基础 |
+| 计费 | Agent 工具按次计费 | **✅ 完善** | ⚪ 无 | 🟡 良好 | 🟠 基础 | 🟠 基础 |
+| 运维 | 管理后台、管理 API 与可观测性 | **✅ 完善** | ✅ 完善 | ✅ 完善 | ✅ 完善 | ✅ 完善 |
+| 部署 | SQLite / D1、Postgres 与 MySQL 适配 | **✅ 完善** | ✅ 完善 | 🟠 基础 | 🟠 基础 | 🟡 良好 |
+| 部署 | Docker 自托管部署 | **✅ 完善** | ✅ 完善 | ✅ 完善 | ✅ 完善 | ✅ 完善 |
+| 部署 | Cloudflare Workers 边缘部署 | **✅ 完善** | ⚪ 无 | ⚪ 无 | ⚪ 无 | ⚪ 无 |
 
-| 运营概览 | 模型路由 |
-|---|---|
-| ![Octafuse Gateway 运营概览](./docs/assets/screenshots/dashboard.png) | ![Octafuse Gateway 模型路由](./docs/assets/screenshots/routes.png) |
+- **✅ 完善**：公开版本已形成覆盖该维度主要场景的完整机制
+- **🟡 良好**：具备成熟的核心能力，但覆盖范围或运营深度相对有限
+- **🟠 基础**：具备可用的基础实现，仍需较多外部组件或二次开发
+- **⚪ 无**：官方公开文档未将其列为同类内建能力
 
-更多界面见 [docs/assets/screenshots/](./docs/assets/screenshots/)（Provider 管理、Playground 等）。
+评价基于各项目当前公开仓库与官方文档，重点衡量“是否内建并形成完整机制”，不评价性能、社区规模、商业支持或二次开发潜力。这是一张围绕 Octafuse 产品定位的能力比较表，不是对各项目全部功能的综合排名。各项目持续演进，具体能力和授权范围请以其最新官方文档为准。
+
 
 ## 快速开始
 

@@ -27,20 +27,26 @@ Provider 表示一个上游模型入口。**一个 Provider = 一把上游 API K
 
 Provider 导入模板的维护说明见 [developers/reference/provider-import-presets.md](../developers/reference/provider-import-presets.md)。
 
+![新建 Provider 表单：一个上游账号对应一把 API Key，并可分别配置 OpenAI、Anthropic 与 Gemini 端点](../assets/screenshots/providers.png)
+
 ## 3. 配置模型与 Route
 
-Route 决定客户端请求的模型 ID 如何转到上游。
+2.0 的 Route 页面按 **Request Surface → Route Pool → Upstream Target** 展示：Surface 表示客户端协议 / operation，Pool 表示一组可故障转移的 Target，Target 才是具体 Provider 与上游模型。完整概念见 [developers/architecture/route-topology.md](../developers/architecture/route-topology.md)。
+
+![Routes 页面：从 Request Surface、route group 与策略连接到 Upstream Target](../assets/screenshots/routes.png)
 
 常见做法：
 
 - 对客户端暴露稳定的模型名，例如 `gpt-4.1`、`claude-sonnet` 或团队内部命名。
 - 同一模型下配置多个 Provider 路由：
+  - **Request protocol / operation**：客户端从哪个协议与操作进入，例如 `openai.chat`、`anthropic.messages`、`openai.images.generations`。
+  - **Upstream protocol / operation**：Target 实际调用的供应商能力。2.0 仅开放 `passthrough` adapter，因此请求协议与上游协议必须一致；`*` 用于迁移兼容。
   - **`priority`（层）**：数字**越大**越先试（硬序）。
-  - **`weight`（同层）**：配合全局 / 模型路由策略（默认 **affinity**）决定层内顺序。
+  - **`weight`（同层）**：配合 Pool / 模型 / 全局路由策略（默认 **affinity**）决定层内顺序。
   - **`route_group`**：如 `default` / `free`，客户端用 `modelId:group` 选择。
 - 图片生成模型：导入或手建后确认 `output_modalities` 含 `image`、`pricing_profile` 的 `image_billing_mode`（`token` / `per_image`），并挂 **OpenAI 协议** active 路由；细节见 [developers/reference/image-models.md](../developers/reference/image-models.md)。
 - 语音转写模型：导入或手建后确认 `pricing_profile.audio_billing_mode`（`per_second` / `token`）与对应单价块，并挂 **OpenAI 协议** active 路由；细节见 [developers/api/user.md「语音转写」](../developers/api/user.md#语音转写audio-transcriptions)。
-- **路由策略**：Admin → Config 设全局 **`ROUTE_STRATEGY`**（推荐 `affinity`，利于 prompt cache）；需要时在模型上设 **`route_policy`**（可按协议 / capability × route group 覆盖）。四种策略说明见 [developers/reference/route-strategies.md](../developers/reference/route-strategies.md)。
+- **路由策略**：按六级解析：Route Pool `strategy` → 模型 `route_policy.rules` 的 `{protocol}.{capability}:{group}` → `{protocol}:{group}` → 模型顶层 `route_policy.strategy` → Admin Config 全局 `ROUTE_STRATEGY` → 代码默认 `affinity`。四种策略及完整键格式见 [developers/reference/route-strategies.md](../developers/reference/route-strategies.md)。
 - 在 Route 上配置默认参数，例如思考参数、输出长度或供应商扩展字段。
 - 设置价格口径：先维护模型**目录标准价**，再在路由上设用户计费 / 供应成本的基础倍率；如需对齐供应商高峰 / 闲时价，再配置 **Daily schedule**（每日时段倍率，时区见系统配置的业务时区）。
 - 在请求日志中核对三笔账：供应成本、目录标准价、用户计费是否符合业务预期。
@@ -51,15 +57,18 @@ Route 默认参数合并规则见 [developers/api/user.md](../developers/api/use
 
 Agent Tools 是 Proxy 上面向 Agent 的 **可扩展产品 API**（`/v1/tools/*`），**不是** Chat Completions 的一部分。当前已接入联网类工具，后续可继续扩展。在 Admin → **Tools → Configuration**：
 
-- 为当前已支持的工具（如 Web Search / Web Fetch / Web Deep Search）分别维护引擎 catalog（API Key + 单价）。
+- 为当前已支持的工具分别维护引擎 catalog（API Key + 单价）：
+  - **Web Search**：博查、Tavily、阿里云 CleverSee、腾讯云联网搜索 WSA
+  - **Web Fetch**：Firecrawl、Tavily Extract、Jina Reader
+  - **Web Deep Search**：Firecrawl Search、Jina Search
 - 每种工具只选 **一个 Active** 引擎；未配置 Key 的引擎不可激活，调用时返回 **503**。
-- 成功按次扣用户预算；上游失败不扣费。调用记录见 **Tools → Invocations**（与 Request Logs 同源）。
+- 成功按引擎固定单价扣用户预算；上游失败不扣费。工具日志的 `metered_cost`、`standard_cost`、`charged_cost` 当前均等于该单价，不应用模型 Route 的倍率或 Daily schedule。单价币种由 `BILLING_CURRENCY` 决定。调用记录见 **Tools → Invocations**（与 Request Logs 同源）。
 
 字段与引擎白名单见 [developers/api/user.md](../developers/api/user.md) 中各 Tools 章节。
 
 ## 5. 创建用户与 API Key
 
-用户 API Key 是客户端真正使用的凭证。
+用户 API Key 是客户端真正使用的凭证。对接外部门户时可用 `external_system` 区分产品或租户，并以 `(external_system, external_user_id)` 幂等创建 User；预算归属 User，API Key 负责鉴权、扣费归集和审计。
 
 建议：
 
@@ -92,7 +101,7 @@ curl -sS http://localhost:8787/v1/me \
 
 日常排障优先看：
 
-- 请求日志：是否命中正确模型、Provider、Route；`provider_key_*` 现为 provider id / name / key 指纹；Tools 行为 `model_id` 形如 `tool:web-search`。
+- 请求日志：是否命中正确模型、Request Surface、Route Pool、Target 与 Provider；重点查看 `request_operation`、`model_surface_id`、`route_pool_id`、`route_target_id`、`route_trace`。`provider_key_*` 现为 provider id / name / key 指纹；Tools 行为 `model_id` 形如 `tool:web-search`。
 - 错误状态：401 多半是认证问题；403 常见于预算或配额；502 多与路由或上游有关；全部上游熔断时可能为网关 **429**；Tools 未配置 Active Key 时为 **503**。
 - 成本字段：区分 **供应成本**、**目录标准价**、**用户计费**（日志 / API 字段分别为 `metered_cost`、`standard_cost`、`charged_cost`）；Images / Audio 另见 `billing_kind`（及 image count / `audio_duration_seconds` 等列）。
 - 审计日志：确认预算扣减、周期重置、Key 生命周期等事件。

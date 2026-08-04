@@ -48,15 +48,15 @@ npm run deploy:cloudflare -- <instance>               # 仅双 Worker
 
 实现：`npm run gen:wrangler` → [`scripts/deploy/gen-wrangler.mjs`](../scripts/deploy/gen-wrangler.mjs)。
 
-### Proxy 工具密钥（Web Search / Web Fetch）
+### Agent Tools 引擎配置
 
 在 **Admin → Tools → Configuration** 写入 `system_config`：
 
-- Web Search：`WEB_SEARCH_ACTIVE` + `WEB_SEARCH_CATALOG`（按引擎存 API Key / 单价）
-- Web Fetch：`WEB_FETCH_ACTIVE` + `WEB_FETCH_CATALOG`
-- Web Deep Search：`WEB_DEEP_SEARCH_ACTIVE` + `WEB_DEEP_SEARCH_CATALOG`（Firecrawl / Jina 搜+读）
+- Web Search：`WEB_SEARCH_ACTIVE` + `WEB_SEARCH_CATALOG`（博查 / Tavily / 阿里云 CleverSee / 腾讯云 WSA）
+- Web Fetch：`WEB_FETCH_ACTIVE` + `WEB_FETCH_CATALOG`（Firecrawl / Tavily Extract / Jina Reader）
+- Web Deep Search：`WEB_DEEP_SEARCH_ACTIVE` + `WEB_DEEP_SEARCH_CATALOG`（Firecrawl Search / Jina Search）
 
-无需 Wrangler secret 或 Proxy 环境变量。旧全局三键仅兼容读取，新配置请用 Catalog。
+Catalog 按引擎保存 API Key 与按次单价；每种工具只启用一个 Active 引擎。无需 Wrangler secret 或 Proxy 环境变量。旧全局三键仅兼容读取，新配置请用 Catalog。
 
 ---
 

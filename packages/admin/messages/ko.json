@@ -845,7 +845,19 @@
 		"audioTranscriptionsHint": "오디오 모델: JSON 필드(language, response_format)와 아래 오디오 파일. 파일은 multipart로 transcriptions에 전송됩니다. 과금/요청 로그 없음.",
 		"audioFile": "오디오 파일",
 		"audioFileHint": "오디오 파일 하나 선택(mp3, wav, m4a, webm…). multipart로 전송(JSON 편집기에 넣지 않음).",
-		"audioFileRequired": "보내기 전에 오디오 파일이 필요합니다."
+		"audioFileRequired": "보내기 전에 오디오 파일이 필요합니다.",
+		"mode": "모드",
+		"modeRoutes": "Routes",
+		"modeTools": "Tools",
+		"toolsSubtitle": "{product} — catalog 엔진에 직접 연결(Active 외도 가능). 과금·요청 로그 없음.",
+		"toolsSection": "도구 및 엔진",
+		"toolsHint": "자격 증명은 system_config catalog에서 읽습니다. Active 전환 전 키 검증에 사용하세요.",
+		"tool": "도구",
+		"engineProvider": "엔진 Provider",
+		"engineProviderHint": "Active에 제한되지 않으며, 구현된 catalog 항목을 테스트할 수 있습니다.",
+		"toolsBodyMustBeObject": "요청 본문은 JSON 객체여야 합니다.",
+		"toolsNeedProvider": "엔진 Provider를 선택하세요.",
+		"applyTemplate": "템플릿 적용"
 	},
 	"simulator": {
 		"title": "Simulator",
@@ -932,7 +944,16 @@
 		"audioTranscriptionsHint": "전사: JSON 필드(language, response_format)와 오디오 파일 → multipart POST /v1/audio/transcriptions.",
 		"audioFile": "오디오 파일",
 		"audioFileHint": "multipart 업로드용 오디오 파일 하나 선택.",
-		"audioFileRequired": "보내기 전에 오디오 파일이 필요합니다."
+		"audioFileRequired": "보내기 전에 오디오 파일이 필요합니다.",
+		"kindTool": "Tools",
+		"tool": "도구",
+		"toolHint": "선택한 API 키로 Proxy POST /v1/tools/{id}를 호출합니다(인증·과금·로그).",
+		"toolNoRoutes": "Agent Tools는 model_routes에 묶이지 않습니다. 이 모드에서는 모델과 라우트 그룹을 숨깁니다.",
+		"toolEndpoint": "Proxy 경로",
+		"toolProtocolHidden": "Tools는 항상 JSON POST /v1/tools/* 입니다. 프로토콜 선택은 적용되지 않습니다.",
+		"readyNeedTool": "도구를 선택하세요.",
+		"errSelectTool": "전송 전에 도구를 선택하세요.",
+		"openToolsInvocations": "Tools Invocations 열기"
 	},
 	"users": {
 		"title": "사용자",
@@ -1384,20 +1405,25 @@
 		"catalog": {
 			"webSearch": "Web Search",
 			"webFetch": "Web Fetch",
-			"webDeepSearch": "Web Deep Search"
+			"webDeepSearch": "Web Deep Search",
+			"aiDetection": "AI Detection"
 		},
 		"config": {
 			"title": "Tools",
-			"subtitle": "/v1/tools/*의 제품 Tools(엔진, API Key, 단가)를 설정합니다. 설정은 system_config에 저장되며 사용자 Chat 예산을 공유합니다.",
+			"subtitle": "/v1/tools/* 제품 도구(엔진, API 키, 삼중 단가)를 구성합니다. system_config에 저장되며 사용자 예산에는 charged만 가산됩니다.",
 			"viewInvocations": "호출 내역 보기 →",
 			"saveWebSearch": "Web Search 저장",
 			"saveWebFetch": "Web Fetch 저장",
-			"saveWebDeepSearch": "Web Deep Search 저장"
+			"saveWebDeepSearch": "Web Deep Search 저장",
+			"saveAiDetection": "AI Detection 저장",
+			"testInPlayground": "Playground에서 테스트",
+			"showSecrets": "API 키 표시",
+			"hideSecrets": "API 키 숨기기"
 		},
 		"webSearch": {
 			"title": "Web Search",
 			"description": "POST /v1/tools/web-search에 사용됩니다. 구현된 엔진만 선택할 수 있으며 자유 텍스트는 거부됩니다. API Key를 비운 채 저장하면 Key가 삭제되고, 다시 설정할 때까지 엔드포인트가 503을 반환합니다.",
-			"descriptionCatalog": "POST /v1/tools/web-search에 사용됩니다. 엔진별 API Key와 비용을 설정한 다음 Active 엔진을 선택하세요. Active를 전환하면 해당 엔진에 저장된 Key와 비용을 사용합니다. Key가 없는 엔진은 활성화할 수 없습니다.",
+			"descriptionCatalog": "POST /v1/tools/web-search용. 엔진별로 API 키와 삼중 단가(metered / standard / charged)를 설정한 뒤 Active를 선택합니다. 사용자 예산에는 charged만 반영됩니다. 키가 없는 엔진은 활성화할 수 없습니다.",
 			"provider": "검색 엔진",
 			"active": "Active 엔진",
 			"catalogProvider": "엔진",
@@ -1405,7 +1431,7 @@
 			"needKeyToActivate": "저장하기 전에 하나 이상의 엔진에 API Key를 추가하세요.",
 			"providerGuideLink": "엔진 안내",
 			"providerDocs": "Docs 및 API Key →",
-			"cost": "성공당 비용 ({currency})",
+			"cost": "성공 시 charged ({currency})",
 			"apiKey": "Provider API Key",
 			"apiKeyPlaceholder": "엔진 API Key 붙여넣기",
 			"apiKeyHint": "Tool에서 트래픽을 받으려면 필요합니다. 삭제된 Key는 환경 변수로 대체되지 않습니다.",
@@ -1456,14 +1482,14 @@
 		"webFetch": {
 			"title": "Web Fetch",
 			"description": "POST /v1/tools/web-fetch에 사용됩니다. 구현된 Scraper만 선택할 수 있으며 자유 텍스트는 거부됩니다. API Key를 비운 채 저장하면 Key가 삭제되고, 다시 설정할 때까지 엔드포인트가 503을 반환합니다.",
-			"descriptionCatalog": "POST /v1/tools/web-fetch에 사용됩니다. Scraper별 API Key와 비용을 설정한 다음 Active를 선택하세요. Active를 전환하면 해당 Scraper에 저장된 Key와 비용을 사용합니다. Key가 없는 Scraper는 활성화할 수 없습니다.",
+			"descriptionCatalog": "POST /v1/tools/web-fetch용. 스크레이퍼별로 API 키와 삼중 단가를 설정한 뒤 Active를 선택합니다. 사용자 예산에는 charged만 반영됩니다.",
 			"provider": "Fetch Provider",
 			"active": "Active Provider",
 			"catalogProvider": "Provider",
 			"noKey": "Key 없음",
 			"needKeyToActivate": "저장하기 전에 하나 이상의 Provider에 API Key를 추가하세요.",
 			"providerDocs": "Docs 및 API Key →",
-			"cost": "성공당 비용 ({currency})",
+			"cost": "성공 시 charged ({currency})",
 			"apiKey": "Provider API Key",
 			"apiKeyPlaceholder": "Provider API Key 붙여넣기",
 			"apiKeyHint": "Tool에서 트래픽을 받으려면 필요합니다. 삭제된 Key는 환경 변수로 대체되지 않습니다.",
@@ -1475,18 +1501,42 @@
 		},
 		"webDeepSearch": {
 			"title": "Web Deep Search",
-			"descriptionCatalog": "POST /v1/tools/web-deep-search에 사용됩니다. 검색과 읽기를 결합한 엔진(Firecrawl Search / Jina Search)은 결과와 함께 페이지 콘텐츠를 반환하므로 일반 Web Search보다 처리량과 비용이 큽니다. Provider별 Key와 비용을 설정한 다음 Active를 선택하세요.",
+			"descriptionCatalog": "POST /v1/tools/web-deep-search용. 검색+읽기 엔진(Firecrawl Search / Jina Search). 프로바이더별 키와 삼중 단가를 설정한 뒤 Active를 선택합니다.",
 			"active": "Active Provider",
 			"catalogProvider": "Provider",
 			"noKey": "Key 없음",
 			"needKeyToActivate": "저장하기 전에 하나 이상의 Provider에 API Key를 추가하세요.",
 			"providerDocs": "Docs 및 API Key →",
-			"cost": "성공당 비용 ({currency})",
+			"cost": "성공 시 charged ({currency})",
 			"apiKey": "Provider API Key",
 			"apiKeyPlaceholder": "Provider API Key 붙여넣기",
 			"providers": {
 				"firecrawl": "Firecrawl Search",
 				"jina": "Jina Search"
+			}
+		},
+		"aiDetection": {
+			"title": "AI Detection",
+			"descriptionCatalog": "POST /v1/tools/ai-detection용. 엔진별 자격 증명과 삼중 단가를 설정한 뒤 Active를 선택합니다. 문자 단위(billingUnitChars)로 세 열을 스케일합니다. 현재 Tencent Cloud TMS만 구현됨.",
+			"active": "Active 엔진",
+			"catalogProvider": "엔진",
+			"noKey": "자격 증명 없음",
+			"needKeyToActivate": "저장하기 전에 구현된 엔진 하나 이상에 자격 증명을 추가하세요.",
+			"providerDocs": "Docs 및 API Key →",
+			"cost": "과금 단위당 charged ({currency})",
+			"billingUnitChars": "과금 단위(문자)",
+			"credentials": "자격 증명",
+			"fields": {
+				"apiKey": "API Key",
+				"secretId": "SecretId",
+				"secretKey": "SecretKey",
+				"email": "Email",
+				"region": "Region",
+				"bizType": "BizType",
+				"bizTypeOptional": "선택 BizType"
+			},
+			"providers": {
+				"tencent_tms": "Tencent Cloud TMS"
 			}
 		},
 		"invocations": {
@@ -1505,8 +1555,12 @@
 				"user": "사용자",
 				"status": "상태",
 				"results": "결과",
-				"cost": "비용",
-				"latency": "지연 시간"
+				"latency": "지연 시간",
+				"provider": "엔진",
+				"profit": "마진 ({currency})",
+				"standard": "표준 ({currency})",
+				"charged": "사용자 과금 ({currency})",
+				"metered": "공급 ({currency})"
 			},
 			"detail": {
 				"request": "요청",
@@ -1517,16 +1571,32 @@
 				"noListResults": "목록으로 표시할 항목이 없습니다. 원시 Payload가 있으면 JSON으로 전환하세요.",
 				"noResponseStored": "저장된 응답 요약이 없습니다(이전 행에는 Query만 저장되었거나 결과 반환 전에 호출이 실패함).",
 				"hint": "운영 검토를 위해 응답 요약은 일부만 저장됩니다. 전체 Chat 기록은 클라이언트에 유지됩니다."
+			},
+			"titles": {
+				"profit": "사용자 과금 − 공급 원가(건당)",
+				"standard": "표준(카탈로그)",
+				"charged": "사용자 과금",
+				"metered": "공급 원가"
 			}
 		},
 		"errors": {
 			"invalidWebSearchProvider": "검색 엔진은 구현된 옵션 중 하나여야 합니다.",
-			"invalidWebSearchCost": "각 엔진의 비용은 0 이상의 숫자여야 합니다.",
+			"invalidWebSearchCost": "각 엔진의 metered / standard / charged는 모두 0 이상의 숫자여야 합니다.",
 			"invalidWebFetchProvider": "Fetch Provider는 구현된 옵션 중 하나여야 합니다.",
-			"invalidWebFetchCost": "각 Provider의 비용은 0 이상의 숫자여야 합니다.",
-			"invalidWebDeepSearchCost": "각 Deep Search Provider의 비용은 0 이상의 숫자여야 합니다.",
+			"invalidWebFetchCost": "각 프로바이더의 metered / standard / charged는 모두 0 이상의 숫자여야 합니다.",
+			"invalidWebDeepSearchCost": "각 deep-search 프로바이더의 metered / standard / charged는 모두 0 이상의 숫자여야 합니다.",
+			"invalidAiDetectionCost": "각 엔진의 metered / standard / charged는 0 이상이어야 하며 billing unit chars는 양의 정수여야 합니다.",
+			"aiDetectionNotImplemented": "아직 구현되지 않은 엔진은 Active로 설정할 수 없습니다.",
 			"noKeyCannotActivate": "API Key가 없는 Provider는 활성화할 수 없습니다.",
 			"switchActiveBeforeClearingKey": "현재 엔진의 Key를 삭제하려면 먼저 Key가 있는 다른 엔진으로 Active를 전환하고 저장한 후 다시 저장하여 기존 Key를 삭제하세요."
+		},
+		"unitPrices": {
+			"title": "단가 ({currency})",
+			"legend": "표준 → 사용자 과금 → 공급",
+			"standard": "표준",
+			"charged": "사용자 과금",
+			"metered": "공급",
+			"lossHint": "사용자 과금이 공급 단가보다 낮습니다(적자)"
 		}
 	},
 	"pricing": {

@@ -184,8 +184,18 @@ export async function updateProviderService(
 	}
 }
 
-/** 删除供应商；不存在抛 `notFound`。 */
+/**
+ * 删除供应商；不存在抛 `notFound`。
+ * `model_routes.provider_id` 无 ON DELETE CASCADE，若仍有路由引用则抛 `conflict`（避免 D1/PG 外键失败变 500）。
+ */
 export async function deleteProviderService(repos: GatewayRepositories, id: string): Promise<void> {
+	const referencingRoutes = await repos.routes.listModelRoutesWithJoins({ providerId: id });
+	if (referencingRoutes.length > 0) {
+		throw conflict(
+			`Cannot delete provider: ${referencingRoutes.length} model route(s) still reference it. Delete or reassign those routes first.`
+		);
+	}
+
 	const changes = await repos.providers.deleteProviderById(id);
 	if (!changes) throw notFound('Provider not found');
 }

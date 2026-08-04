@@ -3,6 +3,7 @@
  * - 按 priority 硬序 + 层内 route strategy（affinity / weighted_random / strict / round_robin）编排尝试序列。
  * - 失败按类别进入 provider 熔断（`provider-circuit-breaker`：429 无头 5s→60s 梯度；普通 5xx 连续 3 次后 10s；524/fetch 不跨请求熔断）。
  * - 全部候选因熔断不可用时返回 429 + Retry-After（而非 502）。
+ * - 循环内复查：本次请求内刚被熔断的 provider（同 providerId 多 target）不再打。
  */
 import type { GatewayRepositories, RouteStrategyName, UpstreamProtocol } from '@octafuse/core';
 import { DEFAULT_ROUTE_STRATEGY, fingerprintProviderApiKey } from '@octafuse/core';
@@ -11,6 +12,7 @@ import type { UsageFromStream } from './proxy';
 import { EMPTY_USAGE } from './proxy';
 import { buildRouteAttemptPlan } from './route-attempt-planner';
 import {
+	getProviderCircuitRemainingMs,
 	markProviderFailure,
 	markProviderSuccess,
 	parseRetryAfterMs,
@@ -21,6 +23,8 @@ import {
 	type UpstreamFailureClassification,
 } from './upstream-failure-classifier';
 import type { RequestTimingAttempt, RequestTimingCollector } from './request-timing';
+import { GatewayErrorCode } from './gateway-error-codes';
+import { gatewayErrorResponse, gatewayNestedErrorResponse } from './gateway-error-response';
 
 /** Images 合成 abort（Gateway 超时 / 客户端取消）——禁止 failover 再打上游。 */
 export type ImageDispatchAbortReason = 'client_abort' | 'gateway_timeout';
@@ -132,13 +136,6 @@ function logProviderSwitchAlert(route: RouteResult, classification: UpstreamFail
 	);
 }
 
-function jsonResponse(body: unknown, status: number, extraHeaders?: Record<string, string>): Response {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json', ...extraHeaders },
-	});
-}
-
 function allProvidersBusyDueToCircuitOnly(plan: {
 	attempts: { length: number };
 	skippedByCircuit: number;
@@ -148,18 +145,17 @@ function allProvidersBusyDueToCircuitOnly(plan: {
 
 function allProvidersBusyResponse(retryAfterMs: number | null): Response {
 	const retryAfterSeconds = Math.max(1, Math.ceil((retryAfterMs ?? 30_000) / 1000));
-	return jsonResponse(
-		{
-			error: {
-				message: `All upstream providers are cooling down. Please retry after ${retryAfterSeconds} seconds.`,
-				type: 'upstream_capacity_exhausted',
-				code: 'upstream_capacity_exhausted',
-				retry_after_seconds: retryAfterSeconds,
-			},
+	const code = GatewayErrorCode.circuitUpstreamCapacityExhausted;
+	return gatewayNestedErrorResponse({
+		status: 429,
+		code,
+		error: {
+			message: `All upstream providers are cooling down. Please retry after ${retryAfterSeconds} seconds.`,
+			type: 'upstream_capacity_exhausted',
+			retry_after_seconds: retryAfterSeconds,
 		},
-		429,
-		{ 'Retry-After': String(retryAfterSeconds) }
-	);
+		headers: { 'Retry-After': String(retryAfterSeconds) },
+	});
 }
 
 /**
@@ -185,7 +181,11 @@ export async function failoverDispatch(
 
 	if (protocolRoutes.length === 0) {
 		return {
-			response: jsonResponse({ error: 'No routes configured' }, 502),
+			response: gatewayErrorResponse({
+				status: 502,
+				code: GatewayErrorCode.noRoute,
+				message: 'No routes configured',
+			}),
 			usagePromise: Promise.resolve(EMPTY_USAGE),
 			upstreamRequestId: null,
 			chosenRoute: emptyRoute(expectedProtocol),
@@ -222,6 +222,14 @@ export async function failoverDispatch(
 
 	for (let attemptIndex = 0; attemptIndex < plan.attempts.length; attemptIndex += 1) {
 		const route = plan.attempts[attemptIndex]!;
+
+		if (getProviderCircuitRemainingMs(route.providerId) > 0) {
+			console.warn(
+				`[Gateway Proxy] provider cooling down mid-request, skipping providerId=${route.providerId}`
+			);
+			continue;
+		}
+
 		const timingAttempt = timing?.startAttempt(route);
 		lastTimingAttempt = timingAttempt;
 		const hasNextAttempt = attemptIndex < plan.attempts.length - 1;
@@ -242,10 +250,18 @@ export async function failoverDispatch(
 		} catch (err) {
 			timing?.markAttemptError(timingAttempt, err);
 			if (hasNextAttempt) timing?.markAttemptFailover(timingAttempt);
+			const errMessage = err instanceof Error ? err.message : String(err);
 			console.warn(
-				`[Gateway Proxy] fetch failed providerId=${route.providerId} error=${err instanceof Error ? err.message : String(err)}`
+				`[Gateway Proxy] fetch failed providerId=${route.providerId} error=${errMessage}`
 			);
-			lastResponse = jsonResponse({ error: 'Upstream request failed' }, 502);
+			// 与 route_resolution_failed 一致：把 fetch 层原文带给客户端（DNS/TLS/abort 等，不含凭据）
+			lastResponse = gatewayErrorResponse({
+				status: 502,
+				code: GatewayErrorCode.upstreamRequestFailed,
+				message: errMessage.trim()
+					? `Upstream request failed: ${errMessage.trim()}`
+					: 'Upstream request failed',
+			});
 			lastRoute = route;
 			continue;
 		}
@@ -327,7 +343,11 @@ export async function failoverDispatch(
 
 	if (!lastResponse) {
 		return {
-			response: jsonResponse({ error: 'No supported upstream protocol route available' }, 502),
+			response: gatewayErrorResponse({
+				status: 502,
+				code: GatewayErrorCode.noRoute,
+				message: 'No supported upstream protocol route available',
+			}),
 			usagePromise: Promise.resolve(EMPTY_USAGE),
 			upstreamRequestId: null,
 			chosenRoute: lastRoute,

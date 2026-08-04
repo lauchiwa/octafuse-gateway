@@ -46,9 +46,10 @@ import {
   materializeNonOkResponse,
 } from '../../services/request-log-record-status';
 import {
-  maybeBlockSensitiveContentCircuit,
-  maybeTriggerSensitiveContentCircuitFromUpstream,
-} from '../../services/sensitive-content-circuit-route';
+  maybeBlockUserModelCircuit,
+  maybeTriggerUserModelCircuitFromUpstream,
+  markUserModelSuccess,
+} from '../../services/user-model-circuit-route';
 import { RequestTimingCollector } from '../../services/request-timing';
 
 /** 与 chat/messages 一致：上游挂死时的记账兜底。 */
@@ -223,7 +224,7 @@ responsesRoutes.post('/', async (c) => {
       : baseModelId;
   const requestBodyForLog = responsesRequestBodyForLog(body as Record<string, unknown>);
 
-  const circuitBlocked = maybeBlockSensitiveContentCircuit(c, repos, apiKey, {
+  const circuitBlocked = maybeBlockUserModelCircuit(c, repos, apiKey, {
     baseModelId,
     modelNameForLog,
     requestBodyForLog,
@@ -258,9 +259,12 @@ responsesRoutes.post('/', async (c) => {
     proxyResult;
   const { response, errorBodyText } = await materializeNonOkResponse(proxyResult.response);
 
-  let sensitiveCircuitEvent = null;
-  if (errorBodyText != null) {
-    sensitiveCircuitEvent = maybeTriggerSensitiveContentCircuitFromUpstream(
+  let userModelCircuitEvent = null;
+  if (response.ok) {
+    // 与 chat/messages 一致：成功即重置 user+model 失败计数，否则退避永不恢复。
+    markUserModelSuccess(apiKey.userId, baseModelId);
+  } else if (errorBodyText != null) {
+    userModelCircuitEvent = maybeTriggerUserModelCircuitFromUpstream(
       apiKey.userId,
       baseModelId,
       response.status,
@@ -274,8 +278,8 @@ responsesRoutes.post('/', async (c) => {
     );
   }
 
-  const alertCircuitEvents = sensitiveCircuitEvent
-    ? [...circuitEvents, sensitiveCircuitEvent]
+  const alertCircuitEvents = userModelCircuitEvent
+    ? [...circuitEvents, userModelCircuitEvent]
     : circuitEvents;
 
   const usageOrSafety = Promise.race([

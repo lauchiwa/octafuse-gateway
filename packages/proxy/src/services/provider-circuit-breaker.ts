@@ -4,7 +4,7 @@
  * 按失败类别区分冷却策略：
  * - `rate_limit`（上游 429）：优先用上游 `Retry-After`（封顶 15min）；无头时按冷却周期递增退避
  *   （5s → 15s → 30s → 60s 封顶）；同一限流回合内熔断已打开时不再累加计数；一次成功即清零。
- * - `auth`（401/403）：10min（key 大概率失效，等待人工处理；配合告警日志）。
+ * - `auth`（401/403）：5min（key 大概率失效，等待人工处理；配合告警日志）。
  * - `server`（普通 5xx）：连续 3 次失败后短熔断 10s；524 / fetch 不写入此类熔断。
  *
  * 熔断中的 provider 一律跳过；全部不可用时由 dispatch 层返回 429 + Retry-After。
@@ -23,7 +23,7 @@ export type ProviderCircuitFailureResult = {
 
 const RATE_LIMIT_BACKOFF_MS = [5_000, 15_000, 30_000, 60_000] as const;
 const RATE_LIMIT_RETRY_AFTER_CAP_MS = 900_000;
-const AUTH_COOLDOWN_MS = 600_000;
+const AUTH_COOLDOWN_MS = 300_000;
 const SERVER_FAILURE_THRESHOLD = 3;
 const SERVER_COOLDOWN_MS = 10_000;
 const MAX_ENTRIES = 10_000;

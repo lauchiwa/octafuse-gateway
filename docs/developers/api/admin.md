@@ -22,7 +22,7 @@ Authorization: Bearer sk-admin-xxx
 存储 / 查询 / 业务日界 / `BUSINESS_TIMEZONE` 的完整约定见 **[time-and-timezone.md](../reference/time-and-timezone.md)**。摘要：库内 UTC；API 时间字段返回 ISO 8601 UTC（`Z`）；Admin 墙钟与业务日界按 `BUSINESS_TIMEZONE`。
 
 - **计费币种**：`system_config.BILLING_CURRENCY` 仅允许 **`USD`** 或 **`CNY`**（各库的 **`0002_seed.sql`** 默认 `USD`），与 `pricing_profile` / Key 预算数值单位一致；`GET /v1/me` 返回 `billing_currency`（见用户接口文档）。**`PUT /admin/config`** 写入该键时由服务端白名单校验。
-- **全局路由策略**：`system_config.ROUTE_STRATEGY`（默认 `affinity`；四选一，见 [route-strategies.md](../reference/route-strategies.md)）。**`PUT /admin/config`** 白名单校验。
+- **全局路由策略**：`system_config.ROUTE_STRATEGY`（默认 `affinity`；四选一，见 [route-strategies.md](../reference/route-strategies.md)）。**`PUT /admin/config`** 白名单校验；Route Pool / 模型级配置可覆盖。
 - **Proxy 错误告警（可选）**：`ALERT_WEBHOOK_WECOM_URL`、`ALERT_WEBHOOK_FEISHU_URL` 存**完整**群机器人 Webhook URL（含 query `key` / hook id）。**未配置或值为空则不告警**。Proxy 在 **`api_key_request_logs.status = error`** 且用量写入成功后，分别向已配置的 URL 发送一条**按错误类型归类**的文本摘要（企业微信 `msgtype=text`、飞书 `msg_type=text`）：首行含类别与优先级（如上游超时、供应商鉴权、限流、5xx、敏感内容拦截、请求/模型错误、路由配置），并分组展示影响用户、路由/协议、供应商、原始 `error_message`、处理建议与发生时间（UTC+8）；发送失败只打日志，不影响请求。键名常量见 `@octafuse/core` 导出 `ALERT_WEBHOOK_WECOM_URL_KEY` / `ALERT_WEBHOOK_FEISHU_URL_KEY`。
 
 ### `/admin/keys` 统一响应格式
@@ -62,13 +62,16 @@ Authorization: Bearer sk-admin-xxx
 | `/admin/models` | GET, POST, GET/PATCH/DELETE `/:id` | `models`（含可选 `route_policy`），`model_tags` | Admin UI |
 | `/admin/models/import/catalog` | GET | 内置静态目录可选项摘要（不含完整 `pricing_profile`） | Admin UI |
 | `/admin/models/import` | POST | 请求体 `{"ids":["…"]}`：仅导入指定预设 → `models`，`model_tags`（按 `BILLING_CURRENCY` 选用 USD/CNY 价；**同 id 不覆盖**，记入 `skipped_existing`） | Admin UI、运维脚本 |
-| `/admin/routes` | GET（`?model_id=&provider_id=`）, POST, GET/PATCH/DELETE `/:id` | `model_routes`（含 `priority` / `weight`） | Admin UI |
+| `/admin/routes` | GET（`?model_id=&provider_id=`）, POST, GET/PATCH/DELETE `/:id` | `model_surfaces`、`route_pools`、`model_routes`（Surface → Pool → Target） | Admin UI |
+| `/admin/routes/pools/:poolId` | PATCH | `route_pools.strategy`（Pool 级策略覆盖） | Admin UI |
+| `/admin/playground` | POST | Routes：`routeId` 直连上游；Tools：`toolId`+`provider` 读 catalog 直连引擎（均可测、不计费、不写日志、无 failover） | Admin UI、运维联调 |
 | `/admin/stats` | GET | 多表聚合（含 `api_key_request_logs`、`api_keys` 等） | Admin UI |
 | `/admin/config` | GET, PUT | `system_config`（含 `ROUTE_STRATEGY`） | Admin UI |
 | `/admin/business-timezone` | GET | `system_config.BUSINESS_TIMEZONE` | Admin UI（Provider 首屏加载） |
 | `/admin/request-logs` | GET | `api_key_request_logs`（**GlobalLogs**，多条件筛选分页） | Admin UI |
 | `/admin/budget-audit-logs` | GET | **`user_audit_logs`**（左联 **`users`** 取 `email` 等，多维筛选分页） | Admin UI |
 | `/admin/analytics/models` | GET | `api_key_request_logs`，可选联 `model_tags` | Admin UI |
+| `/admin/analytics/providers` | GET | `api_key_request_logs`，按 Provider 聚合 | Admin UI |
 | `/admin/analytics/users` | GET | `api_key_request_logs`，左联 **`users`**（用户维度） | Admin UI |
 | `/admin/analytics/reliability` | GET | `api_key_request_logs` | Admin UI |
 
@@ -291,7 +294,7 @@ POST /admin/keys
 ### 示例（已有用户）
 
 ```bash
-curl -X POST http://localhost:8787/admin/keys \
+curl -X POST http://localhost:8789/api/admin/keys \
   -H "Authorization: Bearer sk-admin-xxx" \
   -H "Content-Type: application/json" \
   -d '{
@@ -305,7 +308,7 @@ curl -X POST http://localhost:8787/admin/keys \
 ### 示例（外部身份）
 
 ```bash
-curl -X POST http://localhost:8787/admin/keys \
+curl -X POST http://localhost:8789/api/admin/keys \
   -H "Authorization: Bearer sk-admin-xxx" \
   -H "Content-Type: application/json" \
   -d '{
@@ -373,7 +376,7 @@ PATCH /admin/keys/:id
 ### 示例
 
 ```bash
-curl -X PATCH http://localhost:8787/admin/keys/uuid-here \
+curl -X PATCH http://localhost:8789/api/admin/keys/uuid-here \
   -H "Authorization: Bearer sk-admin-xxx" \
   -H "Content-Type: application/json" \
   -d '{
@@ -430,7 +433,7 @@ GET /admin/keys/:id
 ### 示例
 
 ```bash
-curl http://localhost:8787/admin/keys/uuid-here \
+curl http://localhost:8789/api/admin/keys/uuid-here \
   -H "Authorization: Bearer sk-admin-xxx"
 ```
 
@@ -473,7 +476,7 @@ DELETE /admin/keys/:id
 ### 示例
 
 ```bash
-curl -X DELETE http://localhost:8787/admin/keys/uuid-here \
+curl -X DELETE http://localhost:8789/api/admin/keys/uuid-here \
   -H "Authorization: Bearer sk-admin-xxx"
 ```
 
@@ -542,12 +545,12 @@ GET /admin/keys/:id/logs?page=1&page_size=20&exclude_status=incomplete
 }
 ```
 
-> 注：三列成本均以 **`models.pricing_profile`** 按 `input_tokens` 选档为基数。`metered_cost` = 目录价 × `price_override.metered_factor` × 可选 `schedule.metered`；`charged_cost` = 目录价 × `charged_factor` × 可选 `schedule.charged`；`standard_cost` = 目录价（不乘路由倍率）。嵌套 `metered`/`charged` tiers **不计价**。**`pricing_audit`** 新写入为 **v4**（见 `packages/core/src/db/pricing-audit.ts`：含 `base_factor` / `schedule` / `effective_factor`）。**`request_protocol`** 为客户端调用的 Gateway 入口协议；**`upstream_protocol`** 为本次请求所选路由的 `model_routes.upstream_protocol` 快照。历史字段 `total_cost` 与 **`billing_factor`** 列已移除。列表接口返回列为 `api_key_request_logs` 全字段（与 `packages/core/src/types.ts` 中 `RequestLogRow` 一致）。
+> 注：LLM、Audio token 与 Image token 模式按 `models.pricing_profile.tiers` 选档；Image `per_image`、Audio `per_second` 与 Agent Tool `fixed_tool_cost` 使用各自计费基数。模型请求中，`metered_cost` = 目录价 × `price_override.metered_factor` × 可选 `schedule.metered`，`charged_cost` = 目录价 × `charged_factor` × 可选 `schedule.charged`，`standard_cost` = 目录价（不乘路由倍率）；**Tools** 在 catalog 直接配置三账本绝对单价（`metered` / `standard` / `charged`，无 Route factor/schedule），成功后分别写入三列，仅 `charged_cost` 累加预算。嵌套 `metered`/`charged` tiers **不计价**。**`pricing_audit`** 新写入为 **v4**（模型见 `packages/core/src/db/pricing-audit.ts`；Tools 为 `kind=fixed_tool_cost` + `unit_prices` / `totals`）。**`request_protocol`** 为客户端调用的 Gateway 入口协议；**`upstream_protocol`** 为本次请求所选路由的 `model_routes.upstream_protocol` 快照。历史字段 `total_cost` 与 **`billing_factor`** 列已移除。列表接口返回列为 `api_key_request_logs` 全字段（与 `packages/core/src/types.ts` 中 `RequestLogRow` 一致）。
 
 ### 示例
 
 ```bash
-curl "http://localhost:8787/admin/keys/uuid-here/logs?page=1&page_size=10" \
+curl "http://localhost:8789/api/admin/keys/uuid-here/logs?page=1&page_size=10" \
   -H "Authorization: Bearer sk-admin-xxx"
 ```
 
@@ -565,7 +568,7 @@ curl "http://localhost:8787/admin/keys/uuid-here/logs?page=1&page_size=10" \
 | POST | `/admin/providers` | 创建；**`name` + `api_key` 必填**；可选 `id`、`description`、`endpoints`、`status` |
 | GET | `/admin/providers/:id` | 详情（脱敏 `api_key`） |
 | PATCH | `/admin/providers/:id` | 部分更新；`api_key` 空串/未传 = **不改密钥**；`status` 仅 `active` \| `disabled` |
-| DELETE | `/admin/providers/:id` | 删除 |
+| DELETE | `/admin/providers/:id` | 删除；仍被 `model_routes` 引用时返回 **409**，须先删除或改绑对应 Target |
 | GET | `/admin/providers/:id/api-key` | **揭示明文** `api_key`（`{ success, data: { api_key } }`） |
 | GET / POST | `/admin/providers/import/catalog`、`/import` | 静态模板导入（占位 key，须手动替换） |
 
@@ -574,14 +577,21 @@ curl "http://localhost:8787/admin/keys/uuid-here/logs?page=1&page_size=10" \
 ### Models / Routes
 
 - **`/admin/models`**：CRUD；`PATCH` 可写 **`route_policy`**（TEXT JSON 或 `null` 清空）。含 **`GET /admin/models/import/catalog`** 与 **`POST /admin/models/import`**。image / audio 的 openai-only 锁在 **route `upstream_protocol`**。
-- **`/admin/routes`**：REST `GET/POST`、`GET/PATCH/DELETE /:id`；列表支持 `?model_id=&provider_id=`。创建时校验 provider 对该协议是否配置了 `endpoints` base 或任一 capability。
+- **`/admin/routes`**：REST `GET/POST`、`GET/PATCH/DELETE /:id`；列表支持 `?model_id=&provider_id=`。创建时校验 provider 对该协议是否配置了 `endpoints` base 或任一 capability，并创建或复用对应 Request Surface / Route Pool。
   - **`priority`**：层（Proxy 按 **DESC** 硬序）。
   - **`weight`**：同层权重，整数 **≥ 1**（默认 1）；非法 → **400**。
   - **`POST`** 省略或空白 **`route_group`** → **`default`**；**`PATCH`** 若含 `route_group` 则不得为仅空白（否则 **400**）。
+  - **`request_protocol` / `request_operation`**：公开请求入口，例如 `openai` + `chat`；省略 operation 使用兼容值 `*`。
+  - **`upstream_protocol` / `upstream_operation`**：Target 实际调用的协议 / capability；省略 operation 时跟随请求 operation。
+  - **`adapter`**：2.0 仅接受 `passthrough`；跨协议或不同 operation 转换会返回 **400**。
+  - **`GET` 响应**：除 Target 字段外包含 `route_pool_id` 与 `surfaces`（JSON 数组字符串），用于还原 Surface → Pool → Target 拓扑。
+- **`PATCH /admin/routes/pools/:poolId`**：设置当前 Pool 的策略，body `{ "strategy": "affinity" }`；四策略之一，`null` / 空值表示继承模型 / 全局配置。
+
+完整拓扑与 operation 白名单见 [route-topology.md](../architecture/route-topology.md)。
 
 ### `models.route_policy`（`PATCH /admin/models/:id`）
 
-同层路由策略覆盖（可覆盖全局 `ROUTE_STRATEGY`）。形状与五级解析见 [route-strategies.md](../reference/route-strategies.md)。
+模型级路由策略覆盖（优先级低于 Route Pool，高于全局 `ROUTE_STRATEGY`）。形状与六级解析见 [route-strategies.md](../reference/route-strategies.md)。
 
 ```json
 {
@@ -595,7 +605,7 @@ curl "http://localhost:8787/admin/keys/uuid-here/logs?page=1&page_size=10" \
 
 - **清空**：`null` 或空串 ⇒ 列 `NULL`（回退全局）。
 - **校验**：`normalizeModelRoutePolicyInput`；须含顶层 `strategy` 和/或至少一条合法 `rules`。
-- **运行时**：仅 Proxy failover 路径；Admin Playground **不走**策略排序。
+- **运行时**：仅 Proxy failover 路径；Admin Playground **不走**策略排序。若当前 Pool 设置了 `route_pools.strategy`，则优先使用 Pool 策略。
 
 ### `GET /admin/models/import/catalog`
 
@@ -762,7 +772,35 @@ curl -sS "$GATEWAY_URL/v1/images/generations" \
 请求体：`{ "key": "string", "value": "string" }`（`key` 必填；`value` 可省略或 `null` 视为空字符串）。
 
 - **`BILLING_CURRENCY`**：仅允许写入 **`USD`** 或 **`CNY`**（大写）；否则返回 `400` 与 `success: false`。
-- **`ROUTE_STRATEGY`**：仅允许 **`affinity`** \| **`weighted_random`** \| **`strict`** \| **`round_robin`**（小写）；非法 → `400`。全局同层路由策略缺省；模型 `route_policy` 可覆盖。详见 [route-strategies.md](../reference/route-strategies.md)。Proxy 进程内缓存约 **30s**。
+- **`ROUTE_STRATEGY`**：仅允许 **`affinity`** \| **`weighted_random`** \| **`strict`** \| **`round_robin`**（小写）；非法 → `400`。这是全局同层路由策略缺省，模型 `route_policy` 与 `route_pools.strategy` 可覆盖。详见 [route-strategies.md](../reference/route-strategies.md)。Proxy 进程内缓存约 **30s**。
+
+Agent Tools 也通过该接口维护配置：
+
+| 工具 | Catalog 键 | Active 键 | Provider 白名单 |
+|------|------------|-----------|-----------------|
+| Web Search | `WEB_SEARCH_CATALOG` | `WEB_SEARCH_ACTIVE` | `bocha`、`tavily`、`cleversee`、`tencent_wsa` |
+| Web Fetch | `WEB_FETCH_CATALOG` | `WEB_FETCH_ACTIVE` | `firecrawl`、`tavily`、`jina` |
+| Web Deep Search | `WEB_DEEP_SEARCH_CATALOG` | `WEB_DEEP_SEARCH_ACTIVE` | `firecrawl`、`jina` |
+| AI Detection | `AI_DETECTION_CATALOG` | `AI_DETECTION_ACTIVE` | 当前 `tencent_tms`（多 provider 架构，可扩展） |
+
+Catalog JSON 以 Provider id 为键。联网类工具每项为 `{ apiKey, metered, standard, charged }`（Admin 保存时同步写兼容键 `cost = charged`；仅有旧 `cost` 时 resolve 三列相等）；AI Detection 为凭证字段并集 + 三账本单价 + 可选 `billingUnitChars`。设置 Active 前必须配齐该引擎所需凭证（未实现引擎不可 Active）。每种工具同时只启用一个 Active Provider。单价均须 ≥ 0。
+
+### 运维验收：Agent Tools（Playground / Simulator）
+
+Admin 内闭环：**Tools Config → Playground（引擎）→ Simulator（Proxy）→ Tools Invocations**。
+
+1. **Config**：Admin → Tools → Configuration，为某引擎填入凭证与**三账本单价**（供应 / 目录 / 用户）并保存；Active 指向已配齐凭证的引擎（AI Detection 第一版为 `tencent_tms`）。再保存后 catalog JSON 应展开为 `metered` / `standard` / `charged`（及 `cost`）。
+2. **Playground Tools**（不计费、不写 logs）：Admin → Playground → **Tools** 模式，或 Config 行内 **Test in Playground**（`?mode=tools&tool=…&provider=…`）。选工具 + **任意 catalog 引擎**（不限 Active）→ Send → 直连上游引擎，确认密钥与响应形态。
+3. **Simulator Tools**（真实 Proxy）：Admin → Simulator → Kind=**Tools** → 选工具与用户 API Key → Send 打到 `{proxy}/v1/tools/{id}` → 核对响应 `cost`（= charged）与预算；**Open Tools Invocations** / Request Logs 核对三列不同（若配置了不同单价）、`budget_spent` 仅增 charged、失败请求三列 0、`pricing_audit` v4 `fixed_tool_cost`。
+4. **边界**：Playground Tools **不经** Proxy、**不扣**用户预算、**不写** `api_key_request_logs`；Simulator Tools **走** Proxy 全链路。二者共用 **`@octafuse/tool-engines`** 引擎客户端（Admin 不得再依赖 `packages/proxy`）。LLM / Image / Audio 的 Routes 模式行为不变。
+5. **curl**（可选，用户 API Key，等价 Simulator）：
+
+```bash
+curl -sS "$GATEWAY_URL/v1/tools/ai-detection" \
+  -H "Authorization: Bearer $USER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"text":"sample paragraph for AI-rate detection"}'
+```
 
 与 **Proxy 错误 Webhook** 相关的键（默认不存在于种子数据，按需 `PUT` 写入即可）：
 
@@ -822,6 +860,8 @@ Admin UI 登录后由 `BusinessTimezoneProvider` 调用，用于时间列展示�
 |----------|------|
 | `start_date` / `end_date` | 可选；默认约最近 7 天；开始时间最早不早于结束时间前 **180 天**（`clampAnalyticsRange`） |
 | `tag` | 可选；非空时只统计带该 `model_tags.tag` 的模型 |
+| `provider_id` | 可选；Provider 精确匹配 |
+| `user_email` | 可选；用户邮箱精确匹配 |
 
 响应：`{ success, data: [...], tags: string[] }`（`tags` 为库内全部 distinct 标签，供筛选 UI）。
 

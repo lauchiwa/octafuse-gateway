@@ -50,7 +50,7 @@ npm run bootstrap:cloudflare
 ## 3. 打开 Admin 后配置
 
 1. 添加或导入 Provider，并填入真实上游 API Key。
-2. 创建或启用 Model Route。
+2. 添加或导入 Model，并在 Routes 中创建或启用对应的 Request Surface → Route Pool → Upstream Target。
 3. 创建用户 API Key。
 4. 用用户 Key 调用 Proxy。
 
@@ -79,4 +79,4 @@ curl -sS http://127.0.0.1:8787/v1/chat/completions \
 |------|------|
 | Docker / Postgres / MySQL 自托管 | [operators/deployment/docker.md](../operators/deployment/docker.md) |
 | Zeabur 等容器平台 | [operators/deployment/zeabur.md](../operators/deployment/zeabur.md) |
-| 部署模式总览 | [operators/deployment/README.md](../operators/deployment/) |
+| 部署模式总览 | [operators/deployment/README.md](../operators/deployment/README.md) |

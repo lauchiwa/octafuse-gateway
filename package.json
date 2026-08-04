@@ -1,6 +1,6 @@
 {
 	"name": "octafuse",
-	"version": "2.0.0",
+	"version": "2.1.1",
 	"private": true,
 	"repository": {
 		"type": "git",
@@ -10,6 +10,7 @@
 	"workspaces": [
 		".",
 		"packages/core",
+		"packages/tool-engines",
 		"packages/proxy",
 		"packages/admin"
 	],
@@ -42,6 +43,7 @@
 		"test:gateway:sql-storage-smoke": "dotenv -c -- tsx scripts/smoke/test-storage-concurrent-charge.ts",
 		"test:deploy": "node --test scripts/deploy/*.test.mjs",
 		"test:db": "node --import tsx --test scripts/db/lib/*.test.ts",
+		"verify:proxy-bundle": "node scripts/ci/verify-proxy-bundle-externals.mjs",
 		"test:unit": "npm run test:deploy && npm run test:db && npm run test:unit -w @octafuse/core && npm run test:unit -w @octafuse/proxy && npm run test:unit -w @octafuse/admin"
 	},
 	"devDependencies": {

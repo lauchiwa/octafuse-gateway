@@ -13,6 +13,7 @@ dist/
 
 .dev.vars
 .provider
+.release
 
 docker/local
 docker/test

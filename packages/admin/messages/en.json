@@ -845,7 +845,19 @@
 		"audioTranscriptionsHint": "Audio model: JSON fields (language, response_format) plus an audio file below. File is sent as multipart to the upstream transcriptions endpoint. No billing or request logs.",
 		"audioFile": "Audio file",
 		"audioFileHint": "Select one audio file (mp3, wav, m4a, webm, …). Sent as multipart (not in the JSON editor).",
-		"audioFileRequired": "An audio file is required before Send."
+		"audioFileRequired": "An audio file is required before Send.",
+		"mode": "Mode",
+		"modeRoutes": "Routes",
+		"modeTools": "Tools",
+		"toolsSubtitle": "{product} — call a catalog engine directly (any provider, not only Active). No billing, no request logs.",
+		"toolsSection": "Tool & engine",
+		"toolsHint": "Credentials come from system_config catalogs. Use this to verify keys before switching Active.",
+		"tool": "Tool",
+		"engineProvider": "Engine provider",
+		"engineProviderHint": "Not limited to the Active engine — any implemented catalog entry can be tested.",
+		"toolsBodyMustBeObject": "Request body must be a JSON object.",
+		"toolsNeedProvider": "Select an engine provider.",
+		"applyTemplate": "Apply template"
 	},
 	"simulator": {
 		"title": "Simulator",
@@ -932,7 +944,16 @@
 		"audioTranscriptionsHint": "Transcriptions: JSON fields (language, response_format) plus an audio file → multipart POST /v1/audio/transcriptions.",
 		"audioFile": "Audio file",
 		"audioFileHint": "Select one audio file for multipart upload.",
-		"audioFileRequired": "An audio file is required before Send."
+		"audioFileRequired": "An audio file is required before Send.",
+		"kindTool": "Tools",
+		"tool": "Tool",
+		"toolHint": "Calls Proxy POST /v1/tools/{id} with the selected API key (auth, billing, logs).",
+		"toolNoRoutes": "Agent Tools are not bound to model_routes. Model and route group are hidden in this mode.",
+		"toolEndpoint": "Proxy path",
+		"toolProtocolHidden": "Tools always use JSON POST /v1/tools/* — protocol selection does not apply.",
+		"readyNeedTool": "Select a tool.",
+		"errSelectTool": "Select a tool before Send.",
+		"openToolsInvocations": "Open Tools Invocations"
 	},
 	"users": {
 		"title": "Users",
@@ -1384,20 +1405,33 @@
 		"catalog": {
 			"webSearch": "Web Search",
 			"webFetch": "Web Fetch",
-			"webDeepSearch": "Web Deep Search"
+			"webDeepSearch": "Web Deep Search",
+			"aiDetection": "AI Detection"
 		},
 		"config": {
 			"title": "Tools",
-			"subtitle": "Configure product tools under /v1/tools/* (engine, API key, unit cost). Settings are stored in system_config and share the user chat budget.",
+			"subtitle": "Configure product tools under /v1/tools/* (engine, API key, unit prices). Settings are stored in system_config and share the user chat budget (charged only).",
 			"viewInvocations": "View invocations →",
+			"showSecrets": "Show API keys",
+			"hideSecrets": "Hide API keys",
 			"saveWebSearch": "Save web search",
 			"saveWebFetch": "Save web fetch",
-			"saveWebDeepSearch": "Save web deep search"
+			"saveWebDeepSearch": "Save web deep search",
+			"saveAiDetection": "Save AI detection",
+			"testInPlayground": "Test in Playground"
+		},
+		"unitPrices": {
+			"title": "Unit prices ({currency})",
+			"legend": "Standard → Charged → Metered",
+			"standard": "Standard",
+			"charged": "Charged",
+			"metered": "Metered",
+			"lossHint": "Charged is below metered (loss)"
 		},
 		"webSearch": {
 			"title": "Web search",
 			"description": "Powers POST /v1/tools/web-search. Choose an implemented engine only—free text is rejected. Leave the API key empty and save to clear it (endpoint returns 503 until set again).",
-			"descriptionCatalog": "Powers POST /v1/tools/web-search. Configure API key and cost per engine, then pick Active. Switching Active uses that engine’s saved key and cost. Engines without a key cannot be activated.",
+			"descriptionCatalog": "Powers POST /v1/tools/web-search. Configure API key and three unit prices (metered / standard / charged) per engine, then pick Active. Only charged hits user budget. Engines without a key cannot be activated.",
 			"provider": "Search engine",
 			"active": "Active engine",
 			"catalogProvider": "Engine",
@@ -1405,7 +1439,7 @@
 			"needKeyToActivate": "Add an API key to at least one engine before saving.",
 			"providerGuideLink": "Engine guide",
 			"providerDocs": "Docs & API key →",
-			"cost": "Cost per success ({currency})",
+			"cost": "Charged per success ({currency})",
 			"apiKey": "Provider API key",
 			"apiKeyPlaceholder": "Paste engine API key",
 			"apiKeyHint": "Required for the tool to accept traffic. Cleared keys fall back to nothing (no env).",
@@ -1456,14 +1490,14 @@
 		"webFetch": {
 			"title": "Web fetch",
 			"description": "Powers POST /v1/tools/web-fetch. Choose an implemented scraper only—free text is rejected. Leave the API key empty and save to clear it (endpoint returns 503 until set again).",
-			"descriptionCatalog": "Powers POST /v1/tools/web-fetch. Configure API key and cost per scraper, then pick Active. Switching Active uses that scraper’s saved key and cost. Scrapers without a key cannot be activated.",
+			"descriptionCatalog": "Powers POST /v1/tools/web-fetch. Configure API key and three unit prices (metered / standard / charged) per scraper, then pick Active. Only charged hits user budget. Scrapers without a key cannot be activated.",
 			"provider": "Fetch provider",
 			"active": "Active provider",
 			"catalogProvider": "Provider",
 			"noKey": "no key",
 			"needKeyToActivate": "Add an API key to at least one provider before saving.",
 			"providerDocs": "Docs & API key →",
-			"cost": "Cost per success ({currency})",
+			"cost": "Charged per success ({currency})",
 			"apiKey": "Provider API key",
 			"apiKeyPlaceholder": "Paste provider API key",
 			"apiKeyHint": "Required for the tool to accept traffic. Cleared keys fall back to nothing (no env).",
@@ -1475,18 +1509,42 @@
 		},
 		"webDeepSearch": {
 			"title": "Web deep search",
-			"descriptionCatalog": "Powers POST /v1/tools/web-deep-search. Search-and-read engines (Firecrawl Search / Jina Search) return page content with results—heavier and costlier than plain web search. Configure per-provider key and cost, then pick Active.",
+			"descriptionCatalog": "Powers POST /v1/tools/web-deep-search. Search-and-read engines (Firecrawl Search / Jina Search) return page content with results—heavier and costlier than plain web search. Configure per-provider key and three unit prices, then pick Active.",
 			"active": "Active provider",
 			"catalogProvider": "Provider",
 			"noKey": "no key",
 			"needKeyToActivate": "Add an API key to at least one provider before saving.",
 			"providerDocs": "Docs & API key →",
-			"cost": "Cost per success ({currency})",
+			"cost": "Charged per success ({currency})",
 			"apiKey": "Provider API key",
 			"apiKeyPlaceholder": "Paste provider API key",
 			"providers": {
 				"firecrawl": "Firecrawl Search",
 				"jina": "Jina Search"
+			}
+		},
+		"aiDetection": {
+			"title": "AI detection",
+			"descriptionCatalog": "Powers POST /v1/tools/ai-detection. Multi-provider catalog: configure credentials and three unit prices per engine, then pick Active. Billing is by character units (billingUnitChars); totals scale metered/standard/charged. Currently only Tencent Cloud TMS is implemented.",
+			"active": "Active engine",
+			"catalogProvider": "Engine",
+			"noKey": "no credentials",
+			"needKeyToActivate": "Add credentials to at least one implemented engine before saving.",
+			"providerDocs": "Docs & API key →",
+			"cost": "Charged per billing unit ({currency})",
+			"billingUnitChars": "Billing unit (chars)",
+			"credentials": "Credentials",
+			"fields": {
+				"apiKey": "API key",
+				"secretId": "SecretId",
+				"secretKey": "SecretKey",
+				"email": "Email",
+				"region": "Region",
+				"bizType": "BizType",
+				"bizTypeOptional": "Optional BizType"
+			},
+			"providers": {
+				"tencent_tms": "Tencent Cloud TMS"
 			}
 		},
 		"invocations": {
@@ -1501,12 +1559,22 @@
 			"columns": {
 				"time": "Time",
 				"tool": "Tool",
+				"provider": "Engine",
 				"query": "Query",
 				"user": "User",
 				"status": "Status",
 				"results": "Results",
-				"cost": "Cost",
+				"standard": "Standard ({currency})",
+				"charged": "Charged ({currency})",
+				"metered": "Metered ({currency})",
+				"profit": "Profit ({currency})",
 				"latency": "Latency"
+			},
+			"titles": {
+				"profit": "Charged − metered (per call)",
+				"standard": "Standard (catalog price)",
+				"charged": "Charged (user budget)",
+				"metered": "Metered (supplier cost)"
 			},
 			"detail": {
 				"request": "Request",
@@ -1521,10 +1589,12 @@
 		},
 		"errors": {
 			"invalidWebSearchProvider": "Search engine must be one of the implemented options.",
-			"invalidWebSearchCost": "Cost must be a non-negative number for every engine.",
+			"invalidWebSearchCost": "Metered, standard, and charged must each be a non-negative number for every engine.",
 			"invalidWebFetchProvider": "Fetch provider must be one of the implemented options.",
-			"invalidWebFetchCost": "Cost must be a non-negative number for every provider.",
-			"invalidWebDeepSearchCost": "Cost must be a non-negative number for every deep-search provider.",
+			"invalidWebFetchCost": "Metered, standard, and charged must each be a non-negative number for every provider.",
+			"invalidWebDeepSearchCost": "Metered, standard, and charged must each be a non-negative number for every deep-search provider.",
+			"invalidAiDetectionCost": "Metered, standard, and charged must be non-negative and billing unit chars must be a positive integer for every engine.",
+			"aiDetectionNotImplemented": "Cannot activate an engine that is not implemented yet.",
 			"noKeyCannotActivate": "Cannot activate a provider without an API key.",
 			"switchActiveBeforeClearingKey": "Switch Active to another engine that still has a key before clearing the current engine’s key, then save again to clear it."
 		}

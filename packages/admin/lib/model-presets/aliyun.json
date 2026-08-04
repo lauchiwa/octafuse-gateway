@@ -1,15 +1,15 @@
 [
 	{
-		"id": "qwen3.8-max-preview",
-		"display_name": "Qwen3.8 Max Preview",
-		"description": "A flagship Qwen preview for complex reasoning, coding, and agentic enterprise workloads.",
+		"id": "qwen3.8-max",
+		"display_name": "Qwen3.8 Max",
+		"description": "A 2.4T-parameter MoE flagship for coding, office productivity, vision, and long-horizon agents. Native multimodal understanding supports long documents and video, with strong end-to-end delivery on professional tasks.",
 		"i18n": {
-			"en": "A flagship Qwen preview for complex reasoning, coding, and agentic enterprise workloads.",
-			"zh": "面向复杂推理、编程与企业级 Agent 工作流的 Qwen 旗舰预览模型。"
+			"en": "A 2.4T-parameter MoE flagship for coding, office productivity, vision, and long-horizon agents. Native multimodal understanding supports long documents and video, with strong end-to-end delivery on professional tasks.",
+			"zh": "2.4 万亿参数 MoE 旗舰，全面提升编程与办公能力，可胜任法律、金融、设计等专业任务，并端到端交付生产级成果。原生视觉理解覆盖规划、执行与验证，支持超长文档与长视频深度解析。"
 		},
 		"vendor": "aliyun",
 		"context_window": 1000000,
-		"max_tokens": 64000,
+		"max_tokens": 128000,
 		"pricing": {
 			"usd": {
 				"tiers": [
@@ -17,7 +17,7 @@
 						"upto": null,
 						"input_price": 2.5,
 						"output_price": 7.5,
-						"cache_read_price": 0.5,
+						"cache_read_price": 0.3125,
 						"cache_write_price": 3.125
 					}
 				]
@@ -28,7 +28,7 @@
 						"upto": null,
 						"input_price": 12,
 						"output_price": 36,
-						"cache_read_price": 2.4,
+						"cache_read_price": 1.5,
 						"cache_write_price": 15
 					}
 				]
@@ -37,7 +37,55 @@
 		"modalities": {
 			"input": [
 				"text",
-				"image"
+				"image",
+				"video"
+			],
+			"output": [
+				"text"
+			]
+		},
+		"released": "2026-08-01"
+	},
+	{
+		"id": "qwen3.8-max-preview",
+		"display_name": "Qwen3.8 Max Preview",
+		"description": "A flagship Qwen preview for complex reasoning, coding, vision, and long-horizon agentic workloads. Preview channel for early access; production traffic should prefer qwen3.8-max.",
+		"i18n": {
+			"en": "A flagship Qwen preview for complex reasoning, coding, vision, and long-horizon agentic workloads. Preview channel for early access; production traffic should prefer qwen3.8-max.",
+			"zh": "面向复杂推理、编程、视觉理解与长程 Agent 任务的 Qwen 旗舰预览模型。适合抢先体验；生产调用建议优先使用 qwen3.8-max。"
+		},
+		"vendor": "aliyun",
+		"context_window": 1000000,
+		"max_tokens": 128000,
+		"pricing": {
+			"usd": {
+				"tiers": [
+					{
+						"upto": null,
+						"input_price": 2.5,
+						"output_price": 7.5,
+						"cache_read_price": 0.3125,
+						"cache_write_price": 3.125
+					}
+				]
+			},
+			"cny": {
+				"tiers": [
+					{
+						"upto": null,
+						"input_price": 12,
+						"output_price": 36,
+						"cache_read_price": 1.5,
+						"cache_write_price": 15
+					}
+				]
+			}
+		},
+		"modalities": {
+			"input": [
+				"text",
+				"image",
+				"video"
 			],
 			"output": [
 				"text"
@@ -55,7 +103,7 @@
 		},
 		"vendor": "aliyun",
 		"context_window": 1000000,
-		"max_tokens": 64000,
+		"max_tokens": 128000,
 		"pricing": {
 			"usd": {
 				"tiers": [
@@ -117,7 +165,7 @@
 		},
 		"vendor": "aliyun",
 		"context_window": 1000000,
-		"max_tokens": 64000,
+		"max_tokens": 128000,
 		"pricing": {
 			"usd": {
 				"tiers": [
@@ -151,6 +199,81 @@
 			]
 		},
 		"released": "2026-05-20"
+	},
+	{
+		"id": "qwen3.7-flash",
+		"display_name": "Qwen3.7 Flash",
+		"description": "A fast multimodal Qwen3.7 model with stronger vision, agent execution, and coding throughput than Qwen3.6 Flash. Built for low-latency multimodal understanding and agent workflows.",
+		"i18n": {
+			"en": "A fast multimodal Qwen3.7 model with stronger vision, agent execution, and coding throughput than Qwen3.6 Flash. Built for low-latency multimodal understanding and agent workflows.",
+			"zh": "Qwen3.7 原生视觉语言 Flash 模型，相较 3.6-Flash 全面提升多模态理解与 Agent 执行能力，适合低延迟多模态理解与 Coding / Agent 场景。"
+		},
+		"vendor": "aliyun",
+		"context_window": 1000000,
+		"max_tokens": 128000,
+		"pricing": {
+			"usd": {
+				"tiers": [
+					{
+						"upto": 32000,
+						"input_price": 0.04,
+						"output_price": 0.16,
+						"cache_read_price": 0.008,
+						"cache_write_price": 0.05
+					},
+					{
+						"upto": 256000,
+						"input_price": 0.12,
+						"output_price": 0.48,
+						"cache_read_price": 0.024,
+						"cache_write_price": 0.15
+					},
+					{
+						"upto": null,
+						"input_price": 0.24,
+						"output_price": 0.96,
+						"cache_read_price": 0.048,
+						"cache_write_price": 0.3
+					}
+				]
+			},
+			"cny": {
+				"tiers": [
+					{
+						"upto": 32000,
+						"input_price": 0.2,
+						"output_price": 0.8,
+						"cache_read_price": 0.04,
+						"cache_write_price": 0.25
+					},
+					{
+						"upto": 256000,
+						"input_price": 0.6,
+						"output_price": 2.4,
+						"cache_read_price": 0.12,
+						"cache_write_price": 0.75
+					},
+					{
+						"upto": null,
+						"input_price": 1.2,
+						"output_price": 4.8,
+						"cache_read_price": 0.24,
+						"cache_write_price": 1.5
+					}
+				]
+			}
+		},
+		"modalities": {
+			"input": [
+				"text",
+				"image",
+				"video"
+			],
+			"output": [
+				"text"
+			]
+		},
+		"released": "2026-07-15"
 	},
 	{
 		"id": "qwen3.6-plus",

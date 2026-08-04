@@ -13,6 +13,7 @@ const root = join(__dirname, "../..");
 const paths = [
 	join(root, "package.json"),
 	join(root, "packages/core/package.json"),
+	join(root, "packages/tool-engines/package.json"),
 	join(root, "packages/proxy/package.json"),
 	join(root, "packages/admin/package.json"),
 ];

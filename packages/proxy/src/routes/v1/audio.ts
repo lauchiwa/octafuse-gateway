@@ -40,9 +40,12 @@ import {
 	materializeNonOkResponse,
 } from '../../services/request-log-record-status';
 import {
-	maybeBlockSensitiveContentCircuit,
-	maybeTriggerSensitiveContentCircuitFromUpstream,
-} from '../../services/sensitive-content-circuit-route';
+	maybeBlockUserModelCircuit,
+	maybeTriggerUserModelCircuitFromUpstream,
+	markUserModelSuccess,
+} from '../../services/user-model-circuit-route';
+import { GatewayErrorCode } from '../../services/gateway-error-codes';
+import { gatewayErrorJson } from '../../services/gateway-error-response';
 import { RequestTimingCollector } from '../../services/request-timing';
 import { scheduleBackgroundWork } from '../../runtime/schedule-background-work';
 
@@ -251,7 +254,11 @@ audioRoutes.post('/transcriptions', async (c) => {
 	const parsed = await parseMultipartTranscription(c);
 	if (!parsed.ok) {
 		console.warn(`[Gateway Audio] transcriptions parse failed: ${parsed.error}`);
-		return c.json({ error: parsed.error }, 400);
+		return gatewayErrorJson(c, {
+			status: 400,
+			code: GatewayErrorCode.invalidRequest,
+			message: parsed.error,
+		});
 	}
 	const { model: rawModelId, transcription } = parsed;
 
@@ -262,13 +269,26 @@ audioRoutes.post('/transcriptions', async (c) => {
 				`[Gateway Audio] transcriptions route resolve failed status=${routed.status} clientModel=${truncateModelIdForLog(rawModelId)} error=${routed.error}`
 			);
 		}
-		return c.json({ error: routed.error }, routed.status);
+		return gatewayErrorJson(c, {
+			status: routed.status as 400 | 403 | 404 | 502,
+			code:
+				routed.status === 404
+					? GatewayErrorCode.modelNotFound
+					: routed.status === 502
+						? GatewayErrorCode.routeResolutionFailed
+						: GatewayErrorCode.invalidRequest,
+			message: routed.error,
+		});
 	}
 	const { model, baseModelId, effectiveRouteGroup, routes } = routed;
 	const modelNameForLog = modelDisplayName(model, baseModelId);
 
 	if (apiKey.budgetMax != null && apiKey.budgetSpent >= apiKey.budgetMax) {
-		return c.json({ error: 'Budget exceeded' }, 403);
+		return gatewayErrorJson(c, {
+			status: 403,
+			code: GatewayErrorCode.budgetExceeded,
+			message: 'Budget exceeded',
+		});
 	}
 
 	const estimate = await estimateAudioBudgetPrecheck(
@@ -284,7 +304,11 @@ audioRoutes.post('/transcriptions', async (c) => {
 		routes.map((route) => route.priceOverrideRaw)
 	);
 	if (!canAffordAudioCost(apiKey.budgetMax, apiKey.budgetSpent, estimate.chargedCost)) {
-		return c.json({ error: 'Budget exceeded' }, 403);
+		return gatewayErrorJson(c, {
+			status: 403,
+			code: GatewayErrorCode.budgetExceeded,
+			message: 'Budget exceeded',
+		});
 	}
 
 	const requestBodyForLog = finalizeRequestLogJson(
@@ -299,13 +323,14 @@ audioRoutes.post('/transcriptions', async (c) => {
 		})
 	);
 
-	const circuitBlocked = maybeBlockSensitiveContentCircuit(c, repos, apiKey, {
+	const circuitBlocked = maybeBlockUserModelCircuit(c, repos, apiKey, {
 		baseModelId,
 		modelNameForLog,
 		requestBodyForLog,
 		requestProtocol: 'openai',
 		startMs: start,
 		timing,
+		clientErrorCircuitEnabled: false,
 	});
 	if (circuitBlocked) {
 		return circuitBlocked;
@@ -393,9 +418,11 @@ async function finalizeAudioResponse(params: {
 			: 'estimated';
 	const tokenUsage = response.ok ? (meta?.audioTokenUsage ?? null) : null;
 
-	let sensitiveCircuitEvent = null;
-	if (errorBodyText != null) {
-		sensitiveCircuitEvent = maybeTriggerSensitiveContentCircuitFromUpstream(
+	let userModelCircuitEvent = null;
+	if (response.ok) {
+		markUserModelSuccess(apiKey.userId, baseModelId);
+	} else if (errorBodyText != null) {
+		userModelCircuitEvent = maybeTriggerUserModelCircuitFromUpstream(
 			apiKey.userId,
 			baseModelId,
 			response.status,
@@ -405,11 +432,12 @@ async function finalizeAudioResponse(params: {
 				response.status,
 				response.headers.get('content-type'),
 				errorBodyText
-			)
+			),
+			{ clientErrorCircuitEnabled: false }
 		);
 	}
-	const alertCircuitEvents = sensitiveCircuitEvent
-		? [...circuitEvents, sensitiveCircuitEvent]
+	const alertCircuitEvents = userModelCircuitEvent
+		? [...circuitEvents, userModelCircuitEvent]
 		: circuitEvents;
 
 	const status: 'success' | 'error' = response.ok ? 'success' : 'error';

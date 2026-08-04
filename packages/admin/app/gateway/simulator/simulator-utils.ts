@@ -4,6 +4,12 @@ import {
 	IMAGE_GENERATIONS_BODY_TEMPLATE,
 	type ImageOperation,
 } from '@/lib/image-generations';
+import {
+	GATEWAY_TOOLS,
+	findGatewayToolById,
+	type GatewayToolDefinition,
+} from '@/lib/gateway-tools';
+import type { GatewayToolId } from '@/lib/invoke-kind';
 import type { SimulatorOpenAiSurface, SimulatorProtocol } from '@/lib/simulator/endpoint';
 import type { AdminKeyListItem, AdminModelRow, RouteListRow } from './types';
 
@@ -12,6 +18,8 @@ export const LS_PROTOCOL = 'octafuse.simulator.protocol';
 export const LS_MODEL_ID = 'octafuse.simulator.modelId';
 export const LS_ROUTE_GROUP = 'octafuse.simulator.routeGroup';
 export const LS_KEY_ID = 'octafuse.simulator.keyId';
+export const LS_INVOKE_KIND = 'octafuse.simulator.invokeKind';
+export const LS_TOOL_ID = 'octafuse.simulator.toolId';
 
 export const KEYS_PAGE_SIZE = 200;
 
@@ -53,14 +61,42 @@ export const RESPONSES_BODY_TEMPLATE = `{
   "store": false
 }`;
 
-/** Chat / Responses / Images / Audio template for the current selection. */
+/** Agent Tools request body templates（对齐 Proxy `/v1/tools/*` 入参）。 */
+export const TOOL_BODY_TEMPLATES: Record<GatewayToolId, string> = {
+	'web-search': `{
+  "query": "OctaFuse Gateway",
+  "count": 5
+}`,
+	'web-fetch': `{
+  "url": "https://example.com"
+}`,
+	'web-deep-search': `{
+  "query": "OctaFuse Gateway architecture",
+  "count": 3
+}`,
+	'ai-detection': `{
+  "text": "This is a sample paragraph for AI-rate detection."
+}`,
+};
+
+export function bodyTemplateForTool(toolId: string): string {
+	const tool = findGatewayToolById(toolId);
+	if (!tool) return TOOL_BODY_TEMPLATES['web-search'];
+	return TOOL_BODY_TEMPLATES[tool.id as GatewayToolId] ?? TOOL_BODY_TEMPLATES['web-search'];
+}
+
+/** Chat / Responses / Images / Audio / Tools template for the current selection. */
 export function bodyTemplateForSelection(
 	protocol: SimulatorProtocol,
 	isImageModel: boolean,
 	imageOperation: ImageOperation = 'generations',
 	isAudioModel = false,
+	toolId?: string | null,
 	openaiSurface: SimulatorOpenAiSurface = 'chat'
 ): string {
+	if (toolId) {
+		return bodyTemplateForTool(toolId);
+	}
 	if (isAudioModel && protocol === 'openai') {
 		return AUDIO_TRANSCRIPTIONS_BODY_TEMPLATE;
 	}
@@ -105,12 +141,20 @@ export function isBodyDirty(
 	isImageModel = false,
 	imageOperation: ImageOperation = 'generations',
 	isAudioModel = false,
+	toolId?: string | null,
 	openaiSurface: SimulatorOpenAiSurface = 'chat'
 ): boolean {
 	return (
 		normalizeBodyWhitespace(bodyText) !==
 		normalizeBodyWhitespace(
-			bodyTemplateForSelection(protocol, isImageModel, imageOperation, isAudioModel, openaiSurface)
+			bodyTemplateForSelection(
+				protocol,
+				isImageModel,
+				imageOperation,
+				isAudioModel,
+				toolId,
+				openaiSurface
+			)
 		)
 	);
 }
@@ -198,6 +242,19 @@ export function buildRequestLogsHref(opts: {
 	if (opts.protocol) sp.set('protocol', opts.protocol);
 	const q = sp.toString();
 	return q ? `/gateway/request-logs?${q}` : '/gateway/request-logs';
+}
+
+/** Tools Invocations；可选按 tool id 筛选（页面读 `?tool=`）。 */
+export function buildToolsInvocationsHref(opts?: { toolId?: string }): string {
+	const sp = new URLSearchParams();
+	const tool = opts?.toolId ? findGatewayToolById(opts.toolId) : undefined;
+	if (tool) sp.set('tool', tool.id);
+	const q = sp.toString();
+	return q ? `/gateway/tools/invocations?${q}` : '/gateway/tools/invocations';
+}
+
+export function listGatewayTools(): readonly GatewayToolDefinition[] {
+	return GATEWAY_TOOLS;
 }
 
 export function tryParseProxyBaseUrl(raw: string): { ok: true; base: string } | { ok: false; reason: 'empty' | 'invalid' } {

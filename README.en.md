@@ -13,49 +13,74 @@
 
 ## Core Capabilities
 
-- Unified AI resource endpoint: Connect to models from multiple upstream providers, self-hosted or privately deployed model services, image capabilities, speech-to-text, and Agent Tools through one Gateway URL and user API key.
-- Multi-protocol compatibility: Provides endpoints compatible with the OpenAI Chat Completions, Anthropic Messages, Gemini, OpenAI Images, and OpenAI Audio Transcriptions APIs.
-- Routing and failover: Select upstreams by route group, priority, and availability; use **sticky routing** to improve prompt cache hit rates and automatically fail over on rate limits or outages.
-- Upstream key pools: Centrally manage Provider API keys with priority, weight, RPM / TPM limits, concurrency limits, and circuit-breaker state, then route requests based on each key's remaining capacity in real time.
-- **Provider and model presets**: Ship a large import catalog covering official model vendors, aggregation platforms, and Coding / Token Plans, with Base URLs and model catalog details prefilled so you spend less time hunting docs and hand-editing endpoints. Browse one-click import presets on the website [Providers Catalog](https://octafuse.dev/en/catalog/providers/) and [Models Catalog](https://octafuse.dev/en/catalog/models/); PRs to add new Providers or Models are welcome.
-- User API keys and budgets: Issue separate keys for individuals, teams, customers, or projects; configure recurring budgets, status, and metadata; and let users inspect their own quota.
-- Image generation and editing: Call image models through OpenAI Images-compatible endpoints, supporting both token-based and per-image pricing.
-- Speech-to-text transcription: Call ASR models through OpenAI-compatible `/v1/audio/transcriptions`, with catalog pricing by duration (`per_second`) or by upstream token usage (`token`).
-- **Agent Tools API**: Access agent tools consistently through `/v1/tools/*`, with invocation logs and per-call billing. Built-in tools currently include web search (`web-search`), web fetch (`web-fetch`), and deep search (`web-deep-search`).
-- **Public capability catalog**: Discover available models, protocols, and capabilities through `/catalog/models` without a user API key, making portal and client integration straightforward.
-- **Three ledgers and time-of-day pricing**: Track provider cost, catalog list price, and user charges separately, with peak / off-peak multipliers configurable in the business timezone.
-- Observability and integration testing: Inspect requests, latency, token usage, cost, and audit records in one place, and validate routing or client calls with Playground / Simulator (including Images and Audio).
-- Admin control plane and API: Manage Providers, models, routes, users, and configuration through the Admin console and `/api/admin/*`, or integrate your own portal and automation.
-- Flexible deployment: Deploy for free on **Cloudflare Workers + D1**, or self-host with Docker + Postgres / MySQL.
+Octafuse Gateway is designed to serve as a **unified AI capability hub for one-person companies (OPCs) and enterprises**. It brings multimodal AI resources and tool capabilities under one entry point with enterprise-grade distribution, billing, and operational control.
 
-See the [feature map](./docs/users/features.md) for the complete capability set, routing semantics, and billing definitions.
+Its core capabilities include:
+
+1. Provider onboarding: Connect model vendors and aggregation platforms. A large preset catalog, including Coding / Token Plans, lets you import endpoints with one click and then add the corresponding API key. See the [Providers Catalog](https://octafuse.dev/en/catalog/providers/); PRs for additional preset Providers are welcome.
+2. AI model onboarding: Import models from built-in catalog data without manually configuring common parameters and pricing. See the [Models Catalog](https://octafuse.dev/en/catalog/models/); PRs for additional models are welcome.
+3. Multi-protocol access:
+    - OpenAI endpoints:
+      - Chat Completions: `POST /v1/chat/completions`
+      - Images: `POST /v1/images/generations`, `POST /v1/images/edits`
+      - Audio Transcriptions: `POST /v1/audio/transcriptions`
+      - Models: `GET /v1/models`
+    - Anthropic endpoint: `POST /v1/messages`
+    - Google Gemini endpoint: `POST /v1beta/models/{model}:generateContent` (including `streamGenerateContent`)
+4. Agent tool access: Use `/v1/tools/*` to expose tools to agents with centralized logging, billing, and cost control, so models and tools share one Gateway:
+    - Web search (`POST /v1/tools/web-search`): Bocha, Tavily, Alibaba Cloud CleverSee, Tencent Cloud WSA
+    - Web fetch (`POST /v1/tools/web-fetch`): Firecrawl, Tavily Extract, Jina Reader
+    - Deep search (`POST /v1/tools/web-deep-search`, search + read): Firecrawl Search, Jina Search
+    - More Agent tools are planned, and contributions are welcome.
+5. Unified AI capability endpoint: All connected models, platforms, and tools are exposed through the deployed Octafuse Gateway Base URL, so clients only need to remember one endpoint.
+6. Multiple routing strategies: When a model has several upstream resources, choose the strategy that best matches the workload:
+    - `affinity`: Default; keeps the same user, model, and protocol on a stable upstream for a **high prompt-cache hit rate** and session continuity, though short-term traffic may be uneven
+    - `weighted_random`: Weighted random distribution with **strong load balancing**, suitable for proportional cost allocation or A/B testing; users may switch Providers more often, reducing cache hits
+    - `strict`: Deterministic ordering from highest to lowest weight, suitable for explicit primary / backup behavior; the first Provider receives most traffic
+    - `round_robin`: Weighted rotation for more even distribution; counters are maintained per runtime instance and are not globally synchronized across instances
+7. Integrated user management and accounting:
+    - Three-level External system, User, and API Key hierarchy: the external-system field separates systems or teams, while API Keys authenticate calls and drive charging and auditing
+    - Three ledgers: every invocation records catalog price, actual provider cost, and user charge separately
+    - Time-of-day multipliers: peak / off-peak pricing improves cost accuracy and enables flexible customer pricing and promotions
+8. Admin console and management APIs:
+    - Full Admin UI and APIs for manual operation or integration with other portals
+    - Observability and analytics for request details, statistics, and operational analysis
+    - Playground / Simulator for quickly validating Provider, model, route, and client configurations
+9. Flexible deployment:
+    - Free deployment on **Cloudflare Workers + D1**
+    - Docker deployment with Postgres / MySQL
 
 ## How It Differs from Other Open-Source AI Gateways
 
-[New API](https://github.com/QuantumNous/new-api), [LiteLLM](https://github.com/BerriAI/litellm), and [Bifrost](https://github.com/maximhq/bifrost) are all strong open-source AI gateways with different strengths. Their foundational capabilities overlap, but they target different users and use cases; Octafuse places greater emphasis on built-in agent capabilities and operational control over AI resources. This table compares public editions only and is not a ranking.
+[New API](https://github.com/QuantumNous/new-api), [LiteLLM](https://github.com/BerriAI/litellm), [Sub2API](https://github.com/Wei-Shaw/sub2api), and [Bifrost](https://github.com/maximhq/bifrost) are mature open-source AI gateways with different strengths. The table below evaluates them through Octafuse's focus on **Agent capability delivery and AI resource operations**, breaking the comparison into onboarding, routing, governance, billing, and deployment.
 
-| Dimension | Octafuse Gateway | New API | LiteLLM | Bifrost |
-|-----------|------------------|---------|---------|---------|
-| Unified capability endpoint | Models, images, speech-to-text, Agent Tools | Models, images, audio / video, document reranking | Models, images, audio, vector embeddings, document reranking | Models, multimodal inputs, MCP |
-| Routing and failover | Route groups, priorities, sticky routing, circuit breakers | Weighted routing, retry on failure | Load balancing, retries, failover | Load balancing, automatic failover |
-| Keys and budgets | Upstream key pools, user keys, recurring budgets | `Tokens` (API keys), quotas, users | Virtual keys, project / user budgets | Virtual keys, hierarchical budgets |
-| Provider / model presets | **Official vendors + aggregators + Coding / Token Plans; one-click Base URL and catalog pricing import** | Manual channel setup | Broadest provider coverage | Basic manual setup |
-| Administration and observability | Admin console and API, logs, cost, audit | Admin console, usage, billing | Admin console, logs, usage, cost | Admin console, logs, metrics, tracing |
-| Docker deployment | ✓ | ✓ | ✓ | ✓ |
-| Cloudflare edge deployment | ✓ | — | — | — |
-| Database support | D1/SQLite, Postgres, MySQL | SQLite, Postgres, MySQL | Postgres | SQLite, Postgres |
-| Agent support | Built-in Agent Tools, including web search, web fetch, and deep search | — | MCP, A2A | MCP |
-| Billing capabilities | **Three ledgers, time-of-day multipliers, dual-mode image / audio pricing, per-call tool billing** | Quota- and usage-based billing | Usage tracking and budgets | Hierarchical budgets and usage governance |
+- **✅ Complete**: The public edition provides a cohesive mechanism covering the main scenarios in this dimension
+- **🟡 Strong**: Mature core support, with comparatively narrower coverage or operational depth
+- **🟠 Basic**: A usable foundation that still requires substantial external components or custom development
+- **⚪ None**: Official public documentation does not list a comparable built-in capability
 
-“—” means the project's official public documentation does not list the capability as a comparable built-in feature. It may still be possible through plugins, external services, or custom development. All projects continue to evolve; consult their repositories and official documentation for current capabilities and licensing.
+| Area | Capability dimension | Octafuse Gateway | New API | LiteLLM | Sub2API | Bifrost |
+|------|----------------------|------------------|---------|---------|---------|---------|
+| Onboarding | Provider / model presets and one-click import | **✅ Complete** | 🟡 Strong | 🟡 Strong | 🟡 Strong | 🟡 Strong |
+| Onboarding | Native protocol and multimodal coverage | **🟡 Strong (in progress)** | ✅ Complete | ✅ Complete | ✅ Complete | ✅ Complete |
+| Agent | Built-in web search, fetch, and deep search | **✅ Complete** | ⚪ None | 🟠 Basic | 🟠 Basic | 🟠 Basic |
+| Agent | Tool Provider configuration, invocation logs, and billing | **✅ Complete** | ⚪ None | 🟡 Strong | 🟠 Basic | 🟠 Basic |
+| Routing | Protocol / operation-level Surfaces and independent Route Pools | **✅ Complete** | 🟠 Basic | 🟡 Strong | 🟡 Strong | 🟡 Strong |
+| Routing | Multiple distribution strategies and layered overrides | **✅ Complete** | 🟡 Strong | ✅ Complete | 🟡 Strong | 🟡 Strong |
+| Routing | Prompt Cache affinity routing | **✅ Complete** | 🟡 Strong | ✅ Complete | ✅ Complete | ✅ Complete |
+| Routing | Priority failover and Provider circuit breakers | **✅ Complete** | 🟡 Strong | ✅ Complete | 🟡 Strong | ✅ Complete |
+| Governance | External system, user, and API Key hierarchy | **✅ Complete** | 🟡 Strong | ✅ Complete | 🟡 Strong | ✅ Complete |
+| Governance | Recurring budgets, status, and model access control | **✅ Complete** | ✅ Complete | ✅ Complete | ✅ Complete | ✅ Complete |
+| Billing | Three ledgers: catalog price, provider cost, and user charge | **✅ Complete** | ⚪ None | ⚪ None | ✅ Complete | ⚪ None |
+| Billing | Business-timezone time-of-day multipliers | **✅ Complete** | ⚪ None | ⚪ None | 🟡 Strong | ⚪ None |
+| Billing | Differentiated image / audio pricing | **✅ Complete** | 🟡 Strong | 🟡 Strong | 🟡 Strong | 🟠 Basic |
+| Billing | Per-call Agent tool billing | **✅ Complete** | ⚪ None | 🟡 Strong | 🟠 Basic | 🟠 Basic |
+| Operations | Admin console, management APIs, and observability | **✅ Complete** | ✅ Complete | ✅ Complete | ✅ Complete | ✅ Complete |
+| Deployment | SQLite / D1, Postgres, and MySQL support | **✅ Complete** | ✅ Complete | 🟠 Basic | 🟠 Basic | 🟡 Strong |
+| Deployment | Docker self-hosting | **✅ Complete** | ✅ Complete | ✅ Complete | ✅ Complete | ✅ Complete |
+| Deployment | Cloudflare Workers edge deployment | **✅ Complete** | ⚪ None | ⚪ None | ⚪ None | ⚪ None |
 
-## Screenshots
-
-| Operations overview | Model routing |
-|---|---|
-| ![Octafuse Gateway operations overview](./docs/assets/screenshots/dashboard.png) | ![Octafuse Gateway model routing](./docs/assets/screenshots/routes.png) |
-
-See [docs/assets/screenshots/](./docs/assets/screenshots/) for more views, including Provider management and Playground.
+Ratings are based on each project's current public repository and official documentation, with emphasis on whether the capability is built in as a cohesive mechanism. Performance, community size, commercial support, and custom-development potential are out of scope. This table reflects Octafuse's product positioning rather than ranking every feature across all projects. Refer to each project's latest official documentation for current capabilities and licensing.
 
 ## Quick Start
 

@@ -1,10 +1,17 @@
 /**
  * Agent Web Fetch（`POST /v1/tools/web-fetch`）的 `system_config` 键与解析。
  * 权威配置：`WEB_FETCH_ACTIVE` + `WEB_FETCH_CATALOG`（JSON）；旧三键仅读时兼容。
+ * Catalog 单价为三账本：metered / standard / charged（旧 `cost` 为 charged 别名）。
  */
 
 import type { GatewayRepositories } from '../storage/repositories';
 import { roundGatewayMoney } from './money-precision';
+import {
+	normalizeToolUnitPrices,
+	parseToolMoneyField,
+	toToolPricingFields,
+	type ToolUnitPrices,
+} from './tool-pricing';
 
 /** @deprecated 旧全局三键；仅读时兼容，Admin 不再写入 */
 export const WEB_FETCH_PROVIDER_KEY = 'WEB_FETCH_PROVIDER';
@@ -26,7 +33,11 @@ export const DEFAULT_WEB_FETCH_COST = 0.002;
 
 export type WebFetchCatalogEntry = {
 	apiKey: string;
+	/** @deprecated 兼容别名；等于 charged */
 	cost: number;
+	metered: number;
+	standard: number;
+	charged: number;
 };
 
 export type WebFetchCatalog = Partial<Record<WebFetchProvider, WebFetchCatalogEntry>>;
@@ -45,18 +56,28 @@ export function parseWebFetchProviderInput(raw: string | null | undefined): WebF
 
 /** @deprecated 旧 COST 键解析；catalog 写入请用 {@link parseWebFetchCatalogInput} */
 export function parseWebFetchCostInput(raw: string | null | undefined): number | null {
-	if (raw == null || !String(raw).trim()) {
-		return null;
-	}
-	const n = Number(String(raw).trim());
-	if (!Number.isFinite(n) || n < 0) {
-		return null;
-	}
-	return roundGatewayMoney(n);
+	return parseToolMoneyField(raw);
 }
 
 export function parseWebFetchActiveInput(raw: string | null | undefined): WebFetchProvider | null {
 	return parseWebFetchProviderInput(raw);
+}
+
+function parseEntry(
+	rec: Record<string, unknown>,
+	strict: boolean
+): WebFetchCatalogEntry | null {
+	if (typeof rec.apiKey !== 'string') {
+		return null;
+	}
+	const prices = normalizeToolUnitPrices(rec, DEFAULT_WEB_FETCH_COST, strict);
+	if (!prices) {
+		return null;
+	}
+	return {
+		apiKey: rec.apiKey.trim(),
+		...toToolPricingFields(prices),
+	};
 }
 
 /**
@@ -85,29 +106,11 @@ export function parseWebFetchCatalogInput(raw: string | null | undefined): WebFe
 		if (!value || typeof value !== 'object' || Array.isArray(value)) {
 			return null;
 		}
-		const rec = value as Record<string, unknown>;
-		if (typeof rec.apiKey !== 'string') {
+		const entry = parseEntry(value as Record<string, unknown>, true);
+		if (!entry) {
 			return null;
 		}
-		const costRaw = rec.cost;
-		let cost: number;
-		if (costRaw === undefined || costRaw === null || costRaw === '') {
-			cost = DEFAULT_WEB_FETCH_COST;
-		} else if (typeof costRaw === 'number') {
-			if (!Number.isFinite(costRaw) || costRaw < 0) {
-				return null;
-			}
-			cost = roundGatewayMoney(costRaw);
-		} else if (typeof costRaw === 'string') {
-			const parsedCost = parseWebFetchCostInput(costRaw);
-			if (parsedCost == null) {
-				return null;
-			}
-			cost = parsedCost;
-		} else {
-			return null;
-		}
-		out[provider] = { apiKey: rec.apiKey.trim(), cost };
+		out[provider] = entry;
 	}
 	return out;
 }
@@ -132,33 +135,41 @@ export function parseWebFetchCatalogLenient(raw: string | null | undefined): Web
 		if (!provider || !value || typeof value !== 'object' || Array.isArray(value)) {
 			continue;
 		}
-		const rec = value as Record<string, unknown>;
-		if (typeof rec.apiKey !== 'string') {
+		const entry = parseEntry(value as Record<string, unknown>, false);
+		if (!entry) {
 			continue;
 		}
-		let cost = DEFAULT_WEB_FETCH_COST;
-		if (typeof rec.cost === 'number' && Number.isFinite(rec.cost) && rec.cost >= 0) {
-			cost = roundGatewayMoney(rec.cost);
-		} else if (typeof rec.cost === 'string') {
-			const parsedCost = parseWebFetchCostInput(rec.cost);
-			if (parsedCost != null) {
-				cost = parsedCost;
-			}
-		}
-		out[provider] = { apiKey: rec.apiKey.trim(), cost };
+		out[provider] = entry;
 	}
 	return out;
 }
 
 export function serializeWebFetchCatalog(catalog: WebFetchCatalog): string {
-	return JSON.stringify(catalog);
+	const normalized: WebFetchCatalog = {};
+	for (const [key, entry] of Object.entries(catalog) as [WebFetchProvider, WebFetchCatalogEntry | undefined][]) {
+		if (!entry) continue;
+		normalized[key] = {
+			apiKey: entry.apiKey,
+			...toToolPricingFields({
+				metered: entry.metered,
+				standard: entry.standard,
+				charged: entry.charged ?? entry.cost,
+			}),
+		};
+	}
+	return JSON.stringify(normalized);
 }
 
 export type ResolvedWebFetchConfig = {
 	provider: WebFetchProvider;
 	apiKey: string | null;
-	/** 单价；单位随 Gateway 计费币种（`BILLING_CURRENCY`）。 */
+	/**
+	 * @deprecated 等于 {@link charged}；保留给旧调用方。
+	 */
 	cost: number;
+	metered: number;
+	standard: number;
+	charged: number;
 	sources: {
 		provider: 'system_config' | 'default';
 		apiKey: 'system_config' | 'missing';
@@ -172,6 +183,18 @@ export type ResolveWebFetchConfigResult =
 	| { ok: false; reason: 'invalid_provider'; raw: string }
 	| { ok: false; reason: 'invalid_catalog' }
 	| { ok: false; reason: 'active_missing_key'; provider: string };
+
+function pricesFromEntry(entry: WebFetchCatalogEntry | undefined): ToolUnitPrices {
+	if (!entry) {
+		const d = roundGatewayMoney(DEFAULT_WEB_FETCH_COST);
+		return { metered: d, standard: d, charged: d };
+	}
+	return {
+		metered: entry.metered,
+		standard: entry.standard,
+		charged: entry.charged ?? entry.cost,
+	};
+}
 
 /**
  * 从 `system_config` 解析 Web Fetch 配置。
@@ -216,17 +239,19 @@ export async function resolveWebFetchConfig(
 			return { ok: false, reason: 'active_missing_key', provider };
 		}
 
-		const cost = entry?.cost ?? DEFAULT_WEB_FETCH_COST;
+		const prices = pricesFromEntry(entry);
+		const fromConfig = entry != null;
 		return {
 			ok: true,
 			config: {
 				provider,
 				apiKey,
-				cost,
+				cost: prices.charged,
+				...prices,
 				sources: {
 					provider: providerSource,
 					apiKey: 'system_config',
-					cost: entry?.cost != null ? 'system_config' : 'default',
+					cost: fromConfig ? 'system_config' : 'default',
 					mode: 'catalog',
 				},
 			},
@@ -256,11 +281,15 @@ function buildLegacyResolved(
 ): ResolvedWebFetchConfig {
 	const configKey = apiKeyRaw?.trim() || '';
 	const parsedCost = parseWebFetchCostInput(costRaw);
+	const unit = parsedCost ?? DEFAULT_WEB_FETCH_COST;
 
 	return {
 		provider,
 		apiKey: configKey || null,
-		cost: parsedCost ?? DEFAULT_WEB_FETCH_COST,
+		cost: unit,
+		metered: unit,
+		standard: unit,
+		charged: unit,
 		sources: {
 			provider: providerSource,
 			apiKey: configKey ? 'system_config' : 'missing',

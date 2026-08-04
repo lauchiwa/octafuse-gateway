@@ -27,9 +27,11 @@ Operator
 
 Proxy 和 Admin 是两个独立 Worker，但 D1 绑定名都为 `DB`，且必须指向同一个数据库。
 
-## 本文实测基线
+## 版本基线
 
-本文在 2026-07-24 使用官方 `main` 的 **Octafuse Gateway 1.10.2** 完成真实部署：
+当前仓库版本为 **Octafuse Gateway 2.0.0**，D1 迁移共 **16 个**（截至 `0016_route_surfaces_pools.sql`）。从 1.11.x 升级前必须先阅读 [2.0 升级指南](../migrations/single-provider-key-cutover.md)。
+
+下列构建体积来自 2026-07-24 对 `1.10.2` 的历史实测，仅用于量级参考；2.0 部署应以本次终端输出为准：
 
 | 组件 | 实测版本 / 结果 |
 |------|-----------------|
@@ -39,7 +41,7 @@ Proxy 和 Admin 是两个独立 Worker，但 D1 绑定名都为 `DB`，且必须
 | `@opennextjs/cloudflare` | 1.19.4 |
 | Proxy gzip | 194.31 KiB |
 | Admin gzip | 2925.55 KiB |
-| D1 migrations | 13 个全部成功 |
+| 当时 D1 migrations | 13 个全部成功（2.0 当前为 16 个） |
 
 Cloudflare Workers Free 的单 Worker gzip 上限为 3 MiB；Admin 实测低于该上限，但余量不大。部署时应检查自己终端中的 `Total Upload ... gzip`，不要只依赖本文的历史数值。限制以 [Cloudflare Workers Limits](https://developers.cloudflare.com/workers/platform/limits/#worker-size) 为准。若免费额度余量吃紧或流量上来，也推荐升级 [Workers Paid](https://developers.cloudflare.com/workers/platform/pricing/)（约 $5/月）——量大管饱，性价比极高。
 
@@ -394,7 +396,7 @@ Admin → **Inference → Providers**：
 3. 导入后打开 Provider；
 4. 确认 endpoint；
 5. 添加上游 API Key；
-6. 保持 Provider 和这把 Key 为 active。
+6. 保持 Provider 为 active。
 
 上游 API Key 只用于 Gateway 访问供应商，不要把它发给下游用户。
 
@@ -414,15 +416,14 @@ Admin → **Inference → Models**：
 
 Admin → **Inference → Routes**：
 
-1. 新建 Route；
-2. 选择刚才的 Model；
-3. 选择 Provider；
-4. 填写供应商实际模型名；
-5. 选择正确的上游协议；
-6. 将 route group 至少加入客户端会使用的组，例如 `default`；
-7. 启用 Route。
+1. 为 Model 创建或选择 Request Surface，确定客户端协议与 operation，例如 `openai.chat`；
+2. 让 Surface 指向一个 Route Pool；Pool 可单独设置 `affinity`、`weighted_random`、`strict` 或 `round_robin`；
+3. 在 Pool 中添加 Upstream Target；
+4. 为 Target 选择 Provider、填写供应商实际模型名和上游 operation；
+5. 设置 `route_group`（例如 `default`）、`priority` 与 `weight`；
+6. 确认 Target 和 Provider 均为 active。
 
-一个模型可以有多个 Route，用优先级、限额和故障转移控制调度。
+同一 Pool 内先按 `priority` 从高到低分层，同层再按路由策略与 `weight` 排序；失败时自动切换下一个 Provider，并按 Provider 维度熔断。跨供应商硬主备请使用不同 `priority`。完整概念见 [Route 拓扑](../../developers/architecture/route-topology.md)。
 
 保存后再次查看：
 
@@ -432,7 +433,17 @@ curl -sS "$GATEWAY_URL/catalog/models"
 
 active route 配置正确时，模型会出现在公开目录中。
 
-### 9.4 创建用户和用户 API Key
+### 9.4 配置 Agent Tools（可选）
+
+Admin → **Tools → Configuration**：
+
+1. 分别为 Web Search、Web Fetch 或 Web Deep Search 配置引擎 API Key 与按次单价；
+2. 每种工具选择一个 Active 引擎；
+3. 保存后使用用户 API Key 调用 `/v1/tools/web-search`、`/v1/tools/web-fetch` 或 `/v1/tools/web-deep-search`。
+
+各工具支持的 Provider 与请求字段见 [Admin 配置指南](../../users/configuration.md#4-配置-agent-tools可选)。
+
+### 9.5 创建用户和用户 API Key
 
 Admin → **User → Users**：
 
@@ -477,6 +488,17 @@ curl -sS "$GATEWAY_URL/v1/chat/completions" \
       }
     ]
   }'
+```
+
+### 10.3 Agent Tool（可选）
+
+如果已在 Admin 中为 Web Search 配置 Active 引擎：
+
+```bash
+curl -sS "$GATEWAY_URL/v1/tools/web-search" \
+  -H "Authorization: Bearer $OCTAFUSE_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"Octafuse Gateway","count":5}'
 ```
 
 如果返回上游响应，部署与配置已经从零到一完成。随后可在 Admin 的 **Request Logs**、**Analytics** 和用户预算页面查看这次调用。

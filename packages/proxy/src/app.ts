@@ -16,6 +16,8 @@ import { modelsRoutes } from './routes/v1/models';
 import { webSearchRoutes } from './routes/v1/tools/web-search';
 import { webFetchRoutes } from './routes/v1/tools/web-fetch';
 import { webDeepSearchRoutes } from './routes/v1/tools/web-deep-search';
+import { aiDetectionRoutes } from './routes/v1/tools/ai-detection';
+import { toolsPricingRoutes } from './routes/v1/tools/pricing';
 import { imageRoutes } from './routes/v1/images';
 import { audioRoutes } from './routes/v1/audio';
 import { proxyAppVersion } from './app-version';
@@ -107,6 +109,8 @@ export function createProxyApp(resolveStorage: StorageResolver, options?: ProxyA
 	app.route('/v1/tools/web-search', webSearchRoutes);
 	app.route('/v1/tools/web-fetch', webFetchRoutes);
 	app.route('/v1/tools/web-deep-search', webDeepSearchRoutes);
+	app.route('/v1/tools/ai-detection', aiDetectionRoutes);
+	app.route('/v1/tools/pricing', toolsPricingRoutes);
 	app.route('/catalog', catalogRoutes);
 
 	app.get('/', (c) => c.json({ name: 'octafuse-proxy', version: proxyAppVersion }));

@@ -27,9 +27,12 @@ import {
   materializeNonOkResponse,
 } from '../../services/request-log-record-status';
 import {
-  maybeBlockSensitiveContentCircuit,
-  maybeTriggerSensitiveContentCircuitFromUpstream,
-} from '../../services/sensitive-content-circuit-route';
+  maybeBlockUserModelCircuit,
+  maybeTriggerUserModelCircuitFromUpstream,
+  markUserModelSuccess,
+} from '../../services/user-model-circuit-route';
+import { GatewayErrorCode } from '../../services/gateway-error-codes';
+import { gatewayErrorJson } from '../../services/gateway-error-response';
 import { RequestTimingCollector } from '../../services/request-timing';
 
 /** usage Promise 兜底超时（与 OpenAI/Anthropic 路由一致）。 */
@@ -122,7 +125,12 @@ geminiRoutes.post('/models/:modelAction', async (c) => {
   const timing = new RequestTimingCollector();
   const parsedAction = parseGeminiAction(c.req.param('modelAction'));
   if (!parsedAction) {
-    return c.json({ error: 'Invalid Gemini path, expected /v1beta/models/{model}:{generateContent|streamGenerateContent}' }, 400);
+    return gatewayErrorJson(c, {
+      status: 400,
+      code: GatewayErrorCode.invalidRequest,
+      message:
+        'Invalid Gemini path, expected /v1beta/models/{model}:{generateContent|streamGenerateContent}',
+    });
   }
 
   const { modelId: pathModelId, action } = parsedAction;
@@ -130,18 +138,30 @@ geminiRoutes.post('/models/:modelAction', async (c) => {
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: 'Invalid JSON body' }, 400);
+    return gatewayErrorJson(c, {
+      status: 400,
+      code: GatewayErrorCode.invalidJson,
+      message: 'Invalid JSON body',
+    });
   }
 
   const resolved = await resolveModelRouting(repos, pathModelId);
   if (!resolved) {
-    return c.json({ error: 'Model not found' }, 404);
+    return gatewayErrorJson(c, {
+      status: 404,
+      code: GatewayErrorCode.modelNotFound,
+      message: 'Model not found',
+    });
   }
   const { model, baseModelId, explicitGroup } = resolved;
   const effectiveRouteGroup = explicitGroup?.trim() || 'default';
 
   if (apiKey.budgetMax != null && apiKey.budgetSpent >= apiKey.budgetMax) {
-    return c.json({ error: 'Budget exceeded' }, 403);
+    return gatewayErrorJson(c, {
+      status: 403,
+      code: GatewayErrorCode.budgetExceeded,
+      message: 'Budget exceeded',
+    });
   }
 
   let routes: RouteResult[];
@@ -157,15 +177,18 @@ geminiRoutes.post('/models/:modelAction', async (c) => {
     poolStrategy = resolvedSurface.surface?.pool_strategy ?? null;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Model route resolution failed';
-    return c.json({ error: message }, 502);
+    return gatewayErrorJson(c, {
+      status: 502,
+      code: GatewayErrorCode.routeResolutionFailed,
+      message,
+    });
   }
   if (routes.length === 0) {
-    return c.json(
-      {
-        error: `No Gemini route in route group "${effectiveRouteGroup}" for this model`,
-      },
-      502
-    );
+    return gatewayErrorJson(c, {
+      status: 502,
+      code: GatewayErrorCode.noRoute,
+      message: `No Gemini route in route group "${effectiveRouteGroup}" for this model`,
+    });
   }
 
   const modelNameForLog =
@@ -174,7 +197,7 @@ geminiRoutes.post('/models/:modelAction', async (c) => {
       : baseModelId;
   const requestBodyForLog = geminiRequestBodyForLog(body, action);
 
-  const circuitBlocked = maybeBlockSensitiveContentCircuit(c, repos, apiKey, {
+  const circuitBlocked = maybeBlockUserModelCircuit(c, repos, apiKey, {
     baseModelId,
     modelNameForLog,
     requestBodyForLog,
@@ -210,9 +233,11 @@ geminiRoutes.post('/models/:modelAction', async (c) => {
   const { usagePromise, chosenRoute, upstreamRequestId, circuitEvents, suppressErrorAlert } = proxyResult;
   const { response, errorBodyText } = await materializeNonOkResponse(proxyResult.response);
 
-  let sensitiveCircuitEvent = null;
-  if (errorBodyText != null) {
-    sensitiveCircuitEvent = maybeTriggerSensitiveContentCircuitFromUpstream(
+  let userModelCircuitEvent = null;
+  if (response.ok) {
+    markUserModelSuccess(apiKey.userId, baseModelId);
+  } else if (errorBodyText != null) {
+    userModelCircuitEvent = maybeTriggerUserModelCircuitFromUpstream(
       apiKey.userId,
       baseModelId,
       response.status,
@@ -226,8 +251,8 @@ geminiRoutes.post('/models/:modelAction', async (c) => {
     );
   }
 
-  const alertCircuitEvents = sensitiveCircuitEvent
-    ? [...circuitEvents, sensitiveCircuitEvent]
+  const alertCircuitEvents = userModelCircuitEvent
+    ? [...circuitEvents, userModelCircuitEvent]
     : circuitEvents;
 
   const usageOrSafety = Promise.race([

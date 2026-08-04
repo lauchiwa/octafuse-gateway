@@ -1,0 +1,64 @@
+# 一次性运维：按 tag 删除 GHCR 三镜像对应 package version（含 multi-arch manifest）。
+# 用法：gh workflow run delete-ghcr-tag.yml -f version_tag=v2.2.0
+
+name: Delete GHCR tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: Tag to delete (e.g. v2.2.0)
+        required: true
+        type: string
+
+permissions:
+  packages: write
+  contents: read
+
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete matching package versions
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = '${{ inputs.version_tag }}'.trim();
+            const bare = tag.startsWith('v') ? tag.slice(1) : tag;
+            const want = new Set([tag, bare, `v${bare}`]);
+            const org = context.repo.owner;
+            const pkgs = [
+              'octafuse-gateway-proxy',
+              'octafuse-gateway-admin',
+              'octafuse-gateway-migrate',
+            ];
+            for (const name of pkgs) {
+              core.info(`Scanning ${org}/${name} for tags ${[...want].join(', ')}`);
+              const versions = await github.paginate(
+                github.rest.packages.getAllPackageVersionsForPackageOwnedByOrg,
+                {
+                  package_type: 'container',
+                  package_name: name,
+                  org,
+                  per_page: 100,
+                },
+              );
+              let deleted = 0;
+              for (const v of versions) {
+                const tags = v.metadata?.container?.tags || [];
+                if (!tags.some((t) => want.has(t))) continue;
+                core.info(`Deleting ${name} id=${v.id} tags=${JSON.stringify(tags)}`);
+                await github.rest.packages.deletePackageVersionForOrg({
+                  package_type: 'container',
+                  package_name: name,
+                  org,
+                  package_version_id: v.id,
+                });
+                deleted += 1;
+              }
+              if (deleted === 0) {
+                core.warning(`No matching versions for ${name}`);
+              } else {
+                core.info(`Deleted ${deleted} version(s) for ${name}`);
+              }
+            }

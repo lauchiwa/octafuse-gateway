@@ -527,6 +527,16 @@ export default function GatewayRequestLogsPage() {
     const idOnly = !pname && Boolean(pid);
     const providerTitle =
       pname && pid && pname !== pid ? `Provider: ${pname} (id: ${pid})` : providerDisplay || undefined;
+    /** Agent Tools：第二行是引擎 id（如 bocha），不是 LLM upstream model；协议徽章占位勿展示 */
+    const isAgentTool = pid === 'octafuse-tools';
+    const showUpstreamProtocol = !isAgentTool && Boolean(log.upstream_protocol || log.upstream_operation);
+    const engineOrUpstreamTitle = isAgentTool
+      ? upstream
+        ? `Tool engine: ${upstream}`
+        : undefined
+      : upstream
+        ? `Upstream model: ${upstream}`
+        : undefined;
 
     return (
       <div className="min-w-0 leading-tight">
@@ -536,14 +546,17 @@ export default function GatewayRequestLogsPage() {
         >
           {providerDisplay || '-'}
         </div>
-        {upstream || log.upstream_protocol || log.upstream_operation ? (
+        {upstream || showUpstreamProtocol ? (
           <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
             {upstream ? (
-              <span className="min-w-0 truncate font-mono text-gray-600" title={`Upstream model: ${upstream}`}>
+              <span
+                className={`min-w-0 truncate font-mono ${isAgentTool ? 'text-indigo-700' : 'text-gray-600'}`}
+                title={engineOrUpstreamTitle}
+              >
                 {upstream}
               </span>
             ) : null}
-            {log.upstream_protocol || log.upstream_operation ? (
+            {showUpstreamProtocol ? (
               <span
                 className="shrink-0 truncate font-mono text-[10px] text-indigo-600"
                 title={[log.upstream_protocol, log.upstream_operation].filter(Boolean).join(' · ')}

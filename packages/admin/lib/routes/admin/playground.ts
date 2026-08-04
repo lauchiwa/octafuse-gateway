@@ -1,6 +1,7 @@
 /**
- * 管理路由：`/admin/playground` — 管理员按单条 `model_routes` 直连上游试调用。
- * 不写 `api_key_request_logs`、不扣 API Key 预算、无 failover；仅用于验证 provider / 模型连通性。
+ * 管理路由：`/admin/playground` — 管理员试调用。
+ * - routeId 分支：直连单条 model_routes 上游（不计费、不写 logs、无 failover）
+ * - toolId 分支：读 system_config catalog 直连工具引擎（可测非 Active；不计费、不写 logs）
  */
 import { Hono } from 'hono';
 import type { AdminEnv } from '@/lib/admin-env';
@@ -9,6 +10,7 @@ import type { GeminiContentAction } from '@octafuse/core/gemini-upstream-url';
 import type { ImageOperation } from '@/lib/image-generations';
 import { invokePlaygroundUpstream } from '@/lib/services/admin/playground-service';
 import type { PlaygroundOpenAiSurface } from '@/lib/services/admin/playground-service';
+import { invokePlaygroundTool } from '@/lib/services/admin/playground-tools-service';
 import { handleAdminRouteError } from './error-response';
 
 export const adminPlaygroundRoutes = new Hono<AdminEnv>();
@@ -17,6 +19,8 @@ adminPlaygroundRoutes.use('*', requireMasterKey);
 
 type PlaygroundPostBody = {
 	routeId?: unknown;
+	toolId?: unknown;
+	provider?: unknown;
 	body?: unknown;
 	geminiAction?: unknown;
 	openaiSurface?: unknown;
@@ -31,10 +35,57 @@ adminPlaygroundRoutes.post('/', async (c) => {
 		return c.json({ success: false as const, message: 'Invalid JSON body' }, 400);
 	}
 
-	const routeId = typeof parsed.routeId === 'string' ? parsed.routeId : '';
 	const rawBody = parsed.body;
 	if (rawBody == null || typeof rawBody !== 'object' || Array.isArray(rawBody)) {
 		return c.json({ success: false as const, message: 'body must be a JSON object' }, 400);
+	}
+
+	const toolId = typeof parsed.toolId === 'string' ? parsed.toolId.trim() : '';
+	const routeId = typeof parsed.routeId === 'string' ? parsed.routeId.trim() : '';
+
+	if (toolId && routeId) {
+		return c.json(
+			{ success: false as const, message: 'Provide either routeId or toolId, not both' },
+			400
+		);
+	}
+
+	if (toolId) {
+		const provider = typeof parsed.provider === 'string' ? parsed.provider : '';
+		try {
+			const { response, upstreamUrlForHeader, latencyMs, upstreamWireBodyJson } =
+				await invokePlaygroundTool(
+					c.get('repositories'),
+					{
+						toolId,
+						provider,
+						body: rawBody as Record<string, unknown>,
+					},
+					c.req.raw.signal
+				);
+
+			const headers = new Headers(response.headers);
+			headers.set('x-playground-latency-ms', String(latencyMs));
+			headers.set('x-playground-upstream-status', String(response.status));
+			headers.set('x-playground-upstream-url', upstreamUrlForHeader);
+			headers.set('x-playground-request-body', encodeURIComponent(upstreamWireBodyJson));
+			headers.set('x-playground-mode', 'tool');
+
+			return new Response(response.body, {
+				status: response.status,
+				statusText: response.statusText,
+				headers,
+			});
+		} catch (error) {
+			return handleAdminRouteError(c, error, 'Playground tool invoke failed');
+		}
+	}
+
+	if (!routeId) {
+		return c.json(
+			{ success: false as const, message: 'routeId or toolId is required' },
+			400
+		);
 	}
 
 	let geminiAction: GeminiContentAction | undefined;
@@ -86,6 +137,7 @@ adminPlaygroundRoutes.post('/', async (c) => {
 		headers.set('x-playground-upstream-status', String(response.status));
 		headers.set('x-playground-upstream-url', upstreamUrlForHeader);
 		headers.set('x-playground-request-body', encodeURIComponent(upstreamWireBodyJson));
+		headers.set('x-playground-mode', 'route');
 
 		return new Response(response.body, {
 			status: response.status,

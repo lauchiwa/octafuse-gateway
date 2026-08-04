@@ -41,6 +41,7 @@ export type ResponseTab = 'merged' | 'raw';
 export type SendBlockReason =
 	| 'proxyBaseUrl'
 	| 'model'
+	| 'tool'
 	| 'imageProtocol'
 	| 'audioProtocol'
 	| 'editImages'

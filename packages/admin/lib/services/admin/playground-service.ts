@@ -29,6 +29,7 @@ import {
 	IMAGE_MAX_TOTAL_UPLOAD_BYTES,
 	type ImageOperation,
 } from '@/lib/image-generations';
+import { modelKindFromFlags, resolveOpenaiUpstreamCapability } from '@/lib/invoke-kind';
 import { AdminServiceError, badRequest, notFound } from './errors';
 import { isPendingProviderImportApiKey } from '@octafuse/core/db/provider-key-utils';
 
@@ -456,15 +457,22 @@ export async function invokePlaygroundUpstream(
 				: 'generations'
 			: null;
 
+	const invokeKind = modelKindFromFlags(route.isAudioModel, route.isImageModel);
+
 	switch (route.upstreamProtocol) {
 		case 'openai': {
 			if (route.isAudioModel) {
 				const collected = collectAudioFileFromBody(merged);
 				if (!collected.ok) throw badRequest(collected.error);
 				try {
-					url = resolveUpstreamEndpoint('openai', 'audio.transcriptions', route.providerEndpoints, {
-						providerId: route.providerId,
-					});
+					url = resolveUpstreamEndpoint(
+						'openai',
+						resolveOpenaiUpstreamCapability({ kind: 'audio' }),
+						route.providerEndpoints,
+						{
+							providerId: route.providerId,
+						}
+					);
 				} catch (e) {
 					throw badRequest(
 						e instanceof Error ? e.message : 'Failed to resolve OpenAI audio transcriptions URL'
@@ -508,9 +516,14 @@ export async function invokePlaygroundUpstream(
 				const collected = collectEditImagesFromBody(merged);
 				if (!collected.ok) throw badRequest(collected.error);
 				try {
-					url = resolveUpstreamEndpoint('openai', 'images.edits', route.providerEndpoints, {
-						providerId: route.providerId,
-					});
+					url = resolveUpstreamEndpoint(
+						'openai',
+						resolveOpenaiUpstreamCapability({ kind: 'image', imageOperation: 'edits' }),
+						route.providerEndpoints,
+						{
+							providerId: route.providerId,
+						}
+					);
 				} catch (e) {
 					throw badRequest(e instanceof Error ? e.message : 'Failed to resolve OpenAI edits URL');
 				}
@@ -553,13 +566,13 @@ export async function invokePlaygroundUpstream(
 				break;
 			}
 
-			// 非图像模型时由 openaiSurface 决定 chat 还是 responses；
+			// 上游的统一 capability 解析 + fork 的 Responses 面；
 			// responses 走与 Proxy 相同的显式声明约定（provider 未配则 resolveUpstreamEndpoint 抛错）。
-			const capability: ProviderEndpointCapability = imageOperation === 'generations'
-				? 'images.generations'
-				: input.openaiSurface === 'responses'
-					? 'responses'
-					: 'chat';
+			const capability = resolveOpenaiUpstreamCapability({
+				kind: invokeKind === 'image' ? 'image' : 'llm',
+				imageOperation: imageOperation === 'generations' ? 'generations' : undefined,
+				openaiSurface: input.openaiSurface,
+			});
 			try {
 				url = resolveUpstreamEndpoint('openai', capability, route.providerEndpoints, {
 					providerId: route.providerId,

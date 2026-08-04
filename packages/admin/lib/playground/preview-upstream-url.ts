@@ -14,6 +14,7 @@ import {
 	normalizeUpstreamProtocol,
 	type UpstreamProtocol,
 } from '@octafuse/core/upstream-protocol';
+import { modelKindFromFlags, resolveOpenaiUpstreamCapability } from '@/lib/invoke-kind';
 
 export type PlaygroundProviderBaseUrls = ProviderEndpointsSource & {
 	id: string;
@@ -62,15 +63,12 @@ export function previewPlaygroundUpstreamUrl(input: {
 	try {
 		switch (protocol) {
 			case 'openai': {
-				const capability = input.isAudioModel
-					? 'audio.transcriptions'
-					: input.isImageModel
-						? input.imageOperation === 'edits'
-							? 'images.edits'
-							: 'images.generations'
-						: input.openaiSurface === 'responses'
-							? 'responses'
-							: 'chat';
+				const kind = modelKindFromFlags(Boolean(input.isAudioModel), Boolean(input.isImageModel));
+				const capability = resolveOpenaiUpstreamCapability({
+					kind,
+					imageOperation: input.imageOperation,
+					openaiSurface: input.openaiSurface,
+				});
 				return resolveUpstreamEndpoint(protocol, capability, providerEndpoints, {
 					providerId: provider.id,
 				});

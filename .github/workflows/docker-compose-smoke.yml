@@ -1,0 +1,93 @@
+# 本地 compose 冒烟：构建 proxy + admin，起 Postgres，等 HEALTHCHECK。
+# 拦住 Dockerfile / esbuild 打包契约类启动失败（如 ERR_MODULE_NOT_FOUND）。
+
+name: Docker Compose Smoke (node-pg)
+
+on:
+  pull_request:
+    paths:
+      - "Dockerfile.proxy"
+      - "Dockerfile.admin"
+      - "Dockerfile.migrate"
+      - "docker/**"
+      - "packages/core/**"
+      - "packages/tool-engines/**"
+      - "packages/proxy/**"
+      - "packages/admin/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/docker-compose-smoke.yml"
+  push:
+    branches: [main]
+    paths:
+      - "Dockerfile.proxy"
+      - "Dockerfile.admin"
+      - "Dockerfile.migrate"
+      - "docker/**"
+      - "packages/core/**"
+      - "packages/tool-engines/**"
+      - "packages/proxy/**"
+      - "packages/admin/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/docker-compose-smoke.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: docker-compose-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke-node-pg:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and start postgres + proxy + admin
+        run: |
+          set -euo pipefail
+          docker compose -f docker/compose/node-pg.yml up -d --build postgres gateway-proxy gateway-admin
+
+      - name: Wait for proxy health
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 60); do
+            if curl -fsS "http://127.0.0.1:8787/health" >/dev/null; then
+              echo "proxy healthy after ${i}s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "proxy failed to become healthy" >&2
+          docker compose -f docker/compose/node-pg.yml logs gateway-proxy | tail -80
+          exit 1
+
+      - name: Wait for admin health
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 90); do
+            if curl -fsS "http://127.0.0.1:8789/" >/dev/null; then
+              echo "admin healthy after ${i}s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "admin failed to become healthy" >&2
+          docker compose -f docker/compose/node-pg.yml logs gateway-admin | tail -80
+          exit 1
+
+      - name: Smoke GET endpoints
+        run: |
+          set -euo pipefail
+          curl -fsS "http://127.0.0.1:8787/health" | head -c 400
+          echo
+          curl -fsS -o /dev/null -w "admin_http=%{http_code}\n" "http://127.0.0.1:8789/"
+
+      - name: Teardown
+        if: always()
+        run: docker compose -f docker/compose/node-pg.yml down -v --remove-orphans || true

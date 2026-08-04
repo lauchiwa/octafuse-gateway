@@ -11,7 +11,7 @@ import {
 	assertFetchUrlSafe,
 	fetchUrlByProvider,
 	WebFetchProviderError,
-} from '../../../services/web-fetch';
+} from '@octafuse/tool-engines/web-fetch';
 
 type ToolsEnv = Env & { Variables: { apiKey: import('../../../middleware/auth').ApiKeyContext } };
 
@@ -36,7 +36,13 @@ webFetchRoutes.post('/', async (c) => {
 		return c.json({ error: 'Web fetch provider is misconfigured' }, 503);
 	}
 
-	const { provider, apiKey: providerApiKey, cost: toolCost } = resolved.config;
+	const {
+		provider,
+		apiKey: providerApiKey,
+		metered: unitMetered,
+		standard: unitStandard,
+		charged: unitCharged,
+	} = resolved.config;
 	if (!providerApiKey) {
 		return c.json({ error: 'Web fetch is not configured' }, 503);
 	}
@@ -44,7 +50,7 @@ webFetchRoutes.post('/', async (c) => {
 	if (apiKey.budgetMax != null && apiKey.budgetSpent >= apiKey.budgetMax) {
 		return c.json({ error: 'Budget exceeded' }, 403);
 	}
-	if (!canAffordToolCost(apiKey.budgetMax, apiKey.budgetSpent, toolCost)) {
+	if (!canAffordToolCost(apiKey.budgetMax, apiKey.budgetSpent, unitCharged)) {
 		return c.json({ error: 'Budget exceeded' }, 403);
 	}
 
@@ -77,7 +83,13 @@ webFetchRoutes.post('/', async (c) => {
 			userId: apiKey.userId,
 			userEmail: apiKey.userEmail,
 			toolId: 'tool:web-fetch',
-			chargedCost: toolCost,
+			toolProvider: provider,
+			meteredCost: unitMetered,
+			standardCost: unitStandard,
+			chargedCost: unitCharged,
+			pricingUnit: 'request',
+			billingUnits: 1,
+			unitPrices: { metered: unitMetered, standard: unitStandard, charged: unitCharged },
 			latencyMs,
 			requestBody: JSON.stringify({
 				url: guarded.url,
@@ -112,7 +124,13 @@ webFetchRoutes.post('/', async (c) => {
 				userId: apiKey.userId,
 				userEmail: apiKey.userEmail,
 				toolId: 'tool:web-fetch',
+				toolProvider: provider,
+				meteredCost: 0,
+				standardCost: 0,
 				chargedCost: 0,
+				pricingUnit: 'request',
+				billingUnits: 1,
+				unitPrices: { metered: unitMetered, standard: unitStandard, charged: unitCharged },
 				latencyMs,
 				requestBody: JSON.stringify({ url: guarded.url, provider }),
 				errorMessage: message,

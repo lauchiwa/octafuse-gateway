@@ -45,6 +45,8 @@ export * from './lib/alert-webhook-system-config';
 export * from './lib/web-search-system-config';
 export * from './lib/web-fetch-system-config';
 export * from './lib/web-deep-search-system-config';
+export * from './lib/ai-detection-system-config';
+export * from './lib/tool-pricing';
 export * from './lib/route-strategy-system-config';
 export * from './lib/money-precision';
 export * from './lib/string-utils';

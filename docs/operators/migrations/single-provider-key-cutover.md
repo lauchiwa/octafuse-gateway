@@ -1,14 +1,17 @@
-# 单键 Provider + 路由策略切换（迁移 0017）
+# 1.11.x → 2.0：单键 Provider + 路由拓扑（本 fork 迁移 0017 / 0018）
 
-将 `provider_api_keys` 折叠为 **一个 Provider 一把 `api_key`**，并引入可切换路由策略（`ROUTE_STRATEGY` / `models.route_policy` / `model_routes.weight`）。
+2.0 将 `provider_api_keys` 折叠为 **一个 Provider 一把 `api_key`**，引入可切换路由策略，并把公开请求入口、故障转移池和上游 Target 拆成显式路由拓扑。
 
 **迁移文件**（三库同语义）：
 
 - `packages/core/migrations-d1/0017_single_provider_key.sql`
 - `packages/core/migrations-postgres/0017_single_provider_key.sql`
 - `packages/core/migrations-mysql/0017_single_provider_key.sql`
+- `packages/core/migrations-d1/0018_route_surfaces_pools.sql`
+- `packages/core/migrations-postgres/0018_route_surfaces_pools.sql`
+- `packages/core/migrations-mysql/0018_route_surfaces_pools.sql`
 
-**行为说明**：[route-strategies.md](../../developers/reference/route-strategies.md) · [proxy-request-lifecycle.md](../../developers/architecture/proxy-request-lifecycle.md)
+**行为说明**：[route-topology.md](../../developers/architecture/route-topology.md) · [route-strategies.md](../../developers/reference/route-strategies.md) · [proxy-request-lifecycle.md](../../developers/architecture/proxy-request-lifecycle.md)
 
 ---
 
@@ -30,7 +33,9 @@ DATABASE_URL='postgres://...' node scripts/db/export-provider-api-keys.mjs > pro
 
 ---
 
-## 2. 应用迁移 0017
+## 2. 依次应用迁移 0017 / 0018
+>
+> 0017 会删除旧表，**不适合让 1.11 与 2.0 实例并行写同一数据库**。生产升级应安排维护窗口：停止旧 Proxy / Admin 写入，完成数据库备份与密钥导出，再执行迁移并整体切换到 2.0。
 
 按当前部署模式选一：
 
@@ -41,7 +46,9 @@ DATABASE_URL='postgres://...' node scripts/db/export-provider-api-keys.mjs > pro
 | Postgres | `npm run db:migrate:pg` |
 | MySQL | `npm run db:migrate:mysql` |
 
-迁移会：
+迁移命令会按编号顺序应用尚未执行的 SQL。不要跳过 0017 直接执行 0018。
+
+0017 会：
 
 1. `providers` 增加 `api_key`、`status`；从首把 active key 回填；无 key 则 `status=disabled`
 2. `model_routes` 增加 `weight`（默认 1）
@@ -49,7 +56,15 @@ DATABASE_URL='postgres://...' node scripts/db/export-provider-api-keys.mjs > pro
 4. 删除 `models.sticky_config`，增加 `models.route_policy`
 5. `INSERT OR IGNORE` / 等价写入 `system_config.ROUTE_STRATEGY = 'affinity'`
 
-然后部署含本重构的 Proxy / Admin 版本（Admin 不再提供 `/admin/providers/:id/keys*`）。
+0018 随后会：
+
+1. 新增 `route_pools` 与 `model_surfaces`
+2. 为历史 `model_id + route_group + upstream_protocol` 组合创建兼容 Route Pool
+3. 为每个兼容 Pool 创建 `request_operation='*'` 的 wildcard Surface
+4. 为 `model_routes` 增加 `route_pool_id`、`upstream_operation`、`adapter` 并关联历史路由
+5. 为请求日志增加 Surface / Pool / Target、operation、adapter 与 `route_trace` 字段
+
+然后部署 2.0 Proxy / Admin（Admin 不再提供 `/admin/providers/:id/keys*`，Routes 页面改为 Surface → Pool → Target 流程视图）。
 
 ---
 
@@ -94,10 +109,11 @@ curl -X PUT "$GATEWAY_MASTER_URL/api/admin/config" \
 
 - [ ] `GET /api/admin/providers`：列表含脱敏 `api_key`、`status`；**无** `/keys` 子资源
 - [ ] `GET /api/admin/providers/:id/api-key`：可揭示明文（鉴权 MASTER_KEY）
-- [ ] `GET /api/admin/routes`：行含 `weight`
+- [ ] `GET /api/admin/routes`：行含 `weight`、`route_pool_id`、`surfaces`、`upstream_operation`、`adapter`
 - [ ] `GET /api/admin/config`：存在 `ROUTE_STRATEGY=affinity`（或你设定的值）
-- [ ] Proxy：`POST /v1/chat/completions` 成功；Request Logs 中 `provider_key_id` ≈ provider id，`provider_key_label` ≈ provider name
+- [ ] `route_pools` / `model_surfaces` 已创建；历史路由均有 `route_pool_id`
+- [ ] Proxy：`POST /v1/chat/completions` 成功；Request Logs 中有 `model_surface_id`、`route_pool_id`、`route_target_id`，且 `provider_key_id` ≈ provider id、`provider_key_label` ≈ provider name
 - [ ] 故意打挂主 provider（或置 `status=disabled`）后，同层/下层路由 failover 仍可用
 - [ ] 旧 sticky / limit_config UI/API 已不存在；勿再依赖 `provider_api_keys` 表
 
-回滚：需从备份恢复库 + 部署旧版本；0015 为破坏性 schema 变更，无自动 down 脚本。
+回滚：需从备份恢复库 + 部署旧版本；0017 / 0018 均无自动 down 脚本，其中 0017 会删除旧 key 表，必须依赖迁移前备份恢复。

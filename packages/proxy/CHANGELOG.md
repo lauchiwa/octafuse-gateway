@@ -1,5 +1,58 @@
 # @octafuse/proxy
 
+## 2.1.1
+
+### Patch Changes
+
+- [`8e1f634`](https://github.com/OctaFuse/octafuse-gateway/commit/8e1f634d846cc97da4e1e47456e141103fc1d7e6) Thanks [@dyc87112](https://github.com/dyc87112)! - ### Proxy
+
+  - **User+model 熔断**：敏感内容与普通上游 400 共用 `20s → 1m → 3m → 5m → 10m` 退避（不区分请求体）；短路用 code 区分类别（`circuit.sensitive_content` / `circuit.client_error`）。替换原独立 sensitive-content 熔断实现。
+  - **Images / Audio**：退出普通 400（`client_error`）熔断，仅保留 sensitive_content 触发。
+  - **Failover**：循环内复查已熔断 provider；401/403 provider 冷却由 10min 调整为 5min。
+  - **错误码契约**：网关自造 / 熔断 / 上游分类错误增加固定 `code`（`gateway.*` / `circuit.*` / `upstream.*`）与响应头 `X-OctaFuse-Error-Code`；body 既有 `error` 形状纯增量。
+  - **诊断**：`gateway.upstream_request_failed` 的 message 附带原始 fetch 错误摘要（与 `route_resolution_failed` 一致），便于客户端与 Langfuse 排查。
+
+  ### Admin
+
+  - **阿里云模型预设**：新增正式版 `qwen3.8-max` 与 `qwen3.7-flash`；同步修正 `qwen3.8-max-preview` 的缓存价 / 模态 / 输出上限；`qwen3.7-plus` / `qwen3.7-max` 的 `max_tokens` 对齐为 `128000`。
+
+  ### 文档
+
+  - 更新 API 与 `proxy-request-lifecycle` / `runtime-data` 说明，覆盖错误码头与 user+model 熔断行为。
+
+- Updated dependencies [[`8e1f634`](https://github.com/OctaFuse/octafuse-gateway/commit/8e1f634d846cc97da4e1e47456e141103fc1d7e6)]:
+  - @octafuse/core@2.1.1
+  - @octafuse/tool-engines@2.1.1
+
+## 2.1.0
+
+### Minor Changes
+
+- [`3a53d2f`](https://github.com/OctaFuse/octafuse-gateway/commit/3a53d2f1b3e11308e7d5497b895978d55c37f152) Thanks [@dyc87112](https://github.com/dyc87112)! - ### Proxy / Core
+
+  - **Tools / AI Detection**：新增 `POST /v1/tools/ai-detection`（腾讯 TMS 引擎；按字符计费单元扣预算）。
+  - **Tools / Pricing**：新增只读 `GET /v1/tools/pricing`（返回工具单价；不含引擎密钥）。
+  - **工具三账本定价**：web-search / web-fetch / web-deep-search / ai-detection 统一 **metered / standard / charged**；`cost` 为 charged 兼容别名。
+  - **`@octafuse/tool-engines`**：抽出共享引擎客户端包（web-search / web-fetch / web-deep-search / ai-detection）；Proxy 与 Admin Playground 共用，避免 Admin 直接依赖 Proxy 源码。
+
+  ### Admin UI
+
+  - **Tools**：配置页全局 secrets 显隐；调用记录展示 std / charged / metered / profit 与 engine provider。
+  - **Request Logs**：区分 agent tools 与上游模型，展示引擎 provider。
+  - **Playground / Simulator**：支持 AI Detection 联调。
+  - **Providers**：删除时若仍被 `model_routes` 引用则拒绝，避免断路由。
+
+  ### 文档 / 工程
+
+  - 更新用户 / 开发者 / 运维文档与 API 说明（工具定价、AI Detection、route topology）。
+  - Docker 构建纳入 `packages/tool-engines`；新增 docker-compose smoke workflow。
+
+### Patch Changes
+
+- Updated dependencies [[`3a53d2f`](https://github.com/OctaFuse/octafuse-gateway/commit/3a53d2f1b3e11308e7d5497b895978d55c37f152)]:
+  - @octafuse/core@2.1.0
+  - @octafuse/tool-engines@2.1.0
+
 ## 2.0.0
 
 ### Major Changes
@@ -12,9 +65,10 @@
   - 删除网关侧 per-key RPM/TPM/并发软限流与粘性 key 绑定（`models.sticky_config`）
   - `models.sticky_config` 替换为 `models.route_policy`；`model_routes` 新增 `weight`
   - 新增全局 `system_config.ROUTE_STRATEGY`（默认 `affinity`）与四策略：`affinity` / `weighted_random` / `strict` / `round_robin`
+  - 新增路由拓扑 v2：`model_surfaces`（公开请求入口）→ `route_pools`（故障转移池）→ `model_routes`（上游 Target）；支持 request / upstream operation、Pool 级策略与路由追踪字段
   - Proxy 调度改为 priority 分层 + 策略排序 + provider 维度熔断；请求日志 `provider_key_*` 列语义改为 provider id/name/fingerprint
 
-  上线前请用 `scripts/db/export-provider-api-keys.mjs` 导出密钥，再应用迁移 `0017_single_provider_key.sql`。详见 `docs/operators/migrations/single-provider-key-cutover.md`。
+  上线前请用 `scripts/db/export-provider-api-keys.mjs` 导出密钥，再依次应用本 fork 重编号后的迁移 `0017_single_provider_key.sql` 与 `0018_route_surfaces_pools.sql`。详见 `docs/operators/migrations/single-provider-key-cutover.md`。
 
 ### Patch Changes
 

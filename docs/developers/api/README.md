@@ -1,6 +1,6 @@
 # Octafuse API 文档
 
-OpenAI 兼容的 AI Gateway：用户推理、API Key 与目录管理、用量与日志。实现分布在 **`packages/proxy`**（用户协议）、**`packages/admin`**（管理协议）与共享库 **`packages/core`**。
+多协议 AI 能力网关：提供 OpenAI、Anthropic、Gemini 兼容推理，Images、Audio Transcriptions、Agent Tools、用户 API Key、公开能力目录、用量与日志。实现分布在 **`packages/proxy`**（用户协议）、**`packages/admin`**（管理协议）、**`packages/tool-engines`**（Tools 上游引擎客户端，source-only）与共享库 **`packages/core`**。
 
 ## 部署形态与 Base URL
 
@@ -16,6 +16,7 @@ OpenAI 兼容的 AI Gateway：用户推理、API Key 与目录管理、用量与
 ## 扩展文档
 
 - [运行时与数据存储架构](../architecture/runtime-data.md)（Cloudflare / Node，D1 / Postgres / MySQL）
+- [2.0 路由拓扑](../architecture/route-topology.md)（Request Surface → Route Pool → Upstream Target）
 - [渠道模型思考参数配置说明](../reference/provider-thinking-configs.md)
 - [文生图模型（gpt-image-2 / Seedream）](../reference/image-models.md)
 - [路由策略（affinity / weighted_random / …）](../reference/route-strategies.md)
@@ -63,6 +64,8 @@ OpenAI 兼容的 AI Gateway：用户推理、API Key 与目录管理、用量与
 | `/v1/tools/web-search` | POST | Agent Tools：联网搜索（按次计费；Admin Tools 配置 Active 引擎） |
 | `/v1/tools/web-fetch` | POST | Agent Tools：网页抓取（按次计费） |
 | `/v1/tools/web-deep-search` | POST | Agent Tools：深度检索（搜+读；按次计费） |
+| `/v1/tools/ai-detection` | POST | Agent Tools：AI 率检测（按计费字符单元计费） |
+| `/v1/tools/pricing` | GET | Agent Tools：只读定价（不含密钥与 Active 引擎名） |
 | `/v1/messages` | POST | Anthropic Messages |
 | `/v1beta/models/:modelAction` | POST | Gemini `generateContent` / `streamGenerateContent` |
 | `/v1/models` | GET | 模型列表（需用户 Key；OpenAI 兼容形态；默认仅 LLM，可用 `kind=image` / `kind=audio` / `kind=all`） |
@@ -73,8 +76,22 @@ OpenAI 兼容的 AI Gateway：用户推理、API Key 与目录管理、用量与
 
 | 场景 | 响应体 |
 |------|--------|
-| **`/v1/*`** | 多为 `{ "error": "..." }` |
+| **`/v1/*` 网关自造** | `{ "error": "...", "code": "gateway.*" }`（`error` **保持字符串**；另加响应头 `X-OctaFuse-Error-Code`） |
+| Provider 全部熔断（429） | `{ "error": { "code": "circuit.upstream_capacity_exhausted", "type": "upstream_capacity_exhausted", "message": "...", "retry_after_seconds": 30 } }`，并带 `Retry-After` |
+| 敏感内容熔断（429） | `{ "error": { "code": "circuit.sensitive_content", ... } }` + `Retry-After`（LLM / images / audio 均可能） |
+| 上游 400 客户端错误熔断（400） | `{ "error": { "code": "circuit.client_error", "type": "upstream_client_error_circuit_open", "message": "<回放原文>", ... } }`（**仅** chat / messages / gemini；images / audio **不会**出现此短路） |
+| 上游透传非 2xx | **body 不改**；响应头 `X-OctaFuse-Error-Code: upstream.*` |
 | **管理接口**：未授权 | 多为 `{ "error": "Unauthorized" }`（401） |
 | **管理接口**：业务失败 | 多为 `{ "success": false, "message": "..." }` |
 
-常见 HTTP 状态码：400 参数错误；401 认证失败；403 预算/配额；404 资源不存在；500 服务器错误；502 路由/上游错误。
+### 固定错误 code（Agent 对接契约）
+
+响应头 **`X-OctaFuse-Error-Code`** 覆盖所有非 2xx。网关自造错误另在 body 顶层（或嵌套 `error.code`）带同一值。
+
+| 前缀 | 含义 | 示例 |
+|------|------|------|
+| `gateway.*` | 请求未出网关 | `gateway.budget_exceeded`、`gateway.invalid_json`、`gateway.model_not_found`、`gateway.auth_failed`、`gateway.no_route`、`gateway.route_resolution_failed`、`gateway.invalid_request`、`gateway.upstream_request_failed` |
+| `circuit.*` | 熔断短路（未打上游） | `circuit.sensitive_content`、`circuit.client_error`、`circuit.upstream_capacity_exhausted` |
+| `upstream.*` | 已打上游，网关分类 | `upstream.content_filter`（敏感 400）、`upstream.invalid_request`（其他 400）、`upstream.rate_limited`、`upstream.auth_failed`、`upstream.not_found`、`upstream.server_error`、`upstream.timeout` |
+
+常见 HTTP 状态码：400 参数错误 / 上游客户端错误熔断（chat 等）；401 认证失败；403 预算/配额；404 资源不存在；429 敏感内容熔断或全部 provider 熔断；500 服务器错误；502 路由/上游错误。熔断策略细节见 [proxy-request-lifecycle.md](../architecture/proxy-request-lifecycle.md) §2.2 / §3.2。

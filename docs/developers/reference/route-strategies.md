@@ -1,10 +1,8 @@
 # 路由策略（Route Strategies）
 
-同 `model_routes.priority` 层内的排序策略为可插拔实现。全局缺省与 per-model 覆盖共同决定本次请求使用哪一种。
+同一个 Route Pool 的 `model_routes.priority` 层内，排序策略为可插拔实现。Pool、模型与全局配置共同决定本次请求使用哪一种。
 
-**代码**：`packages/proxy/src/services/route-strategies/` · 解析：`@octafuse/core` 的 `model-route-policy.ts` / `route-strategy-system-config.ts`  
-**生命周期**：见 [proxy-request-lifecycle.md](../architecture/proxy-request-lifecycle.md)  
-**运维切换**：迁移后建议 `ROUTE_STRATEGY=affinity`，见 [single-provider-key-cutover.md](../../operators/migrations/single-provider-key-cutover.md)
+**代码**：`packages/proxy/src/services/route-strategies/` · **路由拓扑**：[route-topology.md](../architecture/route-topology.md) · **生命周期**：[proxy-request-lifecycle.md](../architecture/proxy-request-lifecycle.md) · **升级切换**：[single-provider-key-cutover.md](../../operators/migrations/single-provider-key-cutover.md)
 
 ---
 
@@ -59,17 +57,18 @@ Affinity 分数：`score = max(1, weight) / -ln(u)`，`u` 来自 FNV-1a（`route
 
 ---
 
-## 五级解析顺序
+## 六级解析顺序
 
 `resolveRouteStrategy`：
 
-1. **capability × route_group** rule（`route_policy.rules`）
-2. **protocol × route_group** rule
-3. **model 顶层** `route_policy.strategy`
-4. **全局** `system_config.ROUTE_STRATEGY`（进程内缓存 **30s**；非法值回退代码默认）
-5. **代码默认** `affinity`（`DEFAULT_ROUTE_STRATEGY`）
+1. **Route Pool** 的 `route_pools.strategy`
+2. **capability × route_group** rule（`route_policy.rules`）
+3. **protocol × route_group** rule
+4. **model 顶层** `route_policy.strategy`
+5. **全局** `system_config.ROUTE_STRATEGY`（进程内缓存 **30s**；非法值回退代码默认）
+6. **代码默认** `affinity`（`DEFAULT_ROUTE_STRATEGY`）
 
-写入全局：`PUT /admin/config`，`key=ROUTE_STRATEGY`，`value` 为四策略之一。
+写入 Pool：`PATCH /admin/routes/pools/:poolId`，body 为 `{ "strategy": "weighted_random" }`；`null` / 空值表示继承下一级。写入全局：`PUT /admin/config`，`key=ROUTE_STRATEGY`，`value` 为四策略之一。
 
 ---
 
@@ -78,7 +77,7 @@ Affinity 分数：`score = max(1, weight) / -ln(u)`，`u` 来自 FNV-1a（`route
 | 场景 | 建议 | 原因 |
 |------|------|------|
 | Chat / Messages / Gemini 文本 | **`affinity`**（全局默认即可） | 提升 prompt cache 命中 |
-| Images / Audio（无强 cache 需求） | 模型 rule 可设 **`weighted_random`** 或保持 affinity | 更均匀分摊上游 |
+| Images / Audio（无强 cache 需求） | 对应 Route Pool 可设 **`weighted_random`** 或保持 affinity | 更均匀分摊上游 |
 | 明确主备（同层） | **`strict`** + 不同 `weight` | 确定性优先高 weight |
 | 单进程 Node、要轮转 | **`round_robin`** | 注意 CF Workers 多 isolate 不共享计数器 |
 
