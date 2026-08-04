@@ -8,6 +8,12 @@
 	"name": "octafuse-gateway-admin",
 	"compatibility_date": "2025-11-25",
 	"compatibility_flags": ["nodejs_compat"],
+	// 保留 `*.workers.dev` 作为备用入口：绑定 Custom Domain 后 Cloudflare 默认关闭子域，
+	// 显式置 true 才能两个入口共存（自定义域名失效时不致于完全失联）。
+	"workers_dev": true,
+	// 不需要逐版本的公网 preview 地址：workers_dev 为 true 时 Cloudflare 会默认开启 Preview URLs，
+	// 每个已部署版本都多出一个不受访问控制约束的入口，对管理面尤其危险。
+	"preview_urls": false,
 	"assets": {
 		"directory": ".open-next/assets",
 		"binding": "ASSETS"

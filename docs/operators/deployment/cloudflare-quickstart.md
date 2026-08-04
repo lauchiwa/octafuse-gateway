@@ -515,9 +515,19 @@ Admin 必须通过 HTTPS 对公网提供；还可按需通过 Cloudflare Access 
 
 > **绑定后 `*.workers.dev` 会自动关闭**（实测 2026-08）。生成的配置写入 `routes` 但未显式
 > 设 `workers_dev: true`，Cloudflare 便把子域置为 `enabled: false`，旧地址会返回
-> **“There is nothing here yet”** —— 这是预期行为，不是部署失败。想同时保留 workers.dev
-> 作应急入口，在 `packages/*/wrangler.base.jsonc` 加 `"workers_dev": true` 再部署；只用自定义
-> 域名则维持现状（少一个公网入口，暴露面更小）。查当前状态：
+> **“There is nothing here yet”** —— 这是预期行为，不是部署失败。
+>
+> 本仓库的 `packages/*/wrangler.base.jsonc` 已显式保留两个入口（自定义域名失效时不致于
+> 完全失联），同时关掉逐版本的 preview 入口：
+>
+> ```jsonc
+> "workers_dev": true,    // 主入口 + workers.dev 备用入口共存
+> "preview_urls": false,  // 否则每个已部署版本都多一个不受访问控制约束的公网地址
+> ```
+>
+> `workers_dev: true` 会让 Cloudflare **默认开启 Preview URLs**（部署时有警告）；网关与管理面
+> 不需要这类逐版本入口，因此显式置 `false`。只想用自定义域名、不要备用入口时，
+> 删掉 `workers_dev` 行即可。查当前子域状态：
 >
 > ```bash
 > curl -s "https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/workers/services/<WORKER>/environments/production/subdomain" \
