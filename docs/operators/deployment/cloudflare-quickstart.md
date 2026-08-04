@@ -513,6 +513,17 @@ GATEWAY_MASTER_URL=https://admin.example.com
 
 Admin 必须通过 HTTPS 对公网提供；还可按需通过 Cloudflare Access 增加一层访问控制。
 
+> **绑定后 `*.workers.dev` 会自动关闭**（实测 2026-08）。生成的配置写入 `routes` 但未显式
+> 设 `workers_dev: true`，Cloudflare 便把子域置为 `enabled: false`，旧地址会返回
+> **“There is nothing here yet”** —— 这是预期行为，不是部署失败。想同时保留 workers.dev
+> 作应急入口，在 `packages/*/wrangler.base.jsonc` 加 `"workers_dev": true` 再部署；只用自定义
+> 域名则维持现状（少一个公网入口，暴露面更小）。查当前状态：
+>
+> ```bash
+> curl -s "https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/workers/services/<WORKER>/environments/production/subdomain" \
+>   -H "Authorization: Bearer <TOKEN>"
+> ```
+
 ---
 
 ## 12. 后续升级
