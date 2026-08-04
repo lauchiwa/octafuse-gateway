@@ -275,7 +275,12 @@ curl -sS "$GATEWAY_URL/catalog/models"
 > 桌面客户端（如 ccMesh）也必须配置代理（`http://127.0.0.1:7890`）或挂 TUN 全局代理，
 > 否则拉取模型列表会得到 0 个。Clash 里加 `DOMAIN-SUFFIX,workers.dev,DIRECT` 直连规则
 > **无效**——该域名是被墙而非节点慢，直连永远不通。
-> 若需国内免代理访问，唯一正解是配置 `PROXY_CUSTOM_DOMAIN` / `ADMIN_CUSTOM_DOMAIN` 自定义域名。
+> 若需国内免代理访问，正解是配置 `PROXY_CUSTOM_DOMAIN` / `ADMIN_CUSTOM_DOMAIN` 自定义域名。
+> **实测有效（2026-08）**：把一个 Cloudflare 托管的免费域名（`*.dpdns.org`）的两个子域绑定为
+> Custom Domain 后，国内**不挂代理直连**：`/health` 200 @ ~1.1s、Admin 首页 200 @ ~1.6s、
+> `GET /v1/models` 与 `POST /v1/chat/completions` 均正常。域名未备案也可用（走海外节点）。
+> 绑定时 Cloudflare 自动建 DNS 记录并签发证书，无需手动加解析；前提是域名 zone 已在同一
+> Cloudflare 账号且 status=active。
 
 
 ```json
