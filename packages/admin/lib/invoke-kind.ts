@@ -35,15 +35,16 @@ export function isOpenAiSurface(value: string): value is OpenAiSurface {
 	return value === 'chat' || value === 'responses';
 }
 
-/** 仅 OpenAI + llm 时 `responses` 才生效，避免图像/语音被误判。 */
-export function resolvesToResponsesSurface(input: {
-	kind: InvokeKind;
-	protocol: SimulatorProtocol | UpstreamProtocol;
-	openaiSurface?: OpenAiSurface;
-}): boolean {
-	return (
-		input.kind === 'llm' && input.protocol === 'openai' && input.openaiSurface === 'responses'
-	);
+/**
+ * `responses` 仅在 OpenAI + llm 下生效。
+ *
+ * 两个调用点（resolveRequestOperation / resolveProxyPathForModelInvoke）都已先按
+ * kind 与 protocol 分支，所以这里不再重复校验——重复的那份校验不可达，
+ * 删除后任何测试都不会变红，属于假安全感。保护职责在调用点，
+ * 并由 lib/simulator/openai-surface-merge.test.ts 钉住。
+ */
+export function resolvesToResponsesSurface(input: { openaiSurface?: OpenAiSurface }): boolean {
+	return input.openaiSurface === 'responses';
 }
 
 /** 与 `GATEWAY_TOOLS` 登记的 id 对齐（显式联合，避免被 `GatewayToolDefinition.id: string` 拓宽）。 */
