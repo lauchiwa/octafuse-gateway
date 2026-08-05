@@ -288,3 +288,75 @@ Rollback tag `pre-v2.1.1-merge` → `58f5fd6`, pushed to both remotes.
 ### Next Steps
 
 - 生产仍在 v2.0.0。部署 v2.1.1 待你确认——需要先决定 agentrouter 的 `400 content-blocked` 是否接受新的 user+model 熔断（20s 起，跨窗口升到 10min；405/WAF 不受影响，已实测）。
+
+---
+
+## 2026-08-05 — 生产部署 v2.1.1
+
+### 部署
+
+| Worker | 部署前 | 部署后 |
+|---|---|---|
+| proxy | `e178a59d` | **`8b8178ca`** |
+| admin | `59664f05` | **`548509e5`** |
+
+无迁移（部署前后 `migrations list` 均为 "No migrations to apply"，生产维持 `0018`）。
+
+部署前备份：`~/Backups/octafuse/d1-prod-20260805-154808.sql.gz`（17M 原始 / 986K 压缩，12 表，尾部完整未截断，sha256 前缀 `87ef14c1f29a`）。回滚 tag `pre-v2.1.1-merge` → `58f5fd6`。
+
+### v2.1.1 生效判定
+
+用错误码头做标记（部署前 absent → 部署后 present）：
+
+```
+x-octafuse-error-code: gateway.auth_failed
+body: {"error":"Invalid API key","code":"gateway.auth_failed"}
+```
+
+`error` 字段仍在 → 纯增量，客户端不破。
+
+### 部署后验证
+
+- 四入口全 200：api.qiwa / admin.qiwa（直连免代理）、两个 workers.dev（代理）
+- `GET /v1/models` → 13 个模型
+- **`GET /v1/tools/pricing`（v2.1.1 新端点）→ 200**，返回 metered/standard/charged 三账本
+- OpenAI `chat/completions` → `V211-OK`（deepseek-v4-flash，计费落库 charged=0.00013）
+- Anthropic `/v1/messages` → `ANTHRO-OK`（claude-opus-5，走 custom UA 路径）
+- 请求日志路由拓扑字段齐全：surface / pool / target 均非空，`adapter=passthrough`
+- 部署后请求状态分布：3/3 success，**无新错误类别**
+
+### 关键结论：新的 400 熔断在真实流量下不会升级
+
+部署前的顾虑是"普通 400 会触发 user+model 熔断"。查了近一周 22 次 400：
+
+- 6 次 `content-blocked` → **旧版也熔断**，无变化
+- 16 次 `client_error` → v2.1.1 新增熔断行为
+
+**同一 user+model 的连续 400 最小间隔 34 秒，全部 ≥ 20 秒首档窗口** → 阶梯永不升级，且期间任何成功都清零。实际影响：约 16 次/周的 20 秒短路，不累积。且属保护性（阻止畸形请求继续打上游）。
+
+因此按上游默认部署，未做本地偏离。
+
+### 顺带发现：2 个 provider 仍是 ofk1. 密文
+
+与"已全部重配"不符，但**都不可调度**，不阻塞：
+
+| provider | prov status | route status | 结论 |
+|---|---|---|---|
+| pipi公益站 | active | **inactive** | 路由停用，不承接流量 |
+| 君の公益 | **disabled** | active | provider 停用，不承接流量 |
+
+两者所属模型（`claude-opus-5` / `gpt-5.6-sol`）均有健康可调度路由（claude-opus-5 有 7 条 DISPATCHABLE）。要么补配真 key，要么直接删掉这两行。
+
+### failover 频次是既有特征，非本次引入
+
+部署前基线：claude-opus-5 平均 1.57 次尝试、deepseek-v4-flash 1.44、glm-5.2 1.67。部署后 3 个样本量太小，不足以判断趋势，需持续观察。
+
+### Status
+
+[OK] **v2.1.1 已上线并验证**
+
+### Next Steps
+
+- 观察 24-48h：failover 率、`circuit.client_error` 出现频次、是否有新错误类别
+- 清理 2 个 ofk1. 密文 provider（补真 key 或删行）
+- **轮换 gateway API key** —— `sk-P13si…` 在会话中多次明文出现
