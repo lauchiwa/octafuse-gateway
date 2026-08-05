@@ -119,6 +119,29 @@ above before cutting over, not just the dev database.
 
 Upstream made `Secure` opt-in to fix plain-HTTP logins (their issue #36). This fork infers it from the request protocol instead — HTTPS gets `Secure` automatically, plain HTTP does not, and the env var still forces either way. Keep ours; it satisfies upstream's bug fix too.
 
+### 5. Fork-only surfaces upstream does not have
+
+These have no upstream counterpart, so **no upstream refactor will ever migrate them for you**. When upstream reworks a shared service, these are the call sites that silently rot:
+
+| Fork-only surface | Shared machinery it depends on |
+|---|---|
+| `/v1/responses` route + `openai-responses-*` drivers | user+model circuit breaker, failover dispatch, request-log status |
+| `providers.custom_headers` | every egress driver, Admin Playground fetch |
+| Admin Simulator/Playground OpenAI surface toggle (`chat` \| `responses`) | `lib/invoke-kind.ts` shared kind→path/capability mapping |
+| Tier-local route preference (`preferWithinTier`) | `route-attempt-planner`, `failover-dispatch` |
+
+**v2.1.1 taught this the hard way**: upstream deleted `sensitive-content-circuit-route` and migrated its own `chat`/`messages`/`gemini` routes to `user-model-circuit-route`. `/v1/responses` kept the dead import (typecheck caught that) *and* was missing the `markUserModelSuccess()` call upstream added on the success path (nothing caught that — the backoff ladder would never reset).
+
+After a merge that touches a shared proxy service, diff each fork-only route against the nearest route upstream migrated:
+
+```bash
+git diff v<tag>..HEAD -- packages/proxy/src/routes/v1/chat.ts     # upstream-migrated reference
+grep -n 'markUserModelSuccess\|maybeTriggerUserModelCircuitFromUpstream' \
+  packages/proxy/src/routes/v1/{chat,messages,gemini,responses}.ts   # all four must agree
+```
+
+Regression tests pinning the Simulator/Playground seam: `packages/admin/lib/simulator/openai-surface-merge.test.ts`.
+
 ## After any upstream merge
 
 ```bash

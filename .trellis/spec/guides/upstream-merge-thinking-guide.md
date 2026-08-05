@@ -176,6 +176,40 @@ Grep for both sets of features after the merge — not just ours.
 > spread-vs-fieldwise object building, early returns) with a regression test that asserts on the
 > actual write path, and mutate it to confirm it fails against the merged (broken) shape.
 
+> **Real case (2026-08, v2.1.1 merge — a fork-only route referencing a deleted module)**: upstream
+> replaced `sensitive-content-circuit-route` with `user-model-circuit-route` and migrated its own
+> `chat` / `messages` / `gemini` routes. The fork's `/v1/responses` route does not exist upstream, so
+> nothing migrated it — it still imported the deleted module. **Typecheck caught the import**, but the
+> important part was invisible: upstream's migration also added `markUserModelSuccess()` on the
+> success path, which the fork route never had. Fixing only the import would have compiled, passed
+> every test, and left `/v1/responses` with a backoff ladder that never resets after a success.
+> **Lesson**: when upstream deletes a module it migrated its own callers away from, a fork-only caller
+> needs the *whole* migration, not just a working import. Diff the fork route against a route upstream
+> migrated and reconcile the behavior, not the symbol.
+
+> **Real case (2026-08, v2.1.1 merge — positional args after a signature change)**: both sides added a
+> trailing optional parameter to `bodyTemplateForSelection` / `isBodyDirty` — upstream `toolId`, the
+> fork `openaiSurface`. Keeping both means picking an order, and three existing call sites then passed
+> `openaiSurface` into the `toolId` slot. Both are `string`-shaped, so it type-checked silently.
+> **Lesson**: after resolving a conflict where both sides appended a parameter, grep every call site
+> and re-read it against the merged signature. Type-compatible neighbours do not surface this.
+
+> **Real case (2026-08, v2.1.1 merge — a guard that could not fail)**: the fork's Responses surface was
+> centralized behind `resolvesToResponsesSurface(kind, protocol, surface)`. Mutating away its
+> `kind`/`protocol` conditions turned **no test red** — because both call sites already narrowed to
+> `llm` + `openai` before calling it. The guard was documentation, not protection.
+> **Lesson**: mutation-test the guard itself, not just the feature. If weakening a safety condition
+> cannot fail a test, the condition is either unreachable (delete it and pin the real call-site
+> protection) or genuinely untested (add the test). "A check exists" is not "a check runs".
+
+> **Docs are executable too (2026-08, v2.1.1 merge)**: three files auto-merged with **no conflict** and
+> silently reintroduced upstream's `0015`/`0016` migration filenames plus a stale `2.0.0` version
+> claim. This fork renumbered those to `0017`/`0018`, and migration identity is the *full filename* —
+> so a clean auto-merge left operator runbooks pointing at files that do not exist here.
+> **Lesson**: conflict-free does not mean correct. After a merge, grep the docs for every renumbered
+> migration name and version baseline; non-conflicting prose is where fork-specific operational facts
+> quietly revert.
+
 
 ---
 
