@@ -360,3 +360,55 @@ body: {"error":"Invalid API key","code":"gateway.auth_failed"}
 - 观察 24-48h：failover 率、`circuit.client_error` 出现频次、是否有新错误类别
 - 清理 2 个 ofk1. 密文 provider（补真 key 或删行）
 - **轮换 gateway API key** —— `sk-P13si…` 在会话中多次明文出现
+
+---
+
+## 2026-08-05 — 部署：移除翻译层 + 修复 1102 内存超限
+
+### 部署
+
+| Worker | 前 | 后 |
+|---|---|---|
+| proxy | `8b8178ca` | **`2edf53ea`** |
+| admin | `548509e5` | **`045a47df`** |
+
+含两个提交：`9d3d9d6`（移除 Responses→Chat 翻译，改为同协议进出）、`362514c`（日志 body 脱敏提出后台闭包）。无迁移。
+
+### Error 1102 根因（内存，非 CPU）
+
+用户报 `Error 1102: Worker exceeded resource limits`，时间 `17:18:23Z`。
+
+**日志缺口即证据**：17:17–17:22 在 `api_key_request_logs` 里完全没有记录——isolate 被终止，`scheduleBackgroundWork` 来不及写日志。崩溃前输入 token 从 237K 爬到 416K，17:14 单分钟 7 个并发。
+
+**根因**：`*UpstreamWireBodyForLog(chosenRoute, body)` 写在 `scheduleBackgroundWork` 闭包内，闭包因此捕获整个已解析 body（41 万 token ≈ 1.6MB JSON，V8 对象图远大于此），并存活到 usage settle 或 `USAGE_SAFETY_TIMEOUT_MS`（5 分钟）到期。Worker 内存是**每 isolate、并发共享**的 128MB，几个这种请求重叠就撞穿。
+
+而该值上限仅 16KB（`MAX_REQUEST_LOG_JSON`），生产实测峰值约 600 字符（脱敏丢弃 `messages`/`system` 只留计数）。
+
+**修复**：四条流式路由都把计算提到调度之前，闭包只捕获短字符串。纯计算，提前/延后求值等价（`buildRouteRequestBody` 不改原 body，dispatch 后 `body` 无改动）。
+
+**排除的方向**：图像/音频缓冲上限 5×20MB=100MB —— 但近两周零图像零音频请求；SSE `lineBuffer` 处理正确；`deepMergeDefaults` 数组按引用返回不深拷；CPU 不成立（代理主要在 await fetch，等待 I/O 不计 CPU）。
+
+### 移除翻译层（-3119 行）
+
+`/v1/responses` 改回能力门禁：未显式声明 `endpoints.openai.endpoints.responses` 的 provider 被过滤，全无则 502 并列出待配置名单。
+
+理由：翻译必然丢弃 `reasoning`（`encrypted_content` 只对产出它的上游有意义）与 `prompt_cache_key`，且**不报错**，表现为「模型变笨 + 缓存全 miss」；更糟的是会掩盖 endpoint URL 配错——今天无名那个 `/v1` 缺 `/responses` 的笔误正是如此。
+
+删除前确认：近一周 523 次 Responses 请求全部落在 4 个已声明的渠道上，无一次走翻译路径。
+
+### 部署后验证
+
+- 四入口全 200；`x-octafuse-error-code` 未回归
+- chat → `HOIST-OK`；messages → `HOIST-ANTHRO`
+- **真实用户流量**（含 131K token 请求）`request_body` / `upstream_request_body` 双列正常落库，计费完整
+- 门禁双向验证：`gpt-5.6-sol` → 405（千刀 nginx，上游问题，说明门禁放行了已声明渠道）；`deepseek-v4-flash` → 502 并列出 6 个待配置 provider
+
+### Status
+
+[OK] **已部署并验证**
+
+### Next Steps
+
+- 观察 1102 是否复现（关注 `api_key_request_logs` 是否再出现分钟级缺口）
+- 待定：缩短 `USAGE_SAFETY_TIMEOUT_MS`（5min→90s）、加请求体大小上限返回 413（故障隔离）
+- 千刀 405 是其 nginx 拒绝 POST，网关无解；建议停用该路由或联系对方
