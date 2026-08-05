@@ -27,17 +27,17 @@ Upgrade the fork from the upstream v2.0.0 baseline to the official v2.1.1 releas
 
 ## Acceptance Criteria
 
-- [ ] Git history contains the official `v2.1.1` tag ancestry and all intentional local commits.
-- [ ] No commit after `v2.1.1` from `upstream/main` is included.
-- [ ] All 19 merge conflicts are resolved with zero conflict markers or unmerged paths.
-- [ ] Package versions and lockfile consistently resolve to 2.1.1 where upstream owns package versioning.
-- [ ] Full lint, type-check, build, package tests, and deployment tests pass.
-- [ ] Local custom-header PATCH regression tests pass and still fail under deliberate source mutation.
-- [ ] Gateway API-key hashing, admin-session HMAC, route preference semantics, provider custom headers, Custom Domains, `workers.dev`, and `preview_urls: false` are present and wired.
-- [ ] Upstream error codes, circuit-breaker behavior, tool engines, AI Detection, tools pricing, provider deletion guard, and model preset updates are present and wired.
-- [ ] No new D1 migration is required; production migration state remains at `0018`.
-- [ ] A rollback point exists before any production deployment.
-- [ ] The final merge is committed and pushed to the configured remotes.
+- [x] Git history contains the official `v2.1.1` tag ancestry and all intentional local commits. — `v2.1.1 IS ancestor` of `492137e`.
+- [x] No commit after `v2.1.1` from `upstream/main` is included. — all six unreleased SHAs verified `absent`.
+- [x] All 19 merge conflicts are resolved with zero conflict markers or unmerged paths. — marker grep empty, `diff --name-only --diff-filter=U` empty.
+- [x] Package versions and lockfile consistently resolve to 2.1.1 where upstream owns package versioning. — `verify:package-versions` OK for all 5 packages; lockfile regenerated.
+- [x] Full lint, type-check, build, package tests, and deployment tests pass. — lint 0 errors, both typechecks clean, core/proxy/admin builds OK, 543 tests pass.
+- [x] Local custom-header PATCH regression tests pass and still fail under deliberate source mutation. — baseline 5/5; mutation A 4 fail, mutation B 3 fail.
+- [x] Gateway API-key hashing, admin-session HMAC, route preference semantics, provider custom headers, Custom Domains, `workers.dev`, and `preview_urls: false` are present and wired. — call-site audit + `preferInTier` suite 21/21 + generated wrangler config.
+- [x] Upstream error codes, circuit-breaker behavior, tool engines, AI Detection, tools pricing, provider deletion guard, and model preset updates are present and wired. — call-site audit; tools routes mounted; error-code header emitted.
+- [x] No new D1 migration is required; production migration state remains at `0018`. — remote `migrations list` returns `No migrations to apply!`; 18 files per driver.
+- [x] A rollback point exists before any production deployment. — production still runs pre-merge `e178a59d` / `59664f05`; rollback tag `pre-v2.1.1-merge` at `58f5fd6`.
+- [x] The final merge is committed and pushed to the configured remotes. — `492137e` identical on local, github, gitee.
 
 ## Out of Scope
 
