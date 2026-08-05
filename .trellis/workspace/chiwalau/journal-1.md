@@ -231,3 +231,60 @@ Rollback tag `pre-v2.1.1-merge` → `58f5fd6`, pushed to both remotes.
 
 - Deploy v2.1.1 to production as a separate reviewed step. On deploy, regression-check CHY → ioll.pp.ua failover, the new 5min `401/403` cooldown, and error-code responses.
 - `npm audit`: 13 upstream dependency vulns (10 high). Unrelated to this merge; handle separately.
+
+---
+
+## 2026-08-05 — 依赖漏洞分诊（v2.1.1 合并后）
+
+### 结论
+
+`npm audit` 报 13 项（10 high / 1 moderate / 2 low）。**按部署形态分诊，而不是按严重度标签升级**。修掉真正适用的 4 个，明确拒绝 3 个。
+
+### 大部分 high 级 Next.js CVE 不适用
+
+前置条件本项目都不满足：
+
+| 前置条件 | 本项目 | 排除的 CVE 族 |
+|---|---|---|
+| `middleware.ts` | 无 | Middleware / Proxy bypass 全族（7+ 条） |
+| `next/image` | 0 处引用 | Image Optimization DoS |
+| `'use server'` | 0 处引用 | Server Actions DoS / SSRF |
+
+### 真正适用、已修
+
+- **hono 4.12.12 → 4.13.0**：我们挂了 `hono/cors`，所以 CORS ReDoS（`Access-Control-Request-Headers`，`<4.12.34`）适用。
+  - 但"wildcard origin + credentials 反射"那条**不适用**：`origin` 是显式 `'*'`，且从未开启 `credentials`。
+  - `jsx` / `jwt` / `cache` / `bodyLimit` / `ip-restriction` / `serve-static` / `cookie` 全部未使用 → 对应条目均不适用（这些占了 hono 报告里的多数）。
+- **next 16.2.3 → 16.3.0**，**postcss 8.5.9 → 8.5.23**（sourceMappingURL 路径穿越），**wrangler 4.107 → 4.118**（顺带清掉数个传递 high）。
+- 顺手对齐了 root/proxy/admin 三处的 `hono` 与 `wrangler` range，避免再次漂移。
+
+### 明确拒绝（重要：不要跑 `npm audit fix`）
+
+- **`@opennextjs/cloudflare`**：audit 建议 `1.8.4`，这是从精确 pin `1.19.4` **降级**。该 pin 是为 Workers 上的 middleware-manifest 修复（opennextjs-cloudflare#1232），记录在 `.trellis/spec/architecture.md`。照建议做会让 Admin 重新 500。
+- **`@hono/node-server` 2.1.0**（major）：CVE 是 `serve-static` 在 Windows 上的路径穿越。生产是 Workers；node-server 仅用于 Node/Docker 自托管路径；且 `serve-static` 未使用。
+- **`esbuild` 0.28.1**（major）：仅影响 Windows 上的 dev server 文件读取；我们只把 esbuild 当打包器。
+
+### 剩余项
+
+全是构建/开发链传递依赖（wrangler、miniflare、undici、esbuild、@babel/core、js-yaml、brace-expansion、form-data），**不进入任何部署产物**。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7e11f79` | chore(deps): patch applicable CVEs in hono, next, postcss, wrangler |
+
+### Testing
+
+- [OK] 543 单测通过；proxy + admin typecheck 干净；admin lint 0 error
+- [OK] core / proxy 构建 + `verify:proxy-bundle` 通过
+- [OK] **admin OpenNext 构建在 Next 16.3.0 下成功**（次版本跳跃的主要风险点）
+- [OK] `verify:package-versions` 全部 2.1.1
+
+### Status
+
+[OK] **已提交并推送**（`7e11f79`，github + gitee 一致）
+
+### Next Steps
+
+- 生产仍在 v2.0.0。部署 v2.1.1 待你确认——需要先决定 agentrouter 的 `400 content-blocked` 是否接受新的 user+model 熔断（20s 起，跨窗口升到 10min；405/WAF 不受影响，已实测）。
