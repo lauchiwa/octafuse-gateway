@@ -182,3 +182,52 @@ User reported custom upstream headers disappearing after saving in provider edit
 ### Next Steps
 
 - None - task complete
+
+---
+
+## 2026-08-05 — Merge upstream v2.1.1
+
+### What
+
+Upgraded the fork from the v2.0.0 baseline to the official **v2.1.1** tag (23 upstream commits, 166 files, 19 conflicts). Deliberately excluded the 6 unreleased commits sitting on `upstream/main` after the tag. Also set up `api.qiwa.dpdns.org` / `admin.qiwa.dpdns.org` Custom Domains earlier in the session.
+
+Adopted from upstream: `@octafuse/tool-engines`, `/v1/tools/ai-detection`, `/v1/tools/pricing`, stable gateway error codes + `X-OctaFuse-Error-Code`, consolidated user+model circuit breaker, `401/403` cooldown 10min→5min, provider-delete guard, Qwen presets.
+
+Preserved from the fork: provider `custom_headers` (PATCH + egress), `sk-` key hashing, admin HMAC sessions, `/v1/responses`, tier-local route preference, Cloudflare deploy config.
+
+### Three defects no conflict marker pointed at
+
+1. **`/v1/responses` left behind by an upstream deletion.** Upstream replaced `sensitive-content-circuit-route` and migrated its own chat/messages/gemini routes. The fork-only route kept the dead import (typecheck caught it) *and* lacked the `markUserModelSuccess()` call upstream added on the success path (nothing caught it — the backoff ladder would never reset after a success). Fixing only the import would have looked completely green.
+2. **A guard that could not fail.** Mutating the `kind`/`protocol` conditions out of `resolvesToResponsesSurface` turned no test red — both call sites already narrow first, so those conditions were unreachable. Simplified it and pinned the real call-site protection.
+3. **Conflict-free docs reverted fork facts.** Three files auto-merged with no conflict and reintroduced upstream's `0015`/`0016` migration filenames plus a stale `2.0.0` claim. Migration identity is the full filename, so those would send an operator at files this fork does not ship.
+
+Also caught three call sites passing `openaiSurface` into upstream's new `toolId` parameter slot — both string-shaped, so it type-checked silently.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c8346b1` | Merge upstream v2.1.1 into fork |
+| `658b32f` | test(admin): pin the v2.1.1 merge seam for the OpenAI Responses surface |
+| `810878a` | docs: correct migration names and version baseline |
+| `492137e` | docs(spec): record v2.1.1 upstream merge lessons |
+
+Rollback tag `pre-v2.1.1-merge` → `58f5fd6`, pushed to both remotes.
+
+### Testing
+
+- [OK] 543 unit tests pass (pre-merge baseline 514)
+- [OK] admin + proxy typecheck clean; admin lint 0 errors
+- [OK] core/proxy/admin builds; `verify:proxy-bundle`; `verify:package-versions` (all 2.1.1)
+- [OK] i18n en/zh/ja/ko structurally identical (1396 keys each)
+- [OK] mutation proofs: custom_headers PATCH (2 mutations), merge seam (3 mutations)
+- [OK] production D1 reports "No migrations to apply" — still `0018`, v2.1.1 adds none
+
+### Status
+
+[OK] **Merged and pushed** — production deployment deliberately NOT done.
+
+### Next Steps
+
+- Deploy v2.1.1 to production as a separate reviewed step. On deploy, regression-check CHY → ioll.pp.ua failover, the new 5min `401/403` cooldown, and error-code responses.
+- `npm audit`: 13 upstream dependency vulns (10 high). Unrelated to this merge; handle separately.
