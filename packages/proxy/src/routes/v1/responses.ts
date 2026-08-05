@@ -290,6 +290,15 @@ responsesRoutes.post('/', async (c) => {
     ),
   ]);
 
+  // 在调度后台任务**之前**就把上游 wire body 脱敏成短字符串：后台闭包只捕获这个
+  // 结果（实测最长 ~600 字符），而不是整个 `body`。否则 41 万 token 的会话对象图会随闭包
+  // 一起存活到 usage resolve 或 `USAGE_SAFETY_TIMEOUT_MS` 到期（最长 5 分钟），
+  // 多个大请求并发时足以撞穿 Worker 的 128MB isolate 内存上限（Error 1102）。
+  const upstreamRequestBodyForLog = responsesUpstreamWireBodyForLog(
+    chosenRoute,
+    body as Record<string, unknown>
+  );
+
   scheduleBackgroundWork(
     c,
     usageOrSafety
@@ -317,10 +326,6 @@ responsesRoutes.post('/', async (c) => {
             errorBodyText
           );
         }
-        const upstreamRequestBodyForLog = responsesUpstreamWireBodyForLog(
-          chosenRoute,
-          body as Record<string, unknown>
-        );
         return recordUsage(repos, {
           api_key_id: apiKey.keyId,
           user_id: apiKey.userId,
