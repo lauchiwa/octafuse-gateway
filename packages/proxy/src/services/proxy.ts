@@ -2,11 +2,10 @@
  * 上游 HTTP 代理与故障转移：按协议分发到 openai/anthropic/gemini driver，并在流开始前按路由顺序重试。
  * 返回的 `usagePromise` 在流结束后解析 token 用量，供 `usage-tracker` 记账。
  */
-import { providerDeclaresResponsesEndpoint, type GatewayRepositories } from '@octafuse/core';
+import type { GatewayRepositories } from '@octafuse/core';
 import type { RouteResult } from './model-router';
 import { dispatchOpenAiRoute } from './egress/openai-driver';
 import { dispatchOpenAiResponsesRoute } from './egress/openai-responses-driver';
-import { dispatchResponsesViaChatRoute } from './egress/openai-responses-chat-driver';
 import {
 	dispatchOpenAiImageEdits,
 	dispatchOpenAiImageGenerations,
@@ -108,14 +107,10 @@ export async function proxyChatCompletions(
  * `clientIdentity` 由入口路由从请求头提取后传入 —— `DispatchFn` 契约不含请求对象，
  * 驱动无法自行读取（与 `body` 同理，见 design.md C2）。
  *
- * **策略按 route 逐条决定**（phase 2）：显式声明 `endpoints.openai.endpoints.responses`
- * 的 provider 走 phase 1 字节直通；其余翻译成 `/chat/completions`。
- * 判定放在 dispatch 闭包内而非路由层，是为了让「原生 provider 故障转移到 chat-only provider」
- * 这种混合路由组也能工作 —— `DispatchFn` 收到的是当次尝试的 route。
- *
- * 排序上「原生直通优先」，但只在**同一 priority 层内**生效（见 `preferWithinTier`）：
- * 原生可用时行为与 phase 1 一致，翻译仅作兜底；同时不会让低优先级的原生 provider
- * 抢占 admin 明确配置为高优先级的 chat-only provider。
+ * **同协议进出**：出站只有字节直通一种策略。`responses.ts` 的能力门禁已保证进入这里的每条
+ * route 都显式声明了 `endpoints.openai.endpoints.responses`，不支持的 provider 在路由层
+ * 就被过滤并回 502，而不是降级翻译成 `/chat/completions`（翻译会静默丢弃 reasoning 与
+ * prompt cache，且会掩盖 endpoint 配错）。
  */
 export async function proxyResponses(
 	repos: GatewayRepositories,
@@ -129,16 +124,12 @@ export async function proxyResponses(
 		repos,
 		routes,
 		'openai',
+		// 同协议进出：`responses.ts` 的能力门禁已保证每条 route 都显式声明了 responses endpoint，
+		// 故只有字节直通一种出站策略（不再有 chat 翻译兜底，也就不需要层内直通偏好）。
 		(route, signal, timing?: RequestTimingCollector | null, attempt?: RequestTimingAttempt) =>
-			providerDeclaresResponsesEndpoint(route.providerEndpoints)
-				? dispatchOpenAiResponsesRoute(route, body, clientIdentity, signal, timing, attempt)
-				: dispatchResponsesViaChatRoute(route, body, clientIdentity, signal, timing, attempt),
+			dispatchOpenAiResponsesRoute(route, body, clientIdentity, signal, timing, attempt),
 		requestSignal,
-		{
-			...options,
-			// 直通优先只在同一 priority 层内生效：admin 配的分层不被越过。
-			preferWithinTier: (route) => providerDeclaresResponsesEndpoint(route.providerEndpoints),
-		}
+		options
 	);
 	return result;
 }

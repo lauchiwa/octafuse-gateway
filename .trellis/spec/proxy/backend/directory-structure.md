@@ -53,10 +53,6 @@ packages/proxy/
 │   │   │   ├── openai-images-driver.ts
 │   │   │   ├── openai-responses-driver.ts        # Responses passthrough (byte-for-byte SSE)
 │   │   │   ├── openai-responses-usage.ts         # Responses usage shape (data.response.usage)
-│   │   │   ├── openai-responses-chat-driver.ts   # Responses → chat translation driver
-│   │   │   ├── responses-to-chat-request.ts      # pure: Responses request → chat request
-│   │   │   ├── chat-to-responses-object.ts       # pure: chat body → Responses object
-│   │   │   ├── chat-to-responses-stream.ts       # stateful: chat SSE → Responses SSE
 │   │   │   └── upstream-request-id.ts
 │   │   ├── web-search/          # Provider-specific search backends (tavily, bocha, tencent-wsa, …) + dispatch.ts
 │   │   ├── web-fetch/           # url-guard.ts + backends + dispatch.ts
@@ -73,8 +69,8 @@ packages/proxy/
 - **Routes** (`routes/`) are thin: authenticate → resolve routing → call a service → shape the log. Business logic lives in `services/`.
 - **Services** hold orchestration and policy (routing, failover, billing, circuit breaking). One concern per file; a family of related files shares a prefix (`request-log-*`, `provider-key-*`, `sensitive-content-*`).
 - **Egress drivers** (`services/egress/`) are the only place that issues `fetch` to an upstream provider. One driver per protocol. Each parses upstream `usage`, records timing via `RequestTimingCollector`, and normalizes the upstream request id.
-- **One ingress protocol may have several egress strategies.** `/v1/responses` has two drivers with an identical signature: `openai-responses-driver.ts` (byte passthrough) and `openai-responses-chat-driver.ts` (translate to `/chat/completions`). `proxyResponses` picks per route inside the dispatch closure, so a route group can mix both and still fail over. Protocol translation itself lives in pure, network-free modules (`responses-to-chat-request.ts`, `chat-to-responses-object.ts`, `chat-to-responses-stream.ts`) — keep the translation out of the driver so it stays testable without a `fetch` mock.
-- **Protocol translation** lives next to the drivers, split so the translators stay pure and unit-testable without a `fetch` mock: `responses-to-chat-request.ts` / `chat-to-responses-object.ts` / `chat-to-responses-stream.ts` hold the logic, and `openai-responses-chat-driver.ts` is the thin I/O shell. `/v1/responses` therefore has **two** egress strategies chosen per route in `proxyResponses`: byte passthrough when the provider declares `endpoints.openai.endpoints.responses`, translation to `chat/completions` otherwise.
+- **Same protocol in, same protocol out.** `/v1/responses` has exactly one egress driver, `openai-responses-driver.ts` (byte passthrough). There is deliberately **no** Responses→Chat translation fallback: translation cannot round-trip `reasoning` (`encrypted_content` is meaningful only to the upstream that produced it) or preserve `prompt_cache_key`, and those losses do not raise — they surface as "the model got dumber" plus total cache misses, and they mask endpoint misconfiguration. `responses.ts` gates on `providerDeclaresResponsesEndpoint` and returns 502 listing the providers that need configuring.
+- **Capability gates belong in the route, not the driver.** `providerDeclaresResponsesEndpoint` is checked in `routes/v1/responses.ts` after `resolveRouteResultsFromRows` (that is the first point where `providerEndpoints` exists) and before dispatch. Filtering there yields one actionable 502 naming the unconfigured providers; a `throw` inside the driver would instead be treated by `failover-dispatch` as a fetch failure, retried across every key, and collapsed into a generic 502.
 - **Tool backends** (`web-search/`, `web-fetch/`, `web-deep-search/`) use a `dispatch.ts` + one file per provider + shared `types.ts` pattern.
 - **Runtime adapters** (`runtime/`) are the ONLY place allowed to touch `process`, `node:*`, or Worker-specific globals.
 

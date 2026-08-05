@@ -2,14 +2,12 @@
  * 用户路由：`POST /v1/responses`（OpenAI Responses 协议，Codex CLI 唯一支持的 wire API）。
  *
  * 与 `chat.ts` 的差异（其余流程完全一致，刻意保持镜像以便一起演进）：
- * - **出站策略分区（phase 2）**：显式声明 `endpoints.openai.endpoints.responses` 的 provider
- *   走字节直通；其余翻译成 `/chat/completions`。两类都可服务，故不再有「能力不足」过滤与 502
- *   —— 只按「直通优先」排序（原生可用时行为与 phase 1 一致，翻译仅作兜底）。
+ * - **能力门禁**：只有显式声明 `endpoints.openai.endpoints.responses` 的 provider 能服务本路由；
+ *   其余一律过滤，全部不支持时回 502。**同协议进出，不做 Responses→Chat 翻译降级** —— 翻译会
+ *   静默丢弃 `reasoning` / `prompt_cache_key` 与历史中的 reasoning items，表现为「模型变笨」
+ *   而非可诊断的失败，并会掩盖 endpoint URL 配错这类问题。
  *   能力判定不从 `base` 派生（`listConfiguredCapabilities` 在有 `base` 时会返回全部能力，
  *   会把 10/42 个仅配 base 的预设误判为原生可用）。
- * - **翻译前置校验**：无法在 Chat 协议表达且改变语义的字段（`previous_response_id` /
- *   `store:true` / 托管工具）在此返回 400。放在 dispatch 之前，因为驱动内 throw 会被
- *   `failover-dispatch` 当成 fetch 失败，对每把 key 重试一轮后只回笼统 502。
  * - **调用方身份透传**：`User-Agent` / `originator` 提取后交给驱动闭包
  *   （`DispatchFn` 契约不含请求对象）。中转站常按 UA 放行 Codex。
  * - **脱敏**：Responses 的 prompt 在 `input` 与 **`instructions`** 两处，
@@ -19,7 +17,6 @@
  */
 import { Hono } from 'hono';
 import { providerDeclaresResponsesEndpoint } from '@octafuse/core';
-import { translateResponsesRequestToChat } from '../../services/egress/responses-to-chat-request';
 import type { Env } from '../../app';
 import { requireApiKey } from '../../middleware/auth';
 import {
@@ -175,41 +172,38 @@ responsesRoutes.post('/', async (c) => {
     );
   }
 
-  // phase 2：能力不再是门禁，而是**策略选择**。声明了 `endpoints.openai.endpoints.responses`
-  // 的 provider 走字节直通；其余翻译成 `/chat/completions`。
+  // 能力门禁：只服务显式声明 `endpoints.openai.endpoints.responses` 的 provider。
+  // 同协议进出 —— 不做 Responses→Chat 翻译降级。理由：翻译必然丢弃 `reasoning`
+  // （`encrypted_content` 只对产出它的上游有意义）、`prompt_cache_key` 与 input 中的
+  // reasoning items，且这些损耗**不报错**，只表现为「模型变笨 + 缓存全 miss」。
+  // 让不支持的 provider 显式 502，配置错误才能被发现而不是被静默兜住。
   //
-  // 「直通优先」不在此处重排 routes，而是作为**层内偏好**下传给 failover 编排
-  // （`proxyResponses` → `preferWithinTier`）。这样 admin 配置的 priority 分层依旧优先，
-  // 只在同一层内偏向直通 —— 原设计「全局重排会覆盖 admin 权重顺序」的代价因此不再存在。
-  const passthroughRoutes = routes.filter((route) =>
-    providerDeclaresResponsesEndpoint(route.providerEndpoints)
-  );
-  const translateRoutes = routes.filter(
+  // 能力判定不从 `base` 派生（`listConfiguredCapabilities` 在有 `base` 时会返回全部能力，
+  // 会把 10/42 个仅配 base 的预设误判为原生可用）。
+  const unsupportedRoutes = routes.filter(
     (route) => !providerDeclaresResponsesEndpoint(route.providerEndpoints)
   );
-  if (translateRoutes.length > 0) {
-    console.log('[Gateway Responses] translating to chat for providers without a responses endpoint', {
+  routes = routes.filter((route) => providerDeclaresResponsesEndpoint(route.providerEndpoints));
+  if (routes.length === 0) {
+    const names = unsupportedRoutes.map((r) => r.providerName).join(', ');
+    console.warn('[Gateway Responses] no provider declares a responses endpoint', {
       baseModelId,
-      passthrough: passthroughRoutes.map((r) => r.providerId),
-      translate: translateRoutes.map((r) => r.providerId),
+      effectiveRouteGroup,
+      unsupported: unsupportedRoutes.map((r) => r.providerId),
     });
+    return c.json(
+      {
+        error: `No provider for this model serves the Responses API. Configure endpoints.openai.endpoints.responses for: ${names}`,
+      },
+      502
+    );
   }
-
-  // 翻译不可行的请求级特性：在出站**之前**返回 400。
-  // 若留给驱动 throw，failover-dispatch 会当成 fetch 失败，对每把 key 重试一轮后只回笼统 502。
-  // 仅当本次可能走翻译路径时才校验：全部直通时这些字段由上游自行处理。
-  if (passthroughRoutes.length === 0 && translateRoutes.length > 0) {
-    const precheck = translateResponsesRequestToChat(body as Record<string, unknown>);
-    if (!precheck.ok) {
-      console.warn('[Gateway Responses] request cannot be translated to chat', {
-        baseModelId,
-        param: precheck.error.param,
-      });
-      return c.json(
-        { error: { message: precheck.error.message, type: 'invalid_request_error', param: precheck.error.param } },
-        400
-      );
-    }
+  if (unsupportedRoutes.length > 0) {
+    console.log('[Gateway Responses] skipping providers without a responses endpoint', {
+      baseModelId,
+      serving: routes.map((r) => r.providerId),
+      skipped: unsupportedRoutes.map((r) => r.providerId),
+    });
   }
 
   console.log(

@@ -96,10 +96,13 @@ curl -sS http://localhost:8787/v1/responses \
   -d '{"model":"your-route-model","input":"Hello","stream":true}'
 ```
 
-**上游要求**：任意 OpenAI 协议路由都可用。供应商若显式配置了
-`endpoints.openai.endpoints.responses`，网关走字节直通；否则自动翻译成 `/chat/completions`，
-所以只支持 chat 的中转站也能从 Codex 使用。翻译模式的取舍（推理内容丢弃、托管工具报错等）
-见 [developers/api/user.md](../developers/api/user.md#responses-兼容接口codex-cli-协议)。
+**上游要求**：供应商必须显式配置 `endpoints.openai.endpoints.responses`（**完整 URL**，
+如 `https://host/v1/responses`）。网关走字节直通，**不会**把请求降级翻译成 `/chat/completions`。
+只有 `openai.base` 或只有 chat 能力的供应商无法服务本接口，会返回 502 并列出待配置的供应商名。
+
+同协议进出是刻意设计：翻译会静默丢弃 `reasoning` 与 `prompt_cache_key`，表现为「模型变笨、
+缓存全 miss」而非可诊断的失败，也会掩盖 endpoint URL 配错这类问题。
+详见 [developers/api/user.md](../developers/api/user.md#responses-兼容接口codex-cli-协议)。
 
 ## Anthropic 兼容
 
