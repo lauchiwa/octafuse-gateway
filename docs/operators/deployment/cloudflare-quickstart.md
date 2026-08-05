@@ -29,7 +29,7 @@ Proxy 和 Admin 是两个独立 Worker，但 D1 绑定名都为 `DB`，且必须
 
 ## 版本基线
 
-当前仓库版本为 **Octafuse Gateway 2.0.0**，D1 迁移共 **16 个**（截至 `0016_route_surfaces_pools.sql`）。从 1.11.x 升级前必须先阅读 [2.0 升级指南](../migrations/single-provider-key-cutover.md)。
+当前仓库版本为 **Octafuse Gateway 2.1.1**，D1 迁移共 **18 个**（截至 `0018_route_surfaces_pools.sql`；本 fork 将上游 0015/0016 重编号为 0017/0018）。从 1.11.x 升级前必须先阅读 [2.0 升级指南](../migrations/single-provider-key-cutover.md)。
 
 下列构建体积来自 2026-07-24 对 `1.10.2` 的历史实测，仅用于量级参考；2.0 部署应以本次终端输出为准：
 

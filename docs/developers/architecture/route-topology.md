@@ -16,7 +16,7 @@ model + route_group + request protocol + operation
                     └── Upstream Target C
 ```
 
-这一结构由迁移 `0016_route_surfaces_pools.sql` 引入。旧路由会自动转换为兼容的 wildcard Surface 和 Route Pool，不要求升级时手工重建。
+这一结构由迁移 `0018_route_surfaces_pools.sql`（上游编号 `0016`，本 fork 重编号为 `0018`）引入。旧路由会自动转换为兼容的 wildcard Surface 和 Route Pool，不要求升级时手工重建。
 
 ## 三层对象
 
