@@ -248,14 +248,58 @@ v2.0.0 删除的 sticky 回归（`d9003b8`），新增 `route_pools` 粘滞列 +
 
 ---
 
-## 11. Gitee 远端当前不可推（本地代理问题）
+## 11. Gitee 推送：FlClash fake-IP DNS 劫持（已解决，附绕过方法）
 
-`git push origin main` 失败，落后 2 个提交。原因是 SSH 到 `gitee.com` 被 Clash TUN 拦截：
+**已于 2026-08-08 解决，三端同步至 `856caa0`。**
+
+### 症状
+
+`git push origin main` 失败：
 
 ```
 Connection closed by 198.18.0.11 port 22
 ```
 
-`198.18.0.x` 是 TUN 虚拟 IP。Gitee 是国内服务，不应走代理。HTTPS 路径也不通（需要凭据）。
+### 根因：不是密钥问题，也不是网络不通
 
-**GitHub 已同步全部提交**，代码安全。修复方式：在代理规则里给 `gitee.com` 加直连，然后 `git push origin main` 补推。
+在 FlClash 规则中给 `gitee.com` 加直连后，症状仍在。逐层排查结论：
+
+| 层 | 状态 |
+|---|---|
+| SSH 私钥 | 正常。`~/.ssh/config` 显式指定 `IdentityFile`，未加密，权限 `600` |
+| ssh-agent | 空（`no identities`），但**不影响**——config 显式指定了密钥文件 |
+| TCP 22 | `nc -z` 成功，但这只完成本地 TUN 的 TCP 握手，不代表上游可达 |
+| SSH 协议握手 | 失败 |
+
+真正原因是 **FlClash 的 fake-IP DNS 劫持**：`gitee.com` 被解析为 `198.18.0.11`（TUN 虚拟段）。
+劫持是彻底的 —— 即使 `dig @223.5.5.5` 指定公共 DNS，返回的仍是 fake IP。
+TUN 接受了 TCP 连接（故 `nc` 成功），但 SSH 应用层数据没被正确转发，于是在等 banner 时被关闭。
+
+验证：用 DoH 绕过本地 DNS 拿到真实 IP `180.76.198.77`，直连即认证成功：
+
+```
+Hi 華文叨(@chiwalau)! You've successfully authenticated
+```
+
+`altssh.gitee.com:443` 同样被劫持为 `198.18.0.6`，故那条常见的换端口方案在此无效。
+
+### 绕过方法（下次再遇到直接用）
+
+```bash
+# 1. DoH 拿真实 IP（本地 DNS 不可信）
+REAL=$(curl -s -H 'accept: application/dns-json' \
+  'https://1.1.1.1/dns-query?name=gitee.com&type=A' \
+  | python3 -c "import sys,json;print([a['data'] for a in json.load(sys.stdin)['Answer'] if a.get('type')==1][0])")
+
+# 2. 用真实 IP 推送；HostKeyAlias 保留主机密钥校验，不降级安全性
+GIT_SSH_COMMAND="ssh -o HostKeyAlias=gitee.com -i ~/.ssh/id_rsa_chiwalau@163.com" \
+  git push "git@${REAL}:chiwalau/octafuse-gateway.git" main
+```
+
+`HostKeyAlias=gitee.com` 是关键：让 SSH 用 `gitee.com` 的已知主机密钥校验这个 IP，
+既绕过 DNS 又不需要 `StrictHostKeyChecking=no`。
+
+### 根治方向（需在 FlClash 侧改，非本仓库）
+
+直连规则只影响流量出口，**不影响 DNS 解析**。要根治需在 FlClash DNS 配置里把 `gitee.com`
+加入 `fake-ip-filter`（或 `real-ip` 列表），使其返回真实 IP 而非 `198.18.x.x`。
