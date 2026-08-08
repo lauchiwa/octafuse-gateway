@@ -13,6 +13,7 @@ import type { RouteResult } from '../model-router';
 import type { UsageFromStream } from '../proxy';
 import { EMPTY_USAGE } from '../proxy';
 import { buildRouteRequestBody } from '../route-default-params';
+import { mergeUpstreamHeaders } from './merge-upstream-headers';
 import { extractUpstreamRequestId } from './upstream-request-id';
 import type { RequestTimingAttempt, RequestTimingCollector } from '../request-timing';
 import {
@@ -373,9 +374,15 @@ export async function dispatchOpenAiAudioTranscriptions(
 	try {
 		const response = await fetch(url, {
 			method: 'POST',
-			headers: {
-				Authorization: `Bearer ${route.providerApiKey}`,
-			},
+			// multipart：不设 Content-Type（由 runtime 依 FormData 生成带 boundary 的值）。
+			// provider 自定义上游 header 与其他驱动同处理：`{ ...custom, ...base }`，
+			// 即内置 Authorization 永远覆盖 custom；content-type 已由 core 校验器 denylist 拦在写入前。
+			headers: mergeUpstreamHeaders(
+				{
+					Authorization: `Bearer ${route.providerApiKey}`,
+				},
+				route.providerCustomHeaders
+			),
 			body: form,
 			signal,
 		});
