@@ -39,14 +39,14 @@ Cloudflare 账号 `118b7d91db35f9199dfe2e4addf9ab2e`（chiwalau@163.com）。Wor
 
 | 项 | 值 |
 |---|---|
-| proxy | `2edf53ea-3bd5-4a0e-9ad1-0db0552459cd` |
-| admin | `045a47df-c639-4822-aba9-f529aeb61fef` |
+| proxy | `d11ffdb4-fbc2-4da3-8fea-0a0f46b92f2b` |
+| admin | `ab99e647-55e3-411c-b3c9-a094bb653008` |
 | 版本 | 2.1.1（全 package 一致） |
 | D1 迁移 | `0018`，无待应用 |
 | 主入口 | `api.qiwa.dpdns.org` / `admin.qiwa.dpdns.org`（国内免代理直连可用） |
 | 备用入口 | `*.chiwalau.workers.dev`（需代理），`preview_urls: false` |
 
-`main` HEAD = `6b69040`。回滚锚点：tag `pre-v2.1.1-merge` → `58f5fd6`（v2.0.0 时期）。
+`main` HEAD = `55ac494`。回滚锚点：tag `pre-v2.1.1-merge` → `58f5fd6`（v2.0.0 时期）。
 
 ---
 
@@ -195,3 +195,67 @@ SET endpoints='{"openai":{"endpoints":{"responses":"https://welfare.0xpsyche.me/
 WHERE id='398b66e8-f008-4cfa-b133-65242e6b29c2';
 ```
 不建议回滚：`/v1` 会 301 重定向，POST 跟随重定向丢 body，上游回 403。
+
+
+---
+
+## 10. 上游 v2.3.0 探测结论（2026-08-08，尚未合并）
+
+上游已发布 `v2.1.2` / `v2.2.0` / `v2.3.0`。相对我们的 `v2.1.1`：**23 个提交**，另有 2 个未发布文档提交。我们本地独有 39 个提交。
+
+**用户决定：先使用一段时间，之后再合并。**
+
+合并前必须处理三件事：
+
+### 10.1 迁移编号冲突（阻塞项）
+
+上游新增 `0017`–`0021`，与我们已在生产应用的号撞车：
+
+| 号 | 我们（生产已应用） | 上游新增 |
+|---|---|---|
+| 0017 | `single_provider_key` | `gemini_models_generate` |
+| 0018 | `route_surfaces_pools` | `route_pool_tier_strategies` |
+
+D1 按**完整文件名**记录，故现有生产库不会重跑。**但全新部署会失败**：字典序下 `0017_gemini_models_generate` 先于 `0018_route_surfaces_pools` 执行，而前者依赖后者创建的 `model_surfaces` / `route_pools` —— 依赖倒置。
+
+按 `.trellis/spec/core/backend/database-guidelines.md`：已上线号不可动，需把上游 `0017`–`0021` 重编号为 `0019`–`0023`。
+
+### 10.2 路由策略 ID 两次重命名，无别名
+
+```
+v2.1.1（我们现在）: affinity / strict / round_robin
+v2.2.0:             cache_affinity / fixed_order / weighted_round_robin
+v2.3.0:             hash_affinity / weight_priority / weighted_round_robin
+```
+
+上游明示「0021 无旧 ID 别名」「写入旧 ID 将 400」。我们生产是 `ROUTE_STRATEGY=affinity`。
+
+迁移链完整（`0019` affinity→cache_affinity，`0021` →hash_affinity），值会被正确迁移，**但要求迁移与部署严格同版本，禁止新旧混跑**。上游要求维护窗口：停流量 → 备份 → 迁移 → 立即部署同版本 Proxy/Admin/migrate。
+
+### 10.3 恢复 sticky routing
+
+v2.0.0 删除的 sticky 回归（`d9003b8`），新增 `route_pools` 粘滞列 + `route_pool_sticky_bindings` 表（迁移 0020），默认关闭需按 Pool 启用。对单用户场景有利（prompt cache 命中率）。
+
+### 10.4 与本地改动的冲突预估
+
+| 本地改动 | 与上游新版关系 |
+|---|---|
+| `9d3d9d6` 移除 Responses→Chat 翻译 | 上游仍无 Responses 入站，无冲突 |
+| `362514c` 日志 body 提前脱敏 | 四条路由都会被上游触及，**大概率冲突** |
+| `1958382` audio 头修复 | 上游未动 audio 驱动，应无冲突 |
+
+`route-attempt-planner` / `failover-dispatch` 会被 sticky + tier_strategies 大改，我们的 `preferInTier` 层内偏好需在新架构下重新对齐 —— 这正是 `docs/developers/upstream-sync.md` §5「fork 独有面」要防的坑。
+
+---
+
+## 11. Gitee 远端当前不可推（本地代理问题）
+
+`git push origin main` 失败，落后 2 个提交。原因是 SSH 到 `gitee.com` 被 Clash TUN 拦截：
+
+```
+Connection closed by 198.18.0.11 port 22
+```
+
+`198.18.0.x` 是 TUN 虚拟 IP。Gitee 是国内服务，不应走代理。HTTPS 路径也不通（需要凭据）。
+
+**GitHub 已同步全部提交**，代码安全。修复方式：在代理规则里给 `gitee.com` 加直连，然后 `git push origin main` 补推。
