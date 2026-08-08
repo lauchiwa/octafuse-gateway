@@ -8,6 +8,7 @@ import { createD1ModelsRepository } from '../db/d1/models.impl';
 import { createD1ProvidersRepository } from '../db/d1/providers.impl';
 import { createD1RequestLogsRepository } from '../db/d1/request-logs.impl';
 import { createD1SystemConfigRepository } from '../db/d1/system-config.impl';
+import { createD1RoutePoolStickyBindingsRepository } from '../db/d1/route-pool-sticky-bindings.impl';
 import { createD1UserAuditLogsRepository } from '../db/d1/user-audit-logs.impl';
 import { createD1UsersRepository } from '../db/d1/users.impl';
 
@@ -27,5 +28,6 @@ export function createD1Repositories(client: GatewayDatabaseClient): GatewayRepo
 		analytics: createD1AdminAnalyticsRepository(client),
 		modelRouting: createD1ModelRoutingRepository(client),
 		userAuditLogs: createD1UserAuditLogsRepository(client),
+		routePoolSticky: createD1RoutePoolStickyBindingsRepository(client),
 	};
 }

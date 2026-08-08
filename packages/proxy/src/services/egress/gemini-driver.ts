@@ -1,7 +1,11 @@
 /**
  * Gemini generateContent / streamGenerateContent 出站：按 `providers.endpoints.gemini` 解析 URL、解析 JSON 或 SSE 中的 usageMetadata。
  */
-import { prepareGeminiUpstreamFetch, resolveUpstreamEndpoint } from '@octafuse/core';
+import {
+  GEMINI_GENERATE_OPERATION,
+  prepareGeminiUpstreamFetch,
+  resolveUpstreamEndpoint,
+} from '@octafuse/core';
 import type { RouteResult } from '../model-router';
 import type { UsageFromStream } from '../proxy';
 import { buildRouteRequestBody } from '../route-default-params';
@@ -316,11 +320,16 @@ export async function dispatchGeminiRoute(
   timing?: RequestTimingCollector | null,
   attempt?: RequestTimingAttempt
 ): Promise<{ response: Response; usagePromise: Promise<UsageFromStream>; upstreamRequestId: string | null }> {
-  const resolvedUrl = resolveUpstreamEndpoint('gemini', action, route.providerEndpoints, {
-    model: route.providerModelName,
-    action,
-    providerId: route.providerId,
-  });
+  const resolvedUrl = resolveUpstreamEndpoint(
+    'gemini',
+    GEMINI_GENERATE_OPERATION,
+    route.providerEndpoints,
+    {
+      model: route.providerModelName,
+      action,
+      providerId: route.providerId,
+    }
+  );
   const { url, headers } = prepareGeminiUpstreamFetch({
     resolvedUrl,
     modelName: route.providerModelName,

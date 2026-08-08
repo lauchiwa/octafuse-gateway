@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { RouteResult } from './model-router';
 import { buildRouteAttemptPlan } from './route-attempt-planner';
 import { markProviderFailure, resetProviderCircuitStateForTests } from './provider-circuit-breaker';
-import { resetRoundRobinStateForTests } from './route-strategies';
+import { resetWeightedRoundRobinStateForTests } from './route-strategies';
 
 function makeRoute(providerId: string, overrides: Partial<RouteResult> = {}): RouteResult {
 	return {
@@ -29,7 +29,7 @@ function makeRoute(providerId: string, overrides: Partial<RouteResult> = {}): Ro
 
 beforeEach(() => {
 	resetProviderCircuitStateForTests();
-	resetRoundRobinStateForTests();
+	resetWeightedRoundRobinStateForTests();
 });
 
 describe('buildRouteAttemptPlan', () => {
@@ -41,7 +41,7 @@ describe('buildRouteAttemptPlan', () => {
 		const plan = buildRouteAttemptPlan(
 			routes,
 			{ affinityKey: 'u|m|default|openai', tierKeyPrefix: 'm|default|openai' },
-			'strict'
+			'weight_priority'
 		);
 		assert.deepEqual(
 			plan.attempts.map((r) => r.providerId),
@@ -56,7 +56,7 @@ describe('buildRouteAttemptPlan', () => {
 		const plan = buildRouteAttemptPlan(
 			routes,
 			{ affinityKey: 'u|m|default|openai', tierKeyPrefix: 'm|default|openai' },
-			'strict',
+			'weight_priority',
 			t0
 		);
 		assert.deepEqual(
@@ -73,7 +73,7 @@ describe('buildRouteAttemptPlan', () => {
 		const plan = buildRouteAttemptPlan(
 			[makeRoute('p1')],
 			{ affinityKey: 'u|m|default|openai', tierKeyPrefix: 'm|default|openai' },
-			'affinity',
+			'hash_affinity',
 			t0
 		);
 		assert.equal(plan.attempts.length, 0);
@@ -81,7 +81,7 @@ describe('buildRouteAttemptPlan', () => {
 		assert.equal(plan.earliestRetryAfterMs, 5_000);
 	});
 
-	it('applies strict ordering within a tier by weight then providerId', () => {
+	it('applies weight_priority ordering within a tier by weight then providerId', () => {
 		const routes = [
 			makeRoute('b', { routeWeight: 1 }),
 			makeRoute('a', { routeWeight: 5 }),
@@ -90,7 +90,7 @@ describe('buildRouteAttemptPlan', () => {
 		const plan = buildRouteAttemptPlan(
 			routes,
 			{ affinityKey: 'u|m|default|openai', tierKeyPrefix: 'm|default|openai' },
-			'strict'
+			'weight_priority'
 		);
 		assert.deepEqual(
 			plan.attempts.map((r) => r.providerId),
@@ -122,7 +122,7 @@ describe('buildRouteAttemptPlan', () => {
 					tierKeyPrefix: 'm|default|openai',
 					preferInTier: prefersResponses,
 				},
-				'strict'
+				'weight_priority'
 			);
 			assert.deepEqual(
 				plan.attempts.map((r) => r.providerId),
@@ -143,7 +143,7 @@ describe('buildRouteAttemptPlan', () => {
 					tierKeyPrefix: 'm|default|openai',
 					preferInTier: prefersResponses,
 				},
-				'strict'
+				'weight_priority'
 			);
 			assert.deepEqual(
 				plan.attempts.map((r) => r.providerId),
@@ -165,9 +165,9 @@ describe('buildRouteAttemptPlan', () => {
 					tierKeyPrefix: 'm|default|openai',
 					preferInTier: prefersResponses,
 				},
-				'strict'
+				'weight_priority'
 			);
-			// strict = weight DESC, 然后 providerId；分区稳定，故各分区内仍是 high 在前。
+			// weight_priority = weight DESC, 然后 providerId（v2.2.0 前叫 strict）；分区稳定，故各分区内仍是 high 在前。
 			assert.deepEqual(
 				plan.attempts.map((r) => r.providerId),
 				['native-high', 'native-low', 'chat-high', 'chat-low']
@@ -183,7 +183,7 @@ describe('buildRouteAttemptPlan', () => {
 			const allNative = buildRouteAttemptPlan(
 				[native('a', { routeWeight: 9 }), native('b', { routeWeight: 1 })],
 				ctx,
-				'strict'
+				'weight_priority'
 			);
 			assert.deepEqual(
 				allNative.attempts.map((r) => r.providerId),
@@ -192,7 +192,7 @@ describe('buildRouteAttemptPlan', () => {
 			const noneNative = buildRouteAttemptPlan(
 				[makeRoute('a', { routeWeight: 9 }), makeRoute('b', { routeWeight: 1 })],
 				ctx,
-				'strict'
+				'weight_priority'
 			);
 			assert.deepEqual(
 				noneNative.attempts.map((r) => r.providerId),
@@ -210,7 +210,7 @@ describe('buildRouteAttemptPlan', () => {
 					tierKeyPrefix: 'm|default|openai',
 					preferInTier: prefersResponses,
 				},
-				'strict',
+				'weight_priority',
 				t0
 			);
 			assert.deepEqual(
@@ -219,5 +219,48 @@ describe('buildRouteAttemptPlan', () => {
 			);
 			assert.equal(plan.skippedByCircuit, 1);
 		});
+	});
+
+	it('applies different strategies per priority tier via tierOverrides', () => {
+		const routes = [
+			makeRoute('high-b', { routePriority: 10, routeWeight: 1 }),
+			makeRoute('high-a', { routePriority: 10, routeWeight: 5 }),
+			makeRoute('low-b', { routePriority: 0, routeWeight: 1 }),
+			makeRoute('low-a', { routePriority: 0, routeWeight: 5 }),
+		];
+		const plan = buildRouteAttemptPlan(
+			routes,
+			{ affinityKey: 'u|m|default|openai', tierKeyPrefix: 'm|default|openai' },
+			'weighted_random',
+			Date.now(),
+			new Map([
+				[10, 'weight_priority'],
+				[0, 'weight_priority'],
+			])
+		);
+		assert.deepEqual(
+			plan.attempts.map((r) => r.providerId),
+			['high-a', 'high-b', 'low-a', 'low-b']
+		);
+	});
+
+	it('falls back to base strategy when a tier has no override', () => {
+		const routes = [
+			makeRoute('high-b', { routePriority: 10, routeWeight: 1 }),
+			makeRoute('high-a', { routePriority: 10, routeWeight: 5 }),
+			makeRoute('low-b', { routePriority: 0, routeWeight: 1 }),
+			makeRoute('low-a', { routePriority: 0, routeWeight: 5 }),
+		];
+		const plan = buildRouteAttemptPlan(
+			routes,
+			{ affinityKey: 'u|m|default|openai', tierKeyPrefix: 'm|default|openai' },
+			'weight_priority',
+			Date.now(),
+			new Map([[10, 'weight_priority']])
+		);
+		assert.deepEqual(
+			plan.attempts.map((r) => r.providerId),
+			['high-a', 'high-b', 'low-a', 'low-b']
+		);
 	});
 });

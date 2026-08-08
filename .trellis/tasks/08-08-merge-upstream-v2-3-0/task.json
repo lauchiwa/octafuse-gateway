@@ -1,0 +1,38 @@
+{
+  "id": "merge-upstream-v2-3-0",
+  "name": "merge-upstream-v2-3-0",
+  "title": "Merge upstream v2.3.0 (sticky routing + strategy ID renames)",
+  "description": "Merge upstream tag v2.3.0 (23 commits from v2.1.1). Three blocking concerns: migration number collision with our applied 0017/0018, route strategy ID renames with no aliases, and restored sticky routing.",
+  "status": "in_progress",
+  "dev_type": "merge",
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "chiwalau",
+  "assignee": "chiwalau",
+  "createdAt": "2026-08-08",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "docs/developers/upstream-sync.md",
+    ".trellis/spec/guides/upstream-merge-thinking-guide.md",
+    "packages/core/migrations-d1/",
+    "packages/proxy/src/services/route-attempt-planner.ts",
+    "packages/proxy/src/routes/v1/responses.ts"
+  ],
+  "notes": "Rollback tag: pre-v2.3.0-merge -> 921caa5",
+  "meta": {
+    "upstream_tag": "v2.3.0",
+    "base_tag": "v2.1.1",
+    "commits": 23,
+    "excluded_unreleased": 2,
+    "rollback_tag": "pre-v2.3.0-merge"
+  }
+}

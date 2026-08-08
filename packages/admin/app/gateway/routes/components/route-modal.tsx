@@ -266,7 +266,11 @@ export function RouteModal(props: Props) {
 										className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-mono text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
 									>
 										{requestOperations.map((operation) => (
-											<option key={operation} value={operation}>{operation}</option>
+											<option key={operation} value={operation}>
+												{operation === 'models.generate'
+													? t('operationModelsGenerate')
+													: operation}
+											</option>
 										))}
 										{formData.request_operation === '*' ? <option value="*">*</option> : null}
 									</select>
@@ -380,7 +384,11 @@ export function RouteModal(props: Props) {
 										className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-mono text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-600"
 									>
 										{upstreamOperations.map((operation) => (
-											<option key={operation} value={operation}>{operation}</option>
+											<option key={operation} value={operation}>
+												{operation === 'models.generate'
+													? t('operationModelsGenerate')
+													: operation}
+											</option>
 										))}
 										{showCurrentUpstreamOperation ? (
 											<option value={formData.upstream_operation}>

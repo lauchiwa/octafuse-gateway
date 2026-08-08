@@ -67,7 +67,17 @@ test('the guard is protocol- and kind-scoped, not a bare surface check', () => {
 		resolveRequestOperation({
 			kind: 'llm', protocol: 'gemini', geminiAction: 'generateContent', openaiSurface: 'responses',
 		}),
-		'generateContent'
+		// 上游 v2.2.0 将 Gemini surface operation 收敛为家族名 `models.generate`；
+		// 真实 wire action 仍为 generateContent / streamGenerateContent（下方另行验证）。
+		// 本用例要守的是“Responses surface 不得泄到 gemini”，与改名无关。
+		'models.generate'
+	);
+	// wire action 仍区分流式，且不受 openaiSurface 影响。
+	assert.equal(
+		resolveProxyPathForModelInvoke({
+			kind: 'llm', protocol: 'gemini', geminiAction: 'generateContent', openaiSurface: 'responses',
+		}),
+		resolveProxyPathForModelInvoke({ kind: 'llm', protocol: 'gemini', geminiAction: 'generateContent' })
 	);
 	// image/audio keep their own operations regardless of surface.
 	assert.equal(

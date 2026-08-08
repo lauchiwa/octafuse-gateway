@@ -7,7 +7,7 @@ const counters = new Map<string, number>();
 /**
  * 按 weight 展开序列，再按进程内计数器轮转；去重后保持首次出现顺序。
  */
-export function orderByRoundRobin(routes: RouteResult[], ctx: RouteOrderContext): RouteResult[] {
+export function orderByWeightedRoundRobin(routes: RouteResult[], ctx: RouteOrderContext): RouteResult[] {
 	if (routes.length <= 1) return [...routes];
 
 	const expanded: RouteResult[] = [];
@@ -33,7 +33,7 @@ export function orderByRoundRobin(routes: RouteResult[], ctx: RouteOrderContext)
 	return ordered;
 }
 
-/** 测试用：清空 round-robin 计数器。 */
-export function resetRoundRobinStateForTests(): void {
+/** 测试用：清空 weighted round-robin 计数器。 */
+export function resetWeightedRoundRobinStateForTests(): void {
 	counters.clear();
 }

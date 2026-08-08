@@ -84,49 +84,49 @@ export function createPostgresRequestLogsRepository(db: PostgresDatabaseClient):
 			const bindValues: unknown[] = [];
 
 			if (options.apiKeyId) {
-				conditions.push('api_key_id = ?');
+				conditions.push('rl.api_key_id = ?');
 				bindValues.push(options.apiKeyId);
 			}
 			if (options.userId) {
-				conditions.push('user_id = ?');
+				conditions.push('rl.user_id = ?');
 				bindValues.push(options.userId);
 			}
 			if (options.userEmail) {
-				conditions.push('user_email = ?');
+				conditions.push('rl.user_email = ?');
 				bindValues.push(options.userEmail);
 			}
 			if (options.modelId) {
-				conditions.push('model_id = ?');
+				conditions.push('rl.model_id = ?');
 				bindValues.push(options.modelId);
 			}
 			if (options.providerId) {
-				conditions.push('provider_id = ?');
+				conditions.push('rl.provider_id = ?');
 				bindValues.push(options.providerId);
 			}
 			if (options.routeGroup) {
-				conditions.push('route_group = ?');
+				conditions.push('rl.route_group = ?');
 				bindValues.push(options.routeGroup);
 			}
 			if (options.protocol) {
-				conditions.push("COALESCE(NULLIF(request_protocol, ''), upstream_protocol) = ?");
+				conditions.push("COALESCE(NULLIF(rl.request_protocol, ''), rl.upstream_protocol) = ?");
 				bindValues.push(options.protocol);
 			}
 			if (options.status) {
-				conditions.push('status = ?');
+				conditions.push('rl.status = ?');
 				bindValues.push(options.status);
 			}
 			if (options.startDate) {
-				conditions.push('created_at >= ?');
+				conditions.push('rl.created_at >= ?');
 				bindValues.push(options.startDate);
 			}
 			if (options.endDate) {
-				conditions.push('created_at <= ?');
+				conditions.push('rl.created_at <= ?');
 				bindValues.push(options.endDate);
 			}
 
 			const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-			const countSql = sqlitePlaceholdersToPg(`SELECT COUNT(*) as total FROM api_key_request_logs ${whereClause}`);
+			const countSql = sqlitePlaceholdersToPg(`SELECT COUNT(*) as total FROM api_key_request_logs rl ${whereClause}`);
 			const countRows = (await pg.unsafe(
 				countSql,
 				bindValues as Parameters<typeof pg.unsafe>[1]
@@ -134,7 +134,11 @@ export function createPostgresRequestLogsRepository(db: PostgresDatabaseClient):
 			const total = Number(countRows[0]?.total ?? 0);
 
 			const selectSql = sqlitePlaceholdersToPg(
-				`SELECT * FROM api_key_request_logs ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+				`SELECT rl.*, u.external_system AS external_system
+				 FROM api_key_request_logs rl
+				 LEFT JOIN users u ON u.id = rl.user_id
+				 ${whereClause}
+				 ORDER BY rl.created_at DESC LIMIT ? OFFSET ?`
 			);
 			const dataRows = (await pg.unsafe(
 				selectSql,

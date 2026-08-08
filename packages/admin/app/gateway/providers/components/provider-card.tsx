@@ -2,14 +2,11 @@
 
 import {
 	CheckIcon,
-	ChevronDownIcon,
 	ClipboardDocumentIcon,
 	ExclamationTriangleIcon,
-	PencilSquareIcon,
 	PowerIcon,
 } from '@heroicons/react/24/outline';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
 import { VendorIcon } from '@/components/model-vendor-icon';
 import type { GatewayProvider } from '../types';
 import { getProviderProtocolSummaries } from '../provider-utils';
@@ -20,7 +17,6 @@ type ProviderCardProps = {
 	copiedId: string | null;
 	statusTogglingId: string | null;
 	onEdit: (provider: GatewayProvider) => void;
-	onCopyEndpoint: (text: string, feedbackId: string) => void;
 	onToggleStatus: (provider: GatewayProvider) => void;
 	onCopyApiKey: (provider: GatewayProvider) => void;
 };
@@ -31,13 +27,11 @@ export function ProviderCard(props: ProviderCardProps) {
 		copiedId,
 		statusTogglingId,
 		onEdit,
-		onCopyEndpoint,
 		onToggleStatus,
 		onCopyApiKey,
 	} = props;
 
 	const t = useTranslations('providers.card');
-	const tUpstream = useTranslations('upstream');
 	const tCommon = useTranslations('common');
 
 	const protocols = getProviderProtocolSummaries(provider);
@@ -46,39 +40,44 @@ export function ProviderCard(props: ProviderCardProps) {
 	const maskedKey = provider.api_key?.trim() || '';
 	const noKey = !maskedKey || maskedKey === '(empty)' || pendingKey;
 	const apiKeyFeedbackId = `provider-api-key:${provider.id}`;
-	const rowAccent = pendingKey
-		? 'border-l-amber-400'
-		: !isActive
-			? 'border-l-slate-300'
-			: noKey
-				? 'border-l-red-400'
-				: 'border-l-emerald-400';
-	const [expandedProtocols, setExpandedProtocols] = useState<Record<string, boolean>>({});
 
 	return (
 		<article
-			className={`grid min-w-0 grid-cols-1 gap-3 border-l-2 px-4 py-3 transition-colors hover:bg-slate-50/80 lg:grid-cols-[minmax(210px,0.9fr)_minmax(340px,1.7fr)_minmax(180px,0.72fr)_auto] lg:items-center lg:gap-5 ${rowAccent}`}
+			className="group relative grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3 px-4 py-3 lg:h-[72px] lg:grid-cols-[auto_minmax(210px,0.9fr)_minmax(340px,1.7fr)_minmax(180px,0.72fr)] lg:items-center lg:gap-5"
 		>
-			<div className="flex min-w-0 items-start gap-3">
+			<button
+				type="button"
+				onClick={() => onEdit(provider)}
+				className="absolute inset-0 z-0 cursor-pointer bg-transparent transition-colors group-hover:bg-slate-50/80 focus-visible:bg-blue-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+				title={t('editProvider', { name: provider.name })}
+				aria-label={t('editProvider', { name: provider.name })}
+			/>
+			<div className="pointer-events-none relative z-10 col-start-1 row-start-1 flex items-center">
+				<button
+					type="button"
+					role="switch"
+					aria-checked={isActive}
+					disabled={statusTogglingId === provider.id}
+					onClick={() => void onToggleStatus(provider)}
+					className={`pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-lg ring-1 ring-inset transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-50 ${
+						isActive
+							? 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100'
+							: 'bg-red-50 text-red-600 ring-red-200 hover:bg-red-100'
+					}`}
+					title={isActive ? t('providerEnabled') : t('providerDisabled')}
+					aria-label={isActive ? t('providerEnabled') : t('providerDisabled')}
+				>
+					<PowerIcon className="h-4 w-4" aria-hidden />
+				</button>
+			</div>
+
+			<div className="pointer-events-none relative z-10 col-start-2 row-start-1 flex min-w-0 items-start gap-3">
 				<VendorIcon vendor={provider.vendor_key} iconKey={provider.icon_key} size="compact" />
 				<div className="min-w-0 flex-1">
-					<div className="flex min-w-0 flex-wrap items-center gap-1.5">
-						<h2 className="min-w-0 truncate text-sm font-semibold text-gray-900" title={provider.name}>
+					<div className="flex min-w-0 items-center gap-1.5">
+						<h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900" title={provider.name}>
 							{provider.name}
 						</h2>
-						<span
-							className={`inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-								isActive
-									? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200'
-									: 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200'
-							}`}
-						>
-							<span
-								aria-hidden
-								className={`h-1.5 w-1.5 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-slate-400'}`}
-							/>
-							{isActive ? tCommon('active') : t('disabled')}
-						</span>
 						{pendingKey ? (
 							<span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 ring-1 ring-inset ring-amber-200">
 								<ExclamationTriangleIcon className="h-3 w-3" aria-hidden />
@@ -95,192 +94,53 @@ export function ProviderCard(props: ProviderCardProps) {
 					<p className="mt-0.5 truncate font-mono text-[10px] text-gray-500" title={provider.id}>
 						{provider.id}
 					</p>
-					{provider.description ? (
-						<p className="mt-1 line-clamp-2 text-xs leading-4 text-gray-500" title={provider.description}>
-							{provider.description}
-						</p>
-					) : null}
 				</div>
 			</div>
 
-			<div className="min-w-0">
+			<div className="pointer-events-none relative z-10 col-span-2 row-start-2 min-w-0 lg:col-span-1 lg:col-start-3 lg:row-start-1">
 				<p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400 lg:hidden">
 					{t('supportedEndpoints')}
 				</p>
 				{protocols.length > 0 ? (
-					<div className="grid min-w-0 gap-1.5">
+					<div className="grid h-8 min-w-0 grid-flow-col auto-cols-fr gap-1.5 overflow-hidden">
 						{protocols.map((protocol) => {
 							const badgeLabels = protocol.badges.map((badge) => t(`cap.${badge}`));
-							const expanded = Boolean(expandedProtocols[protocol.key]);
-							const summaryUrl =
-								protocol.baseUrl && protocol.overrideCount === 0
-									? protocol.baseUrl
-									: !protocol.baseUrl && protocol.endpoints.length === 1
-										? protocol.endpoints[0]?.url ?? null
-										: null;
-							const summary = summaryUrl
-								? summaryUrl
-								: protocol.baseUrl
-									? t('baseWithOverrides', { count: protocol.overrideCount })
+							const capabilitySummary =
+								badgeLabels.length > 0
+									? badgeLabels.join(' / ')
 									: t('endpointCount', { count: protocol.endpoints.length });
 
 							return (
-								<div
+								<span
 									key={protocol.key}
-									className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white"
+									className="inline-flex min-w-0 items-center gap-1.5 overflow-hidden rounded-lg border border-slate-200 bg-white px-2 text-slate-600"
+									title={`${protocol.label} · ${capabilitySummary}`}
 								>
-									<div className="flex min-w-0 items-center gap-2 px-2.5 py-1.5">
-										<span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-200">
-											<ProviderProtocolIcon protocol={protocol.key} />
-										</span>
-										<div className="min-w-0 flex-1">
-											<div className="flex min-w-0 items-center gap-2">
-												<span className="shrink-0 text-[11px] font-semibold text-gray-800">
-													{protocol.label}
-												</span>
-												<span className="min-w-0 truncate font-mono text-[10px] text-gray-500" title={summary}>
-													{summary}
-												</span>
-											</div>
-											{protocol.badges.length > 0 ? (
-												<div className="mt-1 flex min-w-0 flex-wrap gap-1">
-													{protocol.badges.map((badge) => (
-														<span
-															key={badge}
-															className="rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium leading-3 text-blue-700 ring-1 ring-inset ring-blue-100"
-														>
-															{t(`cap.${badge}`)}
-														</span>
-													))}
-													<span className="sr-only">
-														{t('capabilitiesSr', {
-															label: protocol.label,
-															caps: badgeLabels.join(', '),
-														})}
-													</span>
-												</div>
-											) : null}
-										</div>
-										{summaryUrl ? (
-											<button
-												type="button"
-												onClick={() =>
-													void onCopyEndpoint(
-														summaryUrl,
-														`endpoint-summary:${provider.id}:${protocol.key}`
-													)
-												}
-												className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-												title={tUpstream('endpointCopyTitle', {
-													label: protocol.label,
-													url: summaryUrl,
-												})}
-												aria-label={tUpstream('endpointCopyTitle', {
-													label: protocol.label,
-													url: summaryUrl,
-												})}
-											>
-												{copiedId === `endpoint-summary:${provider.id}:${protocol.key}` ? (
-													<CheckIcon className="h-4 w-4 text-emerald-600" aria-hidden />
-												) : (
-													<ClipboardDocumentIcon className="h-4 w-4" aria-hidden />
-												)}
-											</button>
-										) : null}
-										<button
-											type="button"
-											onClick={() =>
-												setExpandedProtocols((current) => ({
-													...current,
-													[protocol.key]: !current[protocol.key],
-												}))
-											}
-											className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 hover:bg-slate-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-											title={expanded ? t('hideEndpointDetails') : t('showEndpointDetails')}
-											aria-label={expanded ? t('hideEndpointDetails') : t('showEndpointDetails')}
-											aria-expanded={expanded}
-										>
-											<ChevronDownIcon
-												className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`}
-												aria-hidden
-											/>
-										</button>
-									</div>
-									{expanded ? (
-										<div className="divide-y divide-slate-100 border-t border-slate-200 bg-slate-50/60">
-											{protocol.endpoints.map((endpoint) => {
-												const feedbackId = `endpoint:${provider.id}:${protocol.key}:${endpoint.capability}`;
-												return (
-													<div
-														key={endpoint.capability}
-														className="grid min-w-0 grid-cols-[minmax(105px,auto)_minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-1.5"
-													>
-														<div className="flex min-w-0 items-center gap-1">
-															<span className="truncate font-mono text-[10px] font-semibold text-slate-700" title={endpoint.capability}>
-																{endpoint.capability}
-															</span>
-															<span
-																className={`shrink-0 rounded px-1 py-0.5 text-[8px] font-medium leading-3 ${
-																	endpoint.source === 'override'
-																		? 'bg-violet-100 text-violet-700'
-																		: 'bg-slate-200 text-slate-600'
-																}`}
-															>
-																{endpoint.source === 'override' ? t('override') : t('derived')}
-															</span>
-														</div>
-														<span className="min-w-0 truncate font-mono text-[9px] text-slate-500" title={endpoint.url}>
-															{endpoint.url}
-														</span>
-														<button
-															type="button"
-															onClick={() => void onCopyEndpoint(endpoint.url, feedbackId)}
-															className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-white hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-															title={
-																copiedId === feedbackId
-																	? tCommon('copied')
-																	: tUpstream('endpointCopyTitle', {
-																			label: endpoint.capability,
-																			url: endpoint.url,
-																		})
-															}
-															aria-label={
-																copiedId === feedbackId
-																	? tCommon('copied')
-																	: tUpstream('endpointCopyTitle', {
-																			label: endpoint.capability,
-																			url: endpoint.url,
-																		})
-															}
-														>
-															{copiedId === feedbackId ? (
-																<CheckIcon className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
-															) : (
-																<ClipboardDocumentIcon className="h-3.5 w-3.5" aria-hidden />
-															)}
-														</button>
-													</div>
-												);
-											})}
-										</div>
-									) : null}
-								</div>
+									<span className="h-4 w-4 shrink-0">
+										<ProviderProtocolIcon protocol={protocol.key} />
+									</span>
+									<span className="min-w-0 truncate text-[10px] font-medium">
+										<span className="font-semibold text-slate-800">{protocol.label}</span>
+										<span className="text-slate-400"> · </span>
+										{capabilitySummary}
+									</span>
+								</span>
 							);
 						})}
 					</div>
 				) : (
-					<div className="rounded-lg border border-dashed border-gray-200 bg-white px-3 py-2 text-xs text-gray-400">
+					<div className="flex h-8 items-center rounded-lg border border-dashed border-gray-200 bg-white px-3 text-xs text-gray-400">
 						{t('noEndpoint')}
 					</div>
 				)}
 			</div>
 
-			<div className="min-w-0">
+			<div className="pointer-events-none relative z-10 col-span-2 row-start-3 min-w-0 lg:col-span-1 lg:col-start-4 lg:row-start-1">
 				<p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400 lg:hidden">
 					{t('apiKey')}
 				</p>
 				<div
-					className={`flex min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2 ${
+					className={`flex h-8 min-w-0 items-center gap-2 rounded-lg border px-2.5 ${
 						pendingKey
 							? 'border-amber-200 bg-amber-50/60'
 							: noKey
@@ -288,19 +148,14 @@ export function ProviderCard(props: ProviderCardProps) {
 								: 'border-slate-200 bg-white'
 					}`}
 				>
-					<div className="min-w-0 flex-1">
-						<p className="truncate font-mono text-[11px] text-gray-700" title={maskedKey || t('noKey')}>
-							{maskedKey || t('noKey')}
-						</p>
-						{pendingKey ? (
-							<p className="mt-0.5 text-[10px] text-amber-700">{t('placeholder')}</p>
-						) : null}
-					</div>
+					<p className="min-w-0 flex-1 truncate font-mono text-[11px] text-gray-700" title={maskedKey || t('noKey')}>
+						{maskedKey || t('noKey')}
+					</p>
 					<button
 						type="button"
 						onClick={() => void onCopyApiKey(provider)}
 						disabled={noKey}
-						className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 hover:bg-slate-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-35"
+						className="pointer-events-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 hover:bg-slate-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-35"
 						title={copiedId === apiKeyFeedbackId ? tCommon('copied') : t('copyApiKey')}
 						aria-label={copiedId === apiKeyFeedbackId ? tCommon('copied') : t('copyApiKey')}
 					>
@@ -311,32 +166,6 @@ export function ProviderCard(props: ProviderCardProps) {
 						)}
 					</button>
 				</div>
-			</div>
-
-			<div className="flex items-center justify-end gap-1.5">
-				<button
-					type="button"
-					disabled={statusTogglingId === provider.id}
-					onClick={() => void onToggleStatus(provider)}
-					className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ring-1 ring-inset transition focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-wait disabled:opacity-50 ${
-						isActive
-							? 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100'
-							: 'bg-slate-100 text-slate-500 ring-slate-200 hover:bg-slate-200'
-					}`}
-					title={isActive ? t('providerEnabled') : t('providerDisabled')}
-					aria-label={isActive ? t('providerEnabled') : t('providerDisabled')}
-				>
-					<PowerIcon className="h-4 w-4" aria-hidden />
-				</button>
-				<button
-					type="button"
-					onClick={() => onEdit(provider)}
-					className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-					title={t('editProvider')}
-					aria-label={t('editProvider')}
-				>
-					<PencilSquareIcon className="h-4 w-4" aria-hidden />
-				</button>
 			</div>
 		</article>
 	);

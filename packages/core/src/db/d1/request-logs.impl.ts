@@ -218,7 +218,13 @@ export function createD1RequestLogsRepository(db: D1DatabaseClient): RequestLogs
 			const total = Number(countRow?.total ?? 0);
 
 			const rows = await raw
-				.prepare(`SELECT * FROM api_key_request_logs rl ${whereClauseRl} ORDER BY rl.created_at DESC LIMIT ? OFFSET ?`)
+				.prepare(
+					`SELECT rl.*, u.external_system AS external_system
+					 FROM api_key_request_logs rl
+					 LEFT JOIN users u ON u.id = rl.user_id
+					 ${whereClauseRl}
+					 ORDER BY rl.created_at DESC LIMIT ? OFFSET ?`
+				)
 				.bind(...bindValues, pageSize, offset)
 				.all<RequestLogRow>();
 			return { logs: rows.results ?? [], total };

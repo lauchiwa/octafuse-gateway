@@ -306,6 +306,39 @@ gateway-admin.example.com {
 }
 ```
 
+## 8. 如何更新版本
+
+升级前阅读目标版本 [GitHub Release](https://github.com/OctaFuse/octafuse-gateway/releases) / `CHANGELOG.md` 中的 **升级说明**（破坏性变更、必做迁移、维护窗口）。推荐顺序：**先 migrate，再滚动重启 Proxy / Admin**；或仅在一侧开启 `AUTO_MIGRATE=1`（见 §5）。
+
+### 8.1 预构建镜像（GHCR / 私有 registry）
+
+1. 编辑宿主机 env（通常在 `docker/deploy/`，由 `docker/examples/env.*.example` 复制）：将 `GATEWAY_PROXY_IMAGE`、`GATEWAY_ADMIN_IMAGE`、`GATEWAY_MIGRATE_IMAGE` 的 **tag** 改为目标版本（生产钉死 `vX.Y.Z`；可用 Release 正文中的 **digest** 做二次校验）。
+2. 拉取 → 迁移 → 重建：
+
+```bash
+docker compose --env-file docker/deploy/.env.local -f docker/examples/gateway.compose.yml pull
+docker compose --env-file docker/deploy/.env.local -f docker/examples/gateway.compose.yml --profile migrate run --rm migrate
+docker compose --env-file docker/deploy/.env.local -f docker/examples/gateway.compose.yml up -d
+```
+
+仅 Proxy 或仅 Admin 时，换成对应的 `gateway.proxy.yml` / `gateway.admin.yml` 与 env 文件即可。若已设 `AUTO_MIGRATE=1`，`pull` 后可直接 `up -d`；仍须按 Release 判断是否需要维护窗口。
+
+### 8.2 本地构建镜像（Compose `node-pg` / `node-mysql` / `quickstart`）
+
+```bash
+git pull --ff-only
+docker compose -f docker/compose/node-pg.yml --profile migrate run --rm migrate
+docker compose -f docker/compose/node-pg.yml up -d --build gateway-proxy gateway-admin
+```
+
+MySQL 将 `node-pg.yml` 换成 `node-mysql.yml`。一键体验：`docker compose -f docker/compose/quickstart.yml up --build -d`。
+
+### 8.3 升级后验收
+
+同 [§7](#7-发布后最小验证)：`GET /health`、抽样 `GET /v1/models`、Admin `GET /api/admin/config` 与控制台可打开。
+
+Cloudflare Workers 路径的升级步骤见 [cloudflare-quickstart.md §12](./cloudflare-quickstart.md#12-后续升级)。
+
 ---
 
 **相关文档**：[部署索引](./README.md) · [D1 ↔ Postgres 切换](../migrations/d1-postgres-cutover.md) · [本地测试](../../developers/local-development.md)

@@ -18,6 +18,11 @@
 |------|------|
 | D1 与 Postgres 之间 ETL、对账和切换 | [migrations/d1-postgres-cutover.md](./migrations/d1-postgres-cutover.md) |
 | 1.11.x → 2.0：单键 Provider + 路由拓扑（本 fork 迁移 0017 / 0018） | [migrations/single-provider-key-cutover.md](./migrations/single-provider-key-cutover.md) |
+| 2.1.2 → 2.2.0：Gemini operation 收敛（本 fork 迁移 0019） | [migrations/gemini-models-generate-cutover.md](./migrations/gemini-models-generate-cutover.md) |
+| 2.1.2 → 2.2.0：Route Pool 按 priority 层覆盖策略（本 fork 迁移 0020） | [migrations/route-pool-tier-strategies-cutover.md](./migrations/route-pool-tier-strategies-cutover.md) |
+| 2.1.2 → 2.2.0：路由策略 canonical ID 硬切换（本 fork 迁移 0021） | [migrations/route-strategy-canonical-ids-cutover.md](./migrations/route-strategy-canonical-ids-cutover.md) |
+| 2.2.0 → 2.3.0：Route Pool Provider Sticky Routing（本 fork 迁移 0022） | [migrations/route-pool-sticky-routing-cutover.md](./migrations/route-pool-sticky-routing-cutover.md) |
+| 路由策略展示对齐 ID 硬切换（本 fork 迁移 0023：`hash_affinity` / `weight_priority`） | [migrations/route-strategy-display-ids-cutover.md](./migrations/route-strategy-display-ids-cutover.md) |
 | User audit 兼容导出移除说明 | [migrations/user-audit-legacy-exports.md](./migrations/user-audit-legacy-exports.md) |
 
 ## 本地演练

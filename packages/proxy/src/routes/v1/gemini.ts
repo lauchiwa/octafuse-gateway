@@ -1,6 +1,7 @@
 /**
  * 用户路由：`POST /v1beta/models/{model}:{generateContent|streamGenerateContent}`（Gemini 风格路径）。
  */
+import { GEMINI_GENERATE_OPERATION } from '@octafuse/core';
 import { Hono } from 'hono';
 import type { Env } from '../../app';
 import { requireApiKey } from '../../middleware/auth';
@@ -12,7 +13,7 @@ import { resolveModelRouting } from '../../services/resolve-model-route-group';
 import {
   buildAffinityKey,
   buildTierKeyPrefix,
-  resolveRouteStrategy,
+  resolveRouteStrategyPlan,
 } from '../../services/route-strategies';
 import { proxyGeminiContent, EMPTY_USAGE, type UsageFromStream } from '../../services/proxy';
 import { buildRouteRequestBody } from '../../services/route-default-params';
@@ -21,6 +22,7 @@ import { summarizeGeminiToolsForLog } from '../../services/request-log-tools-sum
 import { resolveGeminiLoggedRequestId } from '../../services/egress/upstream-request-id';
 import { recordUsage } from '../../services/usage-tracker';
 import { scheduleBackgroundWork } from '../../runtime/schedule-background-work';
+import { stickyConfigFromSurface } from '../../services/provider-sticky-routing';
 import {
   computeRequestLogStatus,
   formatHttpErrorTextForRequestLog,
@@ -166,15 +168,19 @@ geminiRoutes.post('/models/:modelAction', async (c) => {
 
   let routes: RouteResult[];
   let poolStrategy: string | null = null;
+  let poolTierStrategies: string | null = null;
+  let stickySurface: import('@octafuse/core').ResolvedModelSurfaceRow | null = null;
   try {
     const resolvedSurface = await resolveRoutesForSurface(repos, {
       modelId: baseModelId,
       routeGroup: effectiveRouteGroup,
       requestProtocol: 'gemini',
-      requestOperation: action,
+      requestOperation: GEMINI_GENERATE_OPERATION,
     });
     routes = resolvedSurface.routes;
     poolStrategy = resolvedSurface.surface?.pool_strategy ?? null;
+    poolTierStrategies = resolvedSurface.surface?.pool_tier_strategies ?? null;
+    stickySurface = resolvedSurface.surface;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Model route resolution failed';
     return gatewayErrorJson(c, {
@@ -210,11 +216,12 @@ geminiRoutes.post('/models/:modelAction', async (c) => {
   }
 
   const requestSignal = c.req.raw.signal;
-  const strategy = await resolveRouteStrategy({
+  const strategyPlan = await resolveRouteStrategyPlan({
     routePolicyRaw: model.route_policy ?? null,
     poolStrategy,
+    poolTierStrategies,
     protocol: 'gemini',
-    capability: action,
+    capability: GEMINI_GENERATE_OPERATION,
     routeGroup: effectiveRouteGroup,
     repos,
   });
@@ -228,9 +235,28 @@ geminiRoutes.post('/models/:modelAction', async (c) => {
     body,
     c.req.url.includes('?') ? c.req.url.slice(c.req.url.indexOf('?')) : '',
     requestSignal,
-    { affinityKey, tierKeyPrefix, strategy, timing }
+    {
+      affinityKey,
+      tierKeyPrefix,
+      strategy: strategyPlan.base,
+      tierStrategies: strategyPlan.tierOverrides,
+      timing,
+      routePoolId: stickySurface?.route_pool_id ?? routes[0]?.routePoolId ?? null,
+      sticky: stickyConfigFromSurface(stickySurface),
+    }
   );
-  const { usagePromise, chosenRoute, upstreamRequestId, circuitEvents, suppressErrorAlert } = proxyResult;
+  const {
+    usagePromise,
+    chosenRoute,
+    upstreamRequestId,
+    circuitEvents,
+    suppressErrorAlert,
+    stickyTrace,
+    stickyMutationPromise,
+  } = proxyResult;
+  if (stickyMutationPromise) {
+    scheduleBackgroundWork(c, stickyMutationPromise);
+  }
   const { response, errorBodyText } = await materializeNonOkResponse(proxyResult.response);
 
   let userModelCircuitEvent = null;
@@ -320,13 +346,15 @@ geminiRoutes.post('/models/:modelAction', async (c) => {
           request_body: requestBodyForLog,
           upstream_request_body: upstreamRequestBodyForLog,
           request_protocol: 'gemini',
-          request_operation: action,
+          request_operation: GEMINI_GENERATE_OPERATION,
           upstream_protocol: chosenRoute.upstreamProtocol,
           upstream_operation: chosenRoute.upstreamOperation,
           model_surface_id: chosenRoute.modelSurfaceId,
           route_pool_id: chosenRoute.routePoolId,
           route_target_id: chosenRoute.targetId,
           adapter: chosenRoute.adapter,
+          gemini_wire_action: action,
+          sticky_trace: stickyTrace ? await stickyTrace() : null,
           usage: usageCollected,
           model_pricing_profile: model.pricing_profile ?? null,
           route_price_override_json: chosenRoute.priceOverrideRaw,

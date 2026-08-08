@@ -9,10 +9,13 @@ import {
 	parseModelRoutePolicy,
 	routePolicyRuleKey,
 } from '@octafuse/core/db/model-route-policy';
+import { parseRoutePoolTierStrategies } from '@octafuse/core/db/route-pool-tier-strategies';
+import { parseRoutePoolStickyConfig } from '@octafuse/core/db/route-pool-sticky-types';
 import {
 	ANTHROPIC_ENDPOINT_CAPABILITIES,
 	GEMINI_ENDPOINT_CAPABILITIES,
 	OPENAI_ENDPOINT_CAPABILITIES,
+	listConfiguredCapabilities,
 	parseProviderEndpoints,
 	type ProviderEndpointCapability,
 } from '@octafuse/core/provider-endpoints';
@@ -69,17 +72,34 @@ export type EffectiveRouteStrategy = {
 /**
  * Mirrors the proxy's route strategy resolution order so the admin UI can show
  * both the configured value and the value that will actually take effect.
+ *
+ * When `priority` is provided, `poolTierStrategies[priority]` wins first
+ * (source `'tier'`).
  */
 export function resolveEffectiveRouteStrategy(params: {
 	poolStrategy?: string | null;
+	poolTierStrategies?: string | null;
+	priority?: number;
 	routePolicyRaw?: string | null;
 	protocol: string;
 	requestOperation?: string | null;
 	routeGroup: string;
 	globalStrategy?: string | null;
 }): EffectiveRouteStrategy {
+	if (params.priority !== undefined) {
+		const tierMap = parseRoutePoolTierStrategies(params.poolTierStrategies);
+		const tierStrategy = tierMap.get(params.priority);
+		if (tierStrategy) {
+			return { strategy: tierStrategy, source: 'tier', inherited: false };
+		}
+	}
+
 	if (params.poolStrategy && isRouteStrategyName(params.poolStrategy)) {
-		return { strategy: params.poolStrategy, source: 'pool', inherited: false };
+		return {
+			strategy: params.poolStrategy,
+			source: 'pool',
+			inherited: params.priority !== undefined,
+		};
 	}
 
 	const policy = parseModelRoutePolicy(params.routePolicyRaw);
@@ -147,6 +167,9 @@ export function splitRoutesByProtocolAndRouteGroup<
 		route_pool_id?: string | null;
 		pool_name?: string | null;
 		pool_strategy?: string | null;
+		pool_tier_strategies?: string | null;
+		pool_sticky_enabled?: boolean | number | null;
+		pool_sticky_idle_ttl_seconds?: number | null;
 		surfaces?: string | null;
 	},
 >(
@@ -164,6 +187,10 @@ export function splitRoutesByProtocolAndRouteGroup<
 			const protocol = String(surface.request_protocol ?? r.upstream_protocol).trim().toLowerCase();
 			const requestOperation = String(surface.request_operation ?? '*');
 			const key = `${r.route_pool_id ?? 'legacy'}\u0000${surface.id ?? `${protocol}:${requestOperation}`}\u0000${g}`;
+			const sticky = parseRoutePoolStickyConfig({
+				stickyEnabled: r.pool_sticky_enabled,
+				stickyIdleTtlSeconds: r.pool_sticky_idle_ttl_seconds,
+			});
 			const section =
 				bySection.get(key) ??
 				{
@@ -175,6 +202,9 @@ export function splitRoutesByProtocolAndRouteGroup<
 					poolId: r.route_pool_id ?? null,
 					poolName: r.pool_name ?? null,
 					poolStrategy: r.pool_strategy ?? null,
+					poolTierStrategies: r.pool_tier_strategies ?? null,
+					poolStickyEnabled: sticky.enabled,
+					poolStickyIdleTtlSeconds: sticky.idleTtlSeconds,
 					group: g,
 					routes: [],
 				};
@@ -189,9 +219,32 @@ export function splitRoutesByProtocolAndRouteGroup<
 	});
 }
 
+/** Same-priority layer: active first, then weight DESC, then name / id. */
+export function compareRoutesWithinPriorityLayer(
+	a: Pick<GatewayModelRoute, 'status' | 'weight' | 'provider_model_name' | 'id'>,
+	b: Pick<GatewayModelRoute, 'status' | 'weight' | 'provider_model_name' | 'id'>
+): number {
+	const enabledA = a.status === 'active' ? 1 : 0;
+	const enabledB = b.status === 'active' ? 1 : 0;
+	if (enabledB !== enabledA) return enabledB - enabledA;
+	const dw = (b.weight ?? 1) - (a.weight ?? 1);
+	if (dw !== 0) return dw;
+	const nameCmp = a.provider_model_name.localeCompare(b.provider_model_name, undefined, {
+		sensitivity: 'base',
+	});
+	if (nameCmp !== 0) return nameCmp;
+	return a.id.localeCompare(b.id, undefined, { sensitivity: 'base' });
+}
+
 export function compareModelRoutesForCardDisplay(
-	a: Pick<GatewayModelRoute, 'upstream_protocol' | 'priority' | 'provider_model_name' | 'id'>,
-	b: Pick<GatewayModelRoute, 'upstream_protocol' | 'priority' | 'provider_model_name' | 'id'>
+	a: Pick<
+		GatewayModelRoute,
+		'upstream_protocol' | 'priority' | 'status' | 'weight' | 'provider_model_name' | 'id'
+	>,
+	b: Pick<
+		GatewayModelRoute,
+		'upstream_protocol' | 'priority' | 'status' | 'weight' | 'provider_model_name' | 'id'
+	>
 ): number {
 	const knownA = isUpstreamProtocol(a.upstream_protocol);
 	const knownB = isUpstreamProtocol(b.upstream_protocol);
@@ -209,11 +262,7 @@ export function compareModelRoutesForCardDisplay(
 	}
 	const dp = b.priority - a.priority;
 	if (dp !== 0) return dp;
-	const nameCmp = a.provider_model_name.localeCompare(b.provider_model_name, undefined, {
-		sensitivity: 'base',
-	});
-	if (nameCmp !== 0) return nameCmp;
-	return a.id.localeCompare(b.id, undefined, { sensitivity: 'base' });
+	return compareRoutesWithinPriorityLayer(a, b);
 }
 
 export function compareModelVendorsForDisplay(a: string, b: string): number {
@@ -257,17 +306,65 @@ export function meteredFactorTooltip(value: number | null): string {
 	return `Metered factor: ${formatFactorMultiplier(value)} · provider cost multiplier vs catalog price`;
 }
 
-export function factorChipClassForValue(n: number): string {
-	if (!Number.isFinite(n)) {
+export type RouteFactorKind = 'charged' | 'metered';
+
+export type RouteFactorLevel =
+	| 'invalid'
+	| 'zero'
+	| 'veryLow'
+	| 'low'
+	| 'baseline'
+	| 'high'
+	| 'veryHigh';
+
+/**
+ * Keep small pricing fluctuations visually quiet, then increase emphasis when a
+ * factor moves farther away from the catalog baseline.
+ */
+export function factorLevelForValue(n: number): RouteFactorLevel {
+	if (!Number.isFinite(n) || n < 0) return 'invalid';
+	if (n === 0) return 'zero';
+	if (n < 0.8) return 'veryLow';
+	if (n < 0.95) return 'low';
+	if (n <= 1.05) return 'baseline';
+	if (n <= 1.2) return 'high';
+	return 'veryHigh';
+}
+
+export function factorChipClassForValue(n: number, kind: RouteFactorKind): string {
+	const level = factorLevelForValue(n);
+	if (level === 'invalid' || level === 'zero') {
+		return `${FACTOR_CHIP_BASE} bg-rose-100 text-rose-950 ring-rose-300/90`;
+	}
+	if (level === 'baseline') {
 		return `${FACTOR_CHIP_BASE} bg-zinc-100 text-zinc-700 ring-zinc-200/90`;
 	}
-	if (Math.abs(n - 1) < 1e-6) {
-		return `${FACTOR_CHIP_BASE} bg-zinc-100 text-zinc-700 ring-zinc-200/90`;
+	if (level === 'veryHigh') {
+		return `${FACTOR_CHIP_BASE} bg-rose-100 text-rose-950 ring-rose-300/90`;
 	}
-	if (n > 1) {
-		return `${FACTOR_CHIP_BASE} bg-amber-100 text-amber-950 ring-amber-200/90`;
+	if (level === 'high') {
+		return `${FACTOR_CHIP_BASE} bg-amber-100 text-amber-950 ring-amber-300/90`;
 	}
-	return `${FACTOR_CHIP_BASE} bg-emerald-100 text-emerald-900 ring-emerald-200/90`;
+
+	if (kind === 'charged') {
+		return level === 'veryLow'
+			? `${FACTOR_CHIP_BASE} bg-orange-100 text-orange-950 ring-orange-300/90`
+			: `${FACTOR_CHIP_BASE} bg-sky-100 text-sky-900 ring-sky-300/90`;
+	}
+	return level === 'veryLow'
+		? `${FACTOR_CHIP_BASE} bg-emerald-200 text-emerald-950 ring-emerald-400/80`
+		: `${FACTOR_CHIP_BASE} bg-emerald-100 text-emerald-900 ring-emerald-300/90`;
+}
+
+/** Base factors only; schedule windows may change the effective relationship. */
+export function hasBasePricingInversion(charged: number, metered: number): boolean {
+	return (
+		Number.isFinite(charged) &&
+		Number.isFinite(metered) &&
+		charged >= 0 &&
+		metered >= 0 &&
+		charged + 1e-6 < metered
+	);
 }
 
 function parseNonNegativeFactorText(text: string, fieldLabel: string): number {
@@ -437,16 +534,11 @@ export function upstreamOperationsForProviderModel(
 	protocol: UpstreamProtocol
 ): readonly string[] {
 	if (!provider) return [];
-	const config = parseProviderEndpoints(provider)[protocol];
-	if (!config) return [];
-	// `responses` 绝不从 `base` 派生：Responses API 必须显式配置 URL（见 provider-endpoints.ts）。
-	// 否则仅配 `base` 的 provider 会在管理端被列出 `responses`，据此建出的路由在运行时必然抛错。
-	const providerOperations = config.base
-		? (CAPABILITIES_BY_PROTOCOL[protocol] ?? []).filter(
-				(capability) =>
-					capability !== 'responses' || Boolean(config.endpoints?.responses)
-			)
-		: Object.keys(config.endpoints ?? {});
+	const map = parseProviderEndpoints(provider);
+	if (!map[protocol]) return [];
+	// `responses` 不从 `base` 派生的规则已下沉到 listConfiguredCapabilities（core），
+	// 三个调用点统一继承，不再在此处重复实现。
+	const providerOperations = listConfiguredCapabilities(map, protocol);
 	const modelOperations = new Set(requestOperationsForModel(model, protocol));
 	return providerOperations.filter((operation) => modelOperations.has(operation));
 }
@@ -456,6 +548,7 @@ export function isPromptCacheSensitiveCapability(capability: string): boolean {
 	return (
 		capability === 'chat' ||
 		capability === 'messages' ||
+		capability === 'models.generate' ||
 		capability === 'generateContent' ||
 		capability === 'streamGenerateContent'
 	);
@@ -465,7 +558,7 @@ export function readRoutePolicyFormFromRaw(
 	existingRaw: string | null | undefined,
 	protocol: string,
 	group: string
-): { protocolStrategy: string; capabilityStrategies: Record<string, string> } {
+): { protocolStrategy: string; tierStrategy: string; capabilityStrategies: Record<string, string> } {
 	const parsed = parseModelRoutePolicy(existingRaw);
 	const protocolStrategy = parsed?.rules.get(routePolicyRuleKey(protocol, null, group))?.strategy ?? '';
 	const capabilityStrategies: Record<string, string> = {};
@@ -473,7 +566,7 @@ export function readRoutePolicyFormFromRaw(
 		capabilityStrategies[cap] =
 			parsed?.rules.get(routePolicyRuleKey(protocol, cap, group))?.strategy ?? '';
 	}
-	return { protocolStrategy, capabilityStrategies };
+	return { protocolStrategy, tierStrategy: '', capabilityStrategies };
 }
 
 /**

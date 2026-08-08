@@ -34,6 +34,10 @@ import type {
 	UserTokenTimeseriesRow,
 } from './repository-dtos';
 import type { ResolvedModelSurfaceRow } from '../route-topology';
+import type {
+	RoutePoolStickyBindingRow,
+	RoutePoolStickyBindingTargetCount,
+} from '../db/route-pool-sticky-types';
 
 /** 管理端分析聚合 */
 export interface AdminAnalyticsRepository {
@@ -202,9 +206,83 @@ export interface ModelRoutesRepository {
 		requestOperation: string;
 		poolName: string;
 	}): Promise<{ poolId: string; surfaceId: string }>;
-	updateRoutePoolStrategy(poolId: string, strategy: string | null): Promise<number>;
+	/**
+	 * Patch pool-level routing policy. Only provided fields are updated.
+	 * Pass `null` for strategy/tierStrategies to clear (inherit).
+	 * Sticky fields: providing any sticky* field bumps `sticky_epoch`.
+	 */
+	updateRoutePoolPolicy(
+		poolId: string,
+		patch: {
+			strategy?: string | null;
+			tierStrategies?: string | null;
+			stickyEnabled?: boolean;
+			stickyIdleTtlSeconds?: number;
+		}
+	): Promise<number>;
+	/**
+	 * Atomically bump `sticky_epoch` (invalidates all bindings for this pool).
+	 * Returns new epoch, or null when pool not found.
+	 */
+	bumpRoutePoolStickyEpoch(poolId: string): Promise<number | null>;
 	updateModelRouteByPatch(id: string, patch: Record<string, unknown>): Promise<number>;
 	deleteModelRouteById(id: string): Promise<number>;
+	/** Delete pool (and its surfaces) only when it has no model_routes targets. */
+	deleteRoutePoolIfEmpty(poolId: string): Promise<boolean>;
+}
+
+/** Shared Provider sticky bindings (cross-isolate / cross-instance). */
+export interface RoutePoolStickyBindingsRepository {
+	getBinding(routePoolId: string, affinityHash: string): Promise<RoutePoolStickyBindingRow | null>;
+	/**
+	 * Insert binding, or replace when existing row is expired, epoch-mismatched,
+	 * or matches `expectedToken` (stale but still-valid row, e.g. invalid_target).
+	 * Returns true when this write won.
+	 */
+	tryBind(params: {
+		routePoolId: string;
+		affinityHash: string;
+		routeTargetId: string;
+		bindingToken: string;
+		poolEpoch: number;
+		expiresAt: string;
+		nowIso: string;
+		/** When set, also allow overwrite of a still-valid row with this token. */
+		expectedToken?: string | null;
+	}): Promise<boolean>;
+	/** Sliding TTL renew; CAS on binding_token. Returns true when updated. */
+	touchBinding(params: {
+		routePoolId: string;
+		affinityHash: string;
+		expectedToken: string;
+		expiresAt: string;
+		nowIso: string;
+	}): Promise<boolean>;
+	/** Clear sticky binding; CAS on binding_token. Returns true when deleted. */
+	clearBinding(params: {
+		routePoolId: string;
+		affinityHash: string;
+		expectedToken: string;
+	}): Promise<boolean>;
+	/**
+	 * Admin force-clear: delete by (pool, hash) without token CAS.
+	 * Returns true when a row was deleted.
+	 */
+	forceClearBinding(params: {
+		routePoolId: string;
+		affinityHash: string;
+	}): Promise<boolean>;
+	/**
+	 * Active binding counts per target: epoch matches pool.sticky_epoch and not expired.
+	 */
+	listBindingTargetCounts(
+		routePoolId: string,
+		nowIso: string
+	): Promise<RoutePoolStickyBindingTargetCount[]>;
+	/** Rows that are expired or epoch-mismatched (GC debt). */
+	countStaleBindings(routePoolId: string, nowIso: string): Promise<number>;
+	/** Best-effort table hygiene; not required for correctness. */
+	deleteStaleBefore(cutoffIso: string, limit: number): Promise<number>;
 }
 
 export interface ProvidersRepository {

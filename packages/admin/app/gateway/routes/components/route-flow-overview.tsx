@@ -8,6 +8,7 @@ import {
 	MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 import { useTranslations } from 'next-intl';
+import type { RouteFlowDensity } from '../types';
 
 const STEPS = [
 	{ key: 'request', icon: CursorArrowRaysIcon },
@@ -16,7 +17,11 @@ const STEPS = [
 	{ key: 'provider', icon: CloudIcon },
 ] as const;
 
-export function RouteFlowOverview() {
+type Props = {
+	density?: RouteFlowDensity;
+};
+
+export function RouteFlowOverview({ density = 'summary' }: Props) {
 	const t = useTranslations('routes.flow');
 
 	return (
@@ -25,7 +30,9 @@ export function RouteFlowOverview() {
 				<h2 id="route-flow-overview-title" className="text-sm font-semibold text-gray-900">
 					{t('overviewTitle')}
 				</h2>
-				<p className="mt-0.5 text-xs text-gray-500">{t('overviewHint')}</p>
+				<p className="mt-0.5 text-xs text-gray-500">
+					{density === 'summary' ? t('overviewHintSummary') : t('overviewHintTopology')}
+				</p>
 			</div>
 			<div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] sm:items-center">
 				{STEPS.map(({ key, icon: Icon }, index) => (

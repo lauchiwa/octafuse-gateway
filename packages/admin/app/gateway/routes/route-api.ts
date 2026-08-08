@@ -3,7 +3,13 @@ import type { GatewayModel, GatewayProvider, SystemConfigRow } from '@/lib/types
 import { isRouteStrategyName } from '@octafuse/core/db/model-route-policy';
 import { ROUTE_STRATEGY_KEY } from '@octafuse/core/lib/route-strategy-system-config';
 import { buildRouteSavePayload } from './route-utils';
-import type { RouteFormData, RouteListRow, RoutesPageData } from './types';
+import type {
+	RouteFormData,
+	RouteListRow,
+	RoutesPageData,
+	StickyBindingLookup,
+	StickyBindingsSummary,
+} from './types';
 
 export async function fetchRoutesPageData(): Promise<RoutesPageData> {
 	const [routesRes, modelsRes, providersRes, configRes] = await Promise.all([
@@ -105,12 +111,84 @@ export async function patchRoutePoolStrategy(
 	poolId: string,
 	strategy: string | null
 ): Promise<{ success: true } | { success: false; message: string }> {
+	return patchRoutePoolPolicy(poolId, { strategy });
+}
+
+export async function patchRoutePoolPolicy(
+	poolId: string,
+	patch: {
+		strategy?: string | null;
+		tier_strategies?: string | null | Record<string, string>;
+		sticky_routing?: { enabled: boolean; idle_ttl_seconds: number };
+	}
+): Promise<{ success: true } | { success: false; message: string }> {
 	const response = await fetch(`/api/admin/routes/pools/${encodeURIComponent(poolId)}`, {
 		method: 'PATCH',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ strategy }),
+		body: JSON.stringify(patch),
 	});
 	const data = await readApiJson(response);
 	if (data.success) return { success: true };
 	return { success: false, message: data.message || 'Save failed, please try again' };
+}
+
+export async function fetchStickyBindingsSummary(
+	poolId: string
+): Promise<{ success: true; data: StickyBindingsSummary } | { success: false; message: string }> {
+	const response = await fetch(
+		`/api/admin/routes/pools/${encodeURIComponent(poolId)}/sticky/bindings/summary`
+	);
+	const data = await readApiJson<StickyBindingsSummary>(response);
+	if (data.success && data.data) return { success: true, data: data.data };
+	return { success: false, message: data.message || 'Failed to load sticky bindings summary' };
+}
+
+export async function lookupStickyBinding(params: {
+	poolId: string;
+	modelId: string;
+	routeGroup: string;
+	protocol: string;
+	requestOperation: string;
+	userId?: string;
+	email?: string;
+}): Promise<{ success: true; data: StickyBindingLookup } | { success: false; message: string }> {
+	const qs = new URLSearchParams({
+		model_id: params.modelId,
+		route_group: params.routeGroup,
+		protocol: params.protocol,
+		request_operation: params.requestOperation,
+	});
+	if (params.userId?.trim()) qs.set('user_id', params.userId.trim());
+	if (params.email?.trim()) qs.set('email', params.email.trim());
+	const response = await fetch(
+		`/api/admin/routes/pools/${encodeURIComponent(params.poolId)}/sticky/bindings/lookup?${qs}`
+	);
+	const data = await readApiJson<StickyBindingLookup>(response);
+	if (data.success && data.data) return { success: true, data: data.data };
+	return { success: false, message: data.message || 'Failed to lookup sticky binding' };
+}
+
+export async function clearStickyBinding(
+	poolId: string,
+	affinityHash: string
+): Promise<{ success: true; cleared: boolean } | { success: false; message: string }> {
+	const response = await fetch(
+		`/api/admin/routes/pools/${encodeURIComponent(poolId)}/sticky/bindings/${encodeURIComponent(affinityHash)}`,
+		{ method: 'DELETE' }
+	);
+	const data = await readApiJson<{ cleared: boolean }>(response);
+	if (data.success) return { success: true, cleared: Boolean(data.data?.cleared) };
+	return { success: false, message: data.message || 'Failed to clear sticky binding' };
+}
+
+export async function resetStickyBindings(
+	poolId: string
+): Promise<{ success: true; sticky_epoch: number } | { success: false; message: string }> {
+	const response = await fetch(
+		`/api/admin/routes/pools/${encodeURIComponent(poolId)}/sticky/reset`,
+		{ method: 'POST' }
+	);
+	const data = await readApiJson<{ sticky_epoch: number }>(response);
+	if (data.success && data.data) return { success: true, sticky_epoch: data.data.sticky_epoch };
+	return { success: false, message: data.message || 'Failed to reset sticky bindings' };
 }

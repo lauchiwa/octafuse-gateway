@@ -1,5 +1,104 @@
 # Changelog
 
+## 2.3.0
+
+### Minor Changes
+
+- [`819588f`](https://github.com/OctaFuse/octafuse-gateway/commit/819588fe644519d0f95449c7867a052b8ce54514) Thanks [@dyc87112](https://github.com/dyc87112)! - OctaFuse Gateway v2.3.0 恢复 Route Pool Provider Sticky Routing，并将路由策略展示名与持久化 ID 对齐为 `hash_affinity` / `weight_priority`；Admin Routes Flow 同步增强粘滞绑定运维与拓扑可视化。
+
+  ### Proxy
+
+  - **Provider Sticky Routing**：Route Pool 可启用跨 isolate / 多实例共享的用户粘滞绑定（idle TTL 滑动、epoch 失效、失败解绑语义）；绑定命中时优先尝试粘滞目标，再进入 priority 层排序。
+  - **route_trace.sticky**：请求日志可观测 `lookup` / `attempted_target` / `result`，便于对照 Prompt Cache 收益与 failover 成本。
+  - **策略 ID 对齐**：运行时仅接受 `hash_affinity`、`weighted_random`、`weight_priority`、`weighted_round_robin`（原 `cache_affinity` / `fixed_order` 无别名）。
+
+  ### Admin
+
+  - **Sticky 运维**：Routes Flow 支持按 Pool 开关粘滞、配置 TTL、查看绑定分布 vs 权重、按用户解绑、整池 invalidate（epoch bump）。
+  - **拓扑可视化**：Route Model Flow / Overview / Workspace Header 强化路由拓扑与策略来源展示，便于运维核对层内排序与 Failover。
+  - **策略选择器**：全局、Pool、priority 层统一展示新策略 ID 与中文/多语文案。
+
+  ### Core
+
+  - **迁移 0020**：`route_pools` 增加 sticky 配置列，新增 `route_pool_sticky_bindings` 表（D1 / Postgres / MySQL）。
+  - **迁移 0021**：将持久化策略 ID `cache_affinity` → `hash_affinity`、`fixed_order` → `weight_priority`（含全局、Pool、`tier_strategies`、模型 `route_policy`）。
+
+  ### 文档
+
+  - **Sticky cutover**：新增 [route-pool-sticky-routing-cutover.md](./docs/operators/migrations/route-pool-sticky-routing-cutover.md)。
+  - **策略展示 ID cutover**：新增 [route-strategy-display-ids-cutover.md](./docs/operators/migrations/route-strategy-display-ids-cutover.md)。
+  - **参考与 API**：更新 route-strategies、Admin API、README 多语言说明中的策略 ID。
+
+  ### 升级说明
+
+  - **数据库迁移**：必须应用 **0020** 与 **0021**；三种数据库语义一致。
+  - **发布顺序**：维护窗口内先备份并暂停 Proxy 流量与 Admin 配置写入 → 执行迁移 → 立即部署同一版本的 Proxy / Admin / migrate；禁止新旧版本混跑（尤其 0021 无旧 ID 别名）。
+  - **配置变更**：外部自动化写入的路由策略 ID 须同步改为 `hash_affinity` / `weight_priority`；Sticky 默认关闭，需在 Admin 按 Pool 显式启用。
+  - **兼容性影响**：客户端推理 URL 不变；写入旧策略 ID 将 `400`；未迁移数据在新代码下会被视为非法并回退默认策略。
+  - **建议操作**：部署后验证 Sticky 开关/TTL/解绑、全局/Pool/层策略保存与非法旧 ID 拒绝，以及 chat / messages / gemini / images / audio 各协议冒烟。
+
+## 2.2.0
+
+### Minor Changes
+
+- [`57cbd07`](https://github.com/OctaFuse/octafuse-gateway/commit/57cbd0721601104dcfbee7313b62e45d2c89905c) Thanks [@dyc87112](https://github.com/dyc87112)! - OctaFuse Gateway v2.2.0 统一 Gemini Generate Content 路由语义，并将路由策略配置升级为可按 priority 层覆盖的 canonical 策略体系。
+
+  ### Proxy
+
+  - **Gemini operation 收敛**：公开 Surface 与上游 Target 统一使用 `models.generate`，流式与非流式请求共享同一 Route Pool；真实 wire action 继续使用 `generateContent` / `streamGenerateContent` 并写入 `route_trace.gemini.action`。
+  - **Canonical 路由策略**：仅接受 `cache_affinity`、`weighted_random`、`fixed_order`、`weighted_round_robin`；不再接受 `affinity`、`strict`、`round_robin`。（后续 Unreleased / 0021 已再改为 `hash_affinity` / `weight_priority`。）
+  - **按层策略**：Route Pool 可通过 `tier_strategies` 为不同 priority 层设置独立排序策略，未覆盖的层继续使用 Pool / 模型 / 全局策略。
+
+  ### Admin
+
+  - **Routes 策略编辑**：全局、Pool 与 priority 层统一使用可视化策略选择器；每层可查看实际策略来源与 Failover 规则。
+  - **Provider Gemini 配置**：新配置优先写入单一 `models.generate` URL 模板（`{model}:{action}`），无法安全合并的历史双模板会保留并提示复核。
+  - **Agent Tools Provider 卡片**：通过卡片与右侧抽屉维护凭证及 Standard / Charged / Metered 三账本单价，支持“仅保存配置”与“保存并启用”，并提示未保存、缺凭证、不可用和亏损定价状态。
+
+  ### Core
+
+  - **迁移 0017**：合并 Gemini `generateContent` / `streamGenerateContent` Surface，规范化 Target operation，并标记需要人工复核的冲突 Pool。
+  - **迁移 0018**：为 `route_pools` 新增可空的 `tier_strategies` JSON 列。
+  - **迁移 0019**：改写全局、模型、Pool 与按层配置中的旧路由策略 ID。
+
+  ### 文档
+
+  - **Docker 升级**：补充预构建镜像与本地构建场景的版本更新、迁移、重建和冒烟步骤。
+  - **迁移 Runbook**：新增 0017–0019 的发布顺序、校验、冲突处理和回滚说明。
+
+  ### 升级说明
+
+  - **数据库迁移**：必须应用 0017、0018、0019；三种数据库的迁移语义一致。
+  - **发布顺序**：备份数据库并暂停 Proxy 流量与 Admin 配置写入，先执行全部迁移，再检查 `[v220-conflict]` Gemini Pool，随后立即部署同一版本的 Proxy 与 Admin；禁止新旧版本混跑。
+  - **配置变更**：所有持久化路由策略 ID 会迁移为 canonical 名称；外部自动化写入也必须同步使用新 ID。
+  - **兼容性影响**：客户端 Gemini URL 不变；Admin / API 的 Gemini operation 配置改为 `models.generate`。历史 Provider per-action endpoint 模板仍兼容读取，历史路由策略 ID 不再接受。
+  - **建议操作**：部署后分别验证 Gemini 流式/非流式请求、全局/Pool/priority 层策略、Tools Active Provider 与三账本日志。
+
+## 2.1.2
+
+### Patch Changes
+
+- [#85](https://github.com/OctaFuse/octafuse-gateway/pull/85) [`9b7a9f6`](https://github.com/OctaFuse/octafuse-gateway/commit/9b7a9f6ddea090970d35f9b71976becd936c73f0) Thanks [@dyc87112](https://github.com/dyc87112)! - 优化 Admin 路由与 Provider 体验，请求日志补充外部系统字段，并修复干净仓库下 Admin 本地开发（Turbopack）无法解析 core 源码的问题。
+
+  ### Admin
+
+  - **路由列表 / 拓扑**：同优先级内按状态、权重与名称稳定排序；因子状态芯片与无障碍文案完善。
+  - **路由详情**：自定义参数展示与 tooltip；布局响应式调整。
+  - **Provider 卡片**：布局与按钮交互优化；移除未使用的 endpoint 复制入口。
+  - **请求日志**：补充展示 `external_system`，便于区分外部系统来源。
+  - **本地开发**：修复 Turbopack 下 `@octafuse/core` 源码解析，干净 checkout 可运行 `dev:admin`。
+
+  ### Core
+
+  - **请求日志**：读写路径补充 `external_system` 字段（D1 / Postgres / MySQL）。
+
+  ### 升级说明
+
+  - 数据库迁移：无
+  - 配置变更：无
+  - 兼容性影响：无（纯增量字段与 Admin UX）
+  - 建议操作：更新 proxy / admin / migrate 三镜像后滚动重启
+
 ## 2.1.1
 
 ### Patch Changes

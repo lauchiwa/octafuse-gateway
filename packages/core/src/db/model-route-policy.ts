@@ -4,10 +4,10 @@
  * 结构：
  * ```json
  * {
- *   "strategy": "affinity",
+ *   "strategy": "hash_affinity",
  *   "rules": {
- *     "openai:default": { "strategy": "affinity" },
- *     "openai.chat:default": { "strategy": "strict" }
+ *     "openai:default": { "strategy": "hash_affinity" },
+ *     "openai.chat:default": { "strategy": "weight_priority" }
  *   }
  * }
  * ```
@@ -20,24 +20,29 @@ import type { RouteStrategyName } from '../types';
 import {
 	ANTHROPIC_ENDPOINT_CAPABILITIES,
 	GEMINI_ENDPOINT_CAPABILITIES,
+	GEMINI_LEGACY_ENDPOINT_CAPABILITIES,
 	OPENAI_ENDPOINT_CAPABILITIES,
 	type ProviderEndpointCapability,
 } from '../provider-endpoints';
+import {
+	canonicalizeRequestOperation,
+	requestOperationAliasRank,
+} from '../route-topology';
 import { UPSTREAM_PROTOCOLS, type UpstreamProtocol } from '../upstream-protocol';
 
 export const ROUTE_STRATEGY_NAMES = [
-	'affinity',
+	'hash_affinity',
 	'weighted_random',
-	'strict',
-	'round_robin',
+	'weight_priority',
+	'weighted_round_robin',
 ] as const satisfies readonly RouteStrategyName[];
 
-export const DEFAULT_ROUTE_STRATEGY: RouteStrategyName = 'affinity';
+export const DEFAULT_ROUTE_STRATEGY: RouteStrategyName = 'hash_affinity';
 
 const CAPABILITIES_BY_PROTOCOL: Record<UpstreamProtocol, readonly ProviderEndpointCapability[]> = {
 	openai: OPENAI_ENDPOINT_CAPABILITIES,
 	anthropic: ANTHROPIC_ENDPOINT_CAPABILITIES,
-	gemini: GEMINI_ENDPOINT_CAPABILITIES,
+	gemini: [...GEMINI_ENDPOINT_CAPABILITIES, ...GEMINI_LEGACY_ENDPOINT_CAPABILITIES],
 };
 
 export function isRouteStrategyName(s: string): s is RouteStrategyName {
@@ -53,16 +58,26 @@ function canonicalizeCapability(
 	protocol: UpstreamProtocol,
 	capability: string
 ): ProviderEndpointCapability | null {
-	const lower = capability.trim().toLowerCase();
-	if (!lower) return null;
+	const trimmed = capability.trim();
+	if (!trimmed) return null;
+	const family = canonicalizeRequestOperation(protocol, trimmed);
+	const lower = family.toLowerCase();
 	for (const c of CAPABILITIES_BY_PROTOCOL[protocol]) {
-		if (c.toLowerCase() === lower) return c;
+		if (c.toLowerCase() === lower) {
+			// Prefer canonical family for gemini legacy keys.
+			if (protocol === 'gemini') {
+				return canonicalizeRequestOperation('gemini', c) as ProviderEndpointCapability;
+			}
+			return c;
+		}
+	}
+	// Also accept case-insensitive match against legacy gemini keys after family map.
+	for (const c of CAPABILITIES_BY_PROTOCOL[protocol]) {
+		if (c.toLowerCase() === trimmed.toLowerCase()) {
+			return canonicalizeRequestOperation(protocol, c) as ProviderEndpointCapability;
+		}
 	}
 	return null;
-}
-
-function isCapabilityForProtocol(protocol: UpstreamProtocol, capability: string): boolean {
-	return canonicalizeCapability(protocol, capability) != null;
 }
 
 /**
@@ -96,7 +111,15 @@ export interface ModelRoutePolicy {
 }
 
 type ParsedRuleKey =
-	| { ok: true; key: string; protocol: UpstreamProtocol; capability: string | null; routeGroup: string }
+	| {
+			ok: true;
+			key: string;
+			protocol: UpstreamProtocol;
+			capability: string | null;
+			/** Original capability segment before family canonicalization (for alias rank). */
+			rawCapability: string | null;
+			routeGroup: string;
+	  }
 	| { ok: false; reason: string };
 
 /**
@@ -119,18 +142,26 @@ function parseRuleKey(rawKey: string): ParsedRuleKey {
 		if (!isUpstreamProtocol(left)) {
 			return { ok: false, reason: `protocol "${left}" must be one of ${UPSTREAM_PROTOCOLS.join(', ')}` };
 		}
-		return { ok: true, key: routePolicyRuleKey(left, null, routeGroup), protocol: left, capability: null, routeGroup };
+		return {
+			ok: true,
+			key: routePolicyRuleKey(left, null, routeGroup),
+			protocol: left,
+			capability: null,
+			rawCapability: null,
+			routeGroup,
+		};
 	}
 
 	const protocol = left.slice(0, dot);
-	const capability = left.slice(dot + 1);
+	const rawCapability = left.slice(dot + 1);
 	if (!isUpstreamProtocol(protocol)) {
 		return { ok: false, reason: `protocol "${protocol}" must be one of ${UPSTREAM_PROTOCOLS.join(', ')}` };
 	}
-	if (!capability || !isCapabilityForProtocol(protocol, capability)) {
+	const capability = canonicalizeCapability(protocol, rawCapability);
+	if (!rawCapability || !capability) {
 		return {
 			ok: false,
-			reason: `capability "${capability}" is not valid for protocol "${protocol}"`,
+			reason: `capability "${rawCapability}" is not valid for protocol "${protocol}"`,
 		};
 	}
 	return {
@@ -139,6 +170,7 @@ function parseRuleKey(rawKey: string): ParsedRuleKey {
 		protocol,
 		capability,
 		routeGroup,
+		rawCapability,
 	};
 }
 
@@ -164,6 +196,7 @@ export function parseModelRoutePolicy(raw: string | null | undefined): ModelRout
 
 	const topStrategy = parseStrategyValue(obj.strategy);
 	const rules = new Map<string, ModelRoutePolicyRule>();
+	const ranks = new Map<string, number>();
 	const rulesRaw = obj.rules;
 	if (rulesRaw && typeof rulesRaw === 'object' && !Array.isArray(rulesRaw)) {
 		for (const [key, value] of Object.entries(rulesRaw as Record<string, unknown>)) {
@@ -172,6 +205,10 @@ export function parseModelRoutePolicy(raw: string | null | undefined): ModelRout
 			if (!parsedKey.ok) continue;
 			const strategy = parseStrategyValue((value as Record<string, unknown>).strategy);
 			if (!strategy) continue;
+			const rank = requestOperationAliasRank(parsedKey.rawCapability ?? '');
+			const prevRank = ranks.get(parsedKey.key);
+			if (prevRank !== undefined && prevRank >= rank) continue;
+			ranks.set(parsedKey.key, rank);
 			rules.set(parsedKey.key, { strategy });
 		}
 	}
@@ -193,7 +230,11 @@ export function resolveModelRoutePolicyStrategy(
 	const config = parseModelRoutePolicy(raw);
 	if (!config) return null;
 
-	const cap = capability?.trim() ? capability : null;
+	const trimmed = capability?.trim() ? capability.trim() : null;
+	const cap =
+		trimmed && isUpstreamProtocol(protocol)
+			? (canonicalizeCapability(protocol, trimmed) ?? trimmed)
+			: trimmed;
 	if (cap) {
 		const exact = config.rules.get(routePolicyRuleKey(protocol, cap, routeGroup));
 		if (exact) return exact.strategy;
@@ -232,6 +273,7 @@ export function normalizeModelRoutePolicyInput(raw: string | null | undefined): 
 	}
 
 	const outRules: Record<string, { strategy: RouteStrategyName }> = {};
+	const ranks = new Map<string, number>();
 	const rulesRaw = obj.rules;
 	if (rulesRaw !== undefined && rulesRaw !== null) {
 		if (typeof rulesRaw !== 'object' || Array.isArray(rulesRaw)) {
@@ -253,6 +295,10 @@ export function normalizeModelRoutePolicyInput(raw: string | null | undefined): 
 					`route_policy.rules["${key}"].strategy must be one of ${ROUTE_STRATEGY_NAMES.join(', ')}`
 				);
 			}
+			const rank = requestOperationAliasRank(parsedKey.rawCapability ?? '');
+			const prevRank = ranks.get(parsedKey.key);
+			if (prevRank !== undefined && prevRank >= rank) continue;
+			ranks.set(parsedKey.key, rank);
 			outRules[parsedKey.key] = { strategy };
 		}
 	}

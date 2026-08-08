@@ -316,15 +316,15 @@
 			"copyApiKey": "Copy API key",
 			"apiKey": "API Key",
 			"supportedEndpoints": "Supported endpoints",
-			"editProvider": "Edit provider",
+			"editProvider": "Edit provider: {name}",
 			"baseWithOverrides": "Base + {count} overrides",
 			"endpointCount": "{count} independent endpoints",
 			"showEndpointDetails": "Show endpoint details",
 			"hideEndpointDetails": "Hide endpoint details",
 			"derived": "derived",
 			"override": "override",
-			"providerEnabled": "Provider enabled (uncheck to disable)",
-			"providerDisabled": "Provider disabled (check to enable)",
+			"providerEnabled": "Provider enabled; click to disable",
+			"providerDisabled": "Provider disabled; click to enable",
 			"capabilitiesTitle": "{label}: {caps} · {url}",
 			"capabilitiesSr": "{label} capabilities: {caps}",
 			"cap": {
@@ -334,7 +334,8 @@
 				"audio": "audio",
 				"messages": "messages",
 				"generateContent": "generate",
-				"streamGenerateContent": "stream"
+				"streamGenerateContent": "stream",
+				"modelsGenerate": "generate"
 			}
 		},
 		"import": {
@@ -403,7 +404,9 @@
 			"apiKeyHint": "Upstream credential for this provider.",
 			"apiKeyEditHint": "Leave blank to keep the current key. Enter a new value to replace it.",
 			"statusEnabled": "Provider enabled",
-			"statusHint": "Disabled providers are skipped for routing and playground."
+			"statusHint": "Disabled providers are skipped for routing and playground.",
+			"capModelsGenerate": "models.generate (/v1beta/models/{model}:{action}) — stream + non-stream",
+			"legacyPerActionNotice": "This provider still has separate generateContent / streamGenerateContent overrides that cannot be safely merged. They are preserved as-is on save. Clear them in the database or set a single {action} template after review."
 		}
 	},
 	"models": {
@@ -556,11 +559,18 @@
 			"title": "Route Configurations",
 			"filteredBy": "Filtered by: {summary}",
 			"allModelsRoutes": "All models and routes",
-			"newRoute": "New Route"
+			"newRoute": "New Route",
+			"densityGroupAria": "Route display density",
+			"densitySummary": "Summary",
+			"densityTopology": "Topology",
+			"densitySummaryHint": "Priority ladder with collapsed provider details",
+			"densityTopologyHint": "Full card flow for debugging provider wiring"
 		},
 		"flow": {
 			"overviewTitle": "Request processing flow",
-			"overviewHint": "Read each model from left to right. Configuration stays attached to the stage where it takes effect.",
+			"overviewHint": "Read priority layers top to bottom. Expand a layer only when you need provider details.",
+			"overviewHintSummary": "Summary view: follow the priority ladder top to bottom, then expand a layer for provider cards.",
+			"overviewHintTopology": "Topology view: read each model left to right. Configuration stays attached to the stage where it takes effect.",
 			"step": "Step {number}",
 			"requestStep": "Client request",
 			"lookupStep": "Resolve model",
@@ -575,8 +585,21 @@
 			"strategyInherit": "Strategy: inherit",
 			"inheritShort": "inherit",
 			"effectiveStrategy": "Effective strategy",
+			"tierStrategy": "Tier strategy",
+			"tierStrategyEdit": "Edit tier strategy: {strategy} ({source})",
+			"failoverRules": "Failover rules",
+			"failoverContinue": "On failure",
+			"priorityLadderAria": "Priority failover ladder",
+			"expandTier": "Expand providers",
+			"collapseTier": "Collapse providers",
+			"expandTierAria": "Expand priority {priority} providers",
+			"collapseTierAria": "Collapse priority {priority} providers",
+			"tierActiveTotal": "{active}/{total}",
+			"tierPreviewEnabled": "{name} · enabled",
+			"tierPreviewDisabled": "{name} · disabled",
 			"strategySource": {
-				"pool": "Current route pool",
+				"tier": "This tier",
+				"pool": "Inherited from route pool",
 				"modelOperation": "Inherited from model endpoint rule",
 				"modelProtocol": "Inherited from model protocol rule",
 				"model": "Inherited from model default",
@@ -591,6 +614,7 @@
 			"enabledShort": "Enabled",
 			"disabledShort": "Disabled",
 			"addRoute": "Add route",
+			"noProviders": "No providers available",
 			"firstAttempt": "First attempt layer",
 			"fallback": "On failure, continue",
 			"fallbackLayer": "Fallback layer",
@@ -598,7 +622,13 @@
 			"chargedShort": "C",
 			"meteredShort": "M",
 			"scheduled": "Schedule",
-			"defaults": "Defaults",
+			"customParams": "Params",
+			"customParamsTooltip": "Custom request params (deep-merged; client fields win)",
+			"badgeWeightTooltip": "Weight: {value}",
+			"badgeParamsTooltip": "Custom params (deep-merged; client fields win)",
+			"badgeChargedTooltip": "Charged: {value} · {status}",
+			"badgeMeteredTooltip": "Metered: {value} · {status}",
+			"badgeScheduleTooltip": "Schedule: {windows}",
 			"providerDisabled": "Provider off",
 			"editRoute": "Edit this route"
 		},
@@ -637,12 +667,34 @@
 			"routeDisabled": "Route disabled (check to enable)",
 			"priorityTitle": "Priority (failover order)",
 			"factorsAria": "Charged and metered catalog factors",
-			"chargedFactorAria": "Charged factor {value}",
-			"meteredFactorAria": "Metered factor {value}",
+			"chargedFactorAria": "Charged factor {value}: {status}",
+			"meteredFactorAria": "Metered factor {value}: {status}",
 			"scheduleBadge": "Sched",
 			"scheduleAria": "Daily schedule: {windows}",
-			"chargedTooltip": "Charged factor: {value} · customer billing multiplier vs catalog price",
-			"meteredTooltip": "Metered factor: {value} · provider cost multiplier vs catalog price"
+			"chargedTooltip": "Charged factor: {value} · {status} · customer billing multiplier vs catalog price",
+			"meteredTooltip": "Metered factor: {value} · {status} · provider cost multiplier vs catalog price",
+			"baseInversionBadge": "Margin",
+			"baseInversionTooltip": "Base charged factor is below base metered factor; margin may be inverted. Schedule factors are not included in this check.",
+			"factorStatus": {
+				"charged": {
+					"invalid": "Invalid configuration",
+					"zero": "Free billing; verify configuration",
+					"veryLow": "Deep discount; review revenue",
+					"low": "Below catalog price",
+					"baseline": "Near catalog baseline",
+					"high": "Above catalog price",
+					"veryHigh": "Far above catalog price; verify configuration"
+				},
+				"metered": {
+					"invalid": "Invalid configuration",
+					"zero": "Zero cost; verify configuration",
+					"veryLow": "Strong cost advantage",
+					"low": "Below catalog cost",
+					"baseline": "Near catalog baseline",
+					"high": "Elevated cost",
+					"veryHigh": "Significantly elevated cost; verify configuration"
+				}
+			}
 		},
 		"modal": {
 			"editTitle": "Edit Route",
@@ -717,7 +769,8 @@
 			"audioPricePerSecond": "Price per second",
 			"audioMinimumSeconds": "Minimum seconds",
 			"weight": "Weight",
-			"weightHint": "Same-priority layer weight (≥ 1). Higher = more traffic for weighted strategies."
+			"weightHint": "Same-priority layer weight (≥ 1). Higher = more traffic for weighted strategies.",
+			"operationModelsGenerate": "models.generate · Generate Content (stream + non-stream)"
 		},
 		"kindAudio": "Audio",
 		"strategy": {
@@ -730,10 +783,18 @@
 			"inheritedResult": "Currently resolves to",
 			"effective": "Effective",
 			"guideTitle": "Strategy guide",
-			"guideHint": "Select a strategy card, then preview how it handles the current targets before saving.",
+			"guideHint": "Select a strategy card to apply.",
+			"cacheHitGuideTitle": "Want a higher cache hit rate?",
+			"cacheHitGuideBody": "Hash affinity keeps each user on a preferred Provider, making cache hits more likely by default. If you choose another strategy, enable “Provider sticky” on the route pool. Requests will prefer the last successful Provider, reducing switches and improving cache hits.",
 			"bestFor": "Best for",
 			"tradeoff": "Trade-off",
+			"labelSeparator": ": ",
+			"tierLevel": "Tier strategy",
+			"tierLevelHint": "Applies only to Target ordering within this priority tier. Leave empty to inherit the route-pool default.",
+			"tierInheritReadonlyHint": "Pool default and global strategy are not edited here — change them on the route pool or in Config.",
+			"tierRequiresPool": "Per-tier strategy requires a route pool. Add a provider to this surface first to create one.",
 			"source": {
+				"tier": "Tier override",
 				"pool": "Current route pool",
 				"modelOperation": "Model endpoint rule",
 				"modelProtocol": "Model protocol rule",
@@ -741,48 +802,122 @@
 				"global": "Global config",
 				"default": "System default"
 			},
-			"affinity": "affinity",
-			"weighted_random": "weighted_random",
-			"strict": "strict",
-			"round_robin": "round_robin",
+			"display": {
+				"hash_affinity": "Hash affinity",
+				"weighted_random": "Weighted random",
+				"weight_priority": "Weight priority",
+				"weighted_round_robin": "Weighted round-robin"
+			},
+			"diagramCaption": {
+				"hash_affinity": "same user → same provider",
+				"weight_priority": "everyone shares one list",
+				"weighted_random": "each request draws by weight",
+				"weighted_round_robin": "take turns as first choice"
+			},
 			"description": {
-				"affinity": {
-					"summary": "Builds a stable preference from user and model context; weights shape the overall distribution.",
-					"bestFor": "Prompt cache and session locality",
-					"tradeoff": "Short-term traffic may not be perfectly even"
+				"hash_affinity": {
+					"summary": "Hashes user + model + group + protocol into a fixed home: the same user always starts with the same provider; different users may land on different ones.",
+					"bestFor": "Keeping one user on one provider to improve upstream prompt cache hits",
+					"tradeoff": "With few users, traffic can look uneven"
+				},
+				"weight_priority": {
+					"summary": "Every request shares one fixed list: highest weight goes first, the rest are backups — who called does not matter.",
+					"bestFor": "Clear primary/backup, predictable results, easier debugging",
+					"tradeoff": "The primary takes almost all traffic; backups stay idle until it fails"
+				},
+				"weighted_round_robin": {
+					"summary": "Providers take turns as first choice by weight — with weights 3 and 1, about 3 of every 4 requests try the heavier one first.",
+					"bestFor": "Using several providers and sharing capacity or quota",
+					"tradeoff": "Each runtime instance counts on its own; cross-instance balance is approximate"
 				},
 				"weighted_random": {
-					"summary": "Randomly selects by weight per request and builds a no-replacement retry order.",
-					"bestFor": "Proportional traffic splits, A/B tests, or cost allocation",
-					"tradeoff": "The same user may frequently switch providers"
-				},
-				"strict": {
-					"summary": "Uses a deterministic weight-descending order within a priority; provider ID breaks ties.",
-					"bestFor": "Explicit primary/backup routing and predictability",
-					"tradeoff": "The first provider receives most traffic"
-				},
-				"round_robin": {
-					"summary": "Rotates through a weight-expanded sequence so providers take turns as first choice.",
-					"bestFor": "Even rotation and capacity sharing",
-					"tradeoff": "Counters are per runtime instance, not globally coordinated"
+					"summary": "Each request draws a first provider by weight — a 60% weight tends to get about 60% of first tries over time.",
+					"bestFor": "Proportional splits, A/B tests, or cost allocation",
+					"tradeoff": "Two back-to-back requests may hit different providers"
 				}
 			},
 			"effectTitle": "Strategy effect preview",
 			"effectHint": "Explains ordering from enabled targets only; no real request is sent.",
 			"effect": {
-				"affinity": "The same user, model, group, and protocol get a stable preferred target; failures continue through the rest of that layer.",
-				"weighted_random": "Each request picks its first target by weight; percentages approximate first-choice share within the priority.",
-				"strict": "Numbers show the fixed attempt order within each priority: higher weight comes first.",
-				"round_robin": "Targets in the same priority take turns as first choice by weight; the actual start depends on this runtime instance's counter."
+				"hash_affinity": "The same user always starts with the same provider; if it fails, the rest of that layer are tried in order. Different users can prefer different providers.",
+				"weight_priority": "Numbers show the shared fixed attempt order for every request: higher weight comes first, independent of the user.",
+				"weighted_round_robin": "Targets in the same priority take turns as first choice by weight; the actual start depends on this runtime instance's counter.",
+				"weighted_random": "Each request picks its first target by weight; percentages approximate first-choice share within the priority."
 			},
-			"priorityFirst": "Priority always wins: the next fallback layer is used only after every target in the higher layer fails.",
+			"priorityFirst": "Strategy only orders targets inside one priority layer: Priority always wins first — the next fallback layer is used only after every target in the higher layer fails.",
 			"runtimeHealthHint": "Runtime also removes circuit-open providers first, so the live order can change with provider health.",
+			"roundRobinInstanceHint": "On Cloudflare Workers, each isolate keeps its own counter, so rotation is best-effort rather than globally even.",
 			"singleTargetEffect": "{count} usable target(s) are available; with fewer than two, every strategy has the same first choice.",
 			"firstAttemptLayer": "First attempt layer",
 			"fallbackLayer": "Fallback layer",
 			"inactiveExcluded": "Disabled routes or providers are excluded from this preview.",
-			"hintCache": "Non-affinity may reduce prompt cache hit rate.",
-			"hintNoCache": "Upstream has no prompt cache; prefer weighted_random or round_robin."
+			"hintCache": "Strategies other than Hash affinity may reduce prompt cache hit rate.",
+			"hintNoCache": "Upstream has no prompt cache; prefer Weighted random or Weighted round-robin.",
+			"hash_affinity": "hash_affinity",
+			"weighted_random": "weighted_random",
+			"weight_priority": "weight_priority",
+			"weighted_round_robin": "weighted_round_robin"
+		},
+		"providerSticky": {
+			"title": "Provider sticky",
+			"chipOff": "Sticky · Off",
+			"chipOn": "Sticky · {ttl}",
+			"chipOnWithCount": "Sticky · {ttl} · {count}",
+			"tooltip": "Prefer the Provider used by the last successful request. Each success restarts the sticky TTL.",
+			"enable": "Enable Provider sticky",
+			"idleTtl": "Sticky TTL (seconds)",
+			"idleTtlHint": "Allowed range {min}–{max} seconds. Default {default}. Each successful request restarts the TTL. Sticky expires after the TTL passes without a request.",
+			"scopeHint": "Prefer the Provider used by the last successful request.",
+			"orderPreview": "When the same caller sends another request, the last successful Provider is tried first.",
+			"tradeoff": "As long as that Provider keeps succeeding, it remains preferred. Other Providers are tried after it fails.",
+			"poolSharedHint": "A different Provider becomes preferred after it succeeds. This setting applies to every request surface linked to this route pool.",
+			"requiresPool": "Provider sticky requires a route pool. Add a provider to this surface first to create one.",
+			"effectTitle": "What happens when enabled",
+			"distributionTitle": "Current bindings",
+			"distributionHint": "Active bindings (valid epoch and not expired) per target. Weight share is the absolute route weight (same W as on route cards) normalized across this whole pool—not within a priority layer.",
+			"distributionTotals": "{active} active · {stale} stale",
+			"distributionEmpty": "No targets or active bindings yet.",
+			"bindingShare": "Bindings",
+			"weightShare": "Weight (pool)",
+			"weightShareValue": "W{weight} · {pct}%",
+			"refresh": "Refresh",
+			"lookupTitle": "Lookup user binding",
+			"lookupHint": "Enter a user email or user id to see which target they are currently stuck to.",
+			"lookupPlaceholder": "email or user id",
+			"lookup": "Lookup",
+			"lookupRequired": "Enter an email or user id.",
+			"lookupUser": "User",
+			"lookupTarget": "Bound to",
+			"lookupTtl": "{seconds}s remaining",
+			"lookupEpochValid": "epoch valid",
+			"lookupEpochInvalid": "epoch invalid",
+			"lookupExpired": "expired",
+			"lookupNone": "No sticky binding for this user on this pool.",
+			"clearBinding": "Unbind",
+			"clearConfirm": "Clear this user's sticky binding? Their next request will choose a provider normally.",
+			"clearDone": "Sticky binding cleared.",
+			"clearMiss": "No binding row to clear.",
+			"resetTitle": "Clear all pool bindings",
+			"resetHint": "Bumps sticky_epoch so every user reselects on the next request. Historical rows are not deleted immediately; they expire via GC or overwrite.",
+			"resetButton": "Invalidate all bindings",
+			"resetConfirm": "Invalidate all sticky bindings for this pool? Every user will reselect a provider on their next request.",
+			"resetDone": "Bindings invalidated (epoch={epoch}).",
+			"residualTitle": "Leftover bindings",
+			"residualHint": "Sticky is off, but {active} active and {stale} stale bindings remain. New requests are not recorded; clear leftovers if you want a clean slate.",
+			"showOps": "Show details",
+			"hideOps": "Hide details"
+		},
+		"failover": {
+			"title": "Failover rules",
+			"readonlyHint": "These rules are fixed today and not configurable yet.",
+			"order": "Attempt order: priority tiers high → low; within a tier, order by that tier's route strategy; skip providers in cooldown.",
+			"sameLayer": "Same-tier failover: 429 / 5xx / 401 / 403 / 524 / network errors try the next candidate; client errors such as 400 / 404 do not switch providers.",
+			"crossLayer": "Cross-tier failover: after a higher priority tier is exhausted, continue to the next priority tier (operator-defined primary/backup).",
+			"attemptLimit": "No fixed retry cap: every active route that is not circuit-open may be tried.",
+			"circuitCooldown": "Provider cooldown: 429 backs off 5s→15s→30s→60s (prefer upstream Retry-After, capped at 15 minutes); 401/403 for 5 minutes; 5xx opens for 10s after 3 consecutive failures.",
+			"allBusy": "If every provider is cooling down: gateway returns 429 circuit.upstream_capacity_exhausted with zero upstream calls; honor Retry-After.",
+			"memoryNote": "Cooldown state is in-process memory and is not shared across Cloudflare Worker isolates.",
+			"imagesAbort": "Image generation: client cancel or gateway timeout returns 504 and does not fail over to another provider."
 		}
 	},
 	"playground": {
@@ -1144,11 +1279,16 @@
 		"headers": {
 			"statusTime": "Status · Time",
 			"user": "User",
+			"userSystem": "User · System",
 			"model": "Model",
 			"route": "Route",
 			"tokens": "Tokens",
 			"cost": "Cost ({currency})",
 			"profit": "Profit ({currency})"
+		},
+		"identity": {
+			"user": "User",
+			"system": "System"
 		},
 		"titles": {
 			"model": "Gateway model name, protocol, and route group",
@@ -1396,8 +1536,10 @@
 		},
 		"routeStrategy": {
 			"title": "Global route strategy",
-			"description": "Default strategy when a model has no route_policy override (system_config.ROUTE_STRATEGY).",
-			"strategy": "Strategy"
+			"description": "Default strategy when a model or pool has no override (system_config.ROUTE_STRATEGY).",
+			"strategy": "Strategy",
+			"change": "Change",
+			"dialogHint": "Choose the default strategy used when a model or pool has no override."
 		},
 		"saveRouteStrategy": "Save route strategy"
 	},
@@ -1420,6 +1562,23 @@
 			"saveAiDetection": "Save AI detection",
 			"testInPlayground": "Test in Playground"
 		},
+		"providerCards": {
+			"active": "Active",
+			"editing": "Editing",
+			"unsaved": "Unsaved",
+			"missingCredentials": "Missing credentials",
+			"unavailable": "Unavailable",
+			"lossPricing": "Loss pricing",
+			"configured": "Configured",
+			"priceLegend": "S Standard · C Charged · M Metered",
+			"selectHint": "Click a provider to open the configuration drawer. Changes apply only after you save.",
+			"detailTitle": "Configure {name}",
+			"activeSummary": "Active · {name}",
+			"noActive": "No active provider",
+			"saveConfig": "Save configuration",
+			"saveAndActivate": "Save & activate",
+			"saveConfigOnly": "Save config only"
+		},
 		"unitPrices": {
 			"title": "Unit prices ({currency})",
 			"legend": "Standard → Charged → Metered",
@@ -1431,7 +1590,7 @@
 		"webSearch": {
 			"title": "Web search",
 			"description": "Powers POST /v1/tools/web-search. Choose an implemented engine only—free text is rejected. Leave the API key empty and save to clear it (endpoint returns 503 until set again).",
-			"descriptionCatalog": "Powers POST /v1/tools/web-search. Configure API key and three unit prices (metered / standard / charged) per engine, then pick Active. Only charged hits user budget. Engines without a key cannot be activated.",
+			"descriptionCatalog": "Powers POST /v1/tools/web-search. Configure each engine’s API key and three unit prices, then save & activate one card. Only charged hits user budget. Engines without a key cannot be activated.",
 			"provider": "Search engine",
 			"active": "Active engine",
 			"catalogProvider": "Engine",
@@ -1490,7 +1649,7 @@
 		"webFetch": {
 			"title": "Web fetch",
 			"description": "Powers POST /v1/tools/web-fetch. Choose an implemented scraper only—free text is rejected. Leave the API key empty and save to clear it (endpoint returns 503 until set again).",
-			"descriptionCatalog": "Powers POST /v1/tools/web-fetch. Configure API key and three unit prices (metered / standard / charged) per scraper, then pick Active. Only charged hits user budget. Scrapers without a key cannot be activated.",
+			"descriptionCatalog": "Powers POST /v1/tools/web-fetch. Configure each scraper’s API key and three unit prices, then save & activate one card. Only charged hits user budget. Scrapers without a key cannot be activated.",
 			"provider": "Fetch provider",
 			"active": "Active provider",
 			"catalogProvider": "Provider",
@@ -1509,7 +1668,7 @@
 		},
 		"webDeepSearch": {
 			"title": "Web deep search",
-			"descriptionCatalog": "Powers POST /v1/tools/web-deep-search. Search-and-read engines (Firecrawl Search / Jina Search) return page content with results—heavier and costlier than plain web search. Configure per-provider key and three unit prices, then pick Active.",
+			"descriptionCatalog": "Powers POST /v1/tools/web-deep-search. Search-and-read engines (Firecrawl Search / Jina Search) return page content with results—heavier and costlier than plain web search. Configure each provider, then save & activate one card.",
 			"active": "Active provider",
 			"catalogProvider": "Provider",
 			"noKey": "no key",
@@ -1525,7 +1684,7 @@
 		},
 		"aiDetection": {
 			"title": "AI detection",
-			"descriptionCatalog": "Powers POST /v1/tools/ai-detection. Multi-provider catalog: configure credentials and three unit prices per engine, then pick Active. Billing is by character units (billingUnitChars); totals scale metered/standard/charged. Currently only Tencent Cloud TMS is implemented.",
+			"descriptionCatalog": "Powers POST /v1/tools/ai-detection. Multi-provider catalog: configure credentials and three unit prices per engine, then save & activate one card. Billing is by character units (billingUnitChars); totals scale metered/standard/charged. Currently only Tencent Cloud TMS is implemented.",
 			"active": "Active engine",
 			"catalogProvider": "Engine",
 			"noKey": "no credentials",

@@ -67,7 +67,7 @@ flowchart TB
 | App 装配 | `packages/proxy/src/app.ts` | Hono 应用、路由挂载、注入 `repositories` |
 | 鉴权 | `middleware/auth.ts` → `services/api-key-auth.ts` | 提取 sk、校验用户 API Key、懒重置预算周期 |
 | 模型与 Surface 路由 | `resolve-model-route-group.ts`、`model-router.ts` | 解析 `model` / `:route_group`，按 request protocol / operation 查精确或 wildcard Surface，再读取 Pool Targets、JOIN provider（单键 `api_key`） |
-| 策略解析 | `route-strategies/index.ts` → `resolveRouteStrategy` | 六级：Pool → capability rule → protocol rule → model → global → `affinity` |
+| 策略解析 | `route-strategies/index.ts` → `resolveRouteStrategyPlan` | 先解析 Pool → capability rule → protocol rule → model → global → `hash_affinity` 的 base，再叠加 `tier_strategies[priority]` |
 | 代理入口 | `services/proxy.ts` | 三协议（及 Images / Audio）统一调用 `failoverDispatch` |
 | 故障转移 | `services/failover-dispatch.ts` | 编排 attempt、逐 provider 打上游、熔断与 429 全忙 |
 | 调度计划 | `services/route-attempt-planner.ts` | `buildRouteAttemptPlan`：priority 硬序 + 层内策略排序 + 跳过熔断 provider |
@@ -79,7 +79,7 @@ flowchart TB
 
 > **客户端约定**：非 2xx 时以响应头 **`X-OctaFuse-Error-Code`**（及网关自造错误 body 顶层 / 嵌套 `code`）为**分类权威**；`error` / `error.message` 仍保留人类可读原文（上游透传或固定英文短句）。SoloEnt Agent 优先按该点分 code 归一化，再回退英文文案正则。
 
-> **已移除（待后续重设计）**：provider key pool、粘性 key 绑定（`sticky_config`）、网关侧 RPM/TPM/并发软限流（`limit_config`）。一个 Provider = 一把 `api_key` + `status`。
+> **已移除**：provider key pool、旧 `models.sticky_config`、网关侧 RPM/TPM/并发软限流（`limit_config`）。一个 Provider = 一把 `api_key` + `status`。跨请求 Provider 粘性见 Route Pool **Provider sticky**（`route_pool_sticky_bindings`）。
 
 ---
 
@@ -99,7 +99,7 @@ flowchart TB
    - `resolveRouteResultsFromRows` → `RouteResult[]`（携带 Surface / Pool / Target、operation、`providerApiKey`、`routePriority`、`routeWeight`；**provider disabled / 无 api_key 的行会被跳过**）
    - 无匹配 Surface、Pool 或 Target → **400 / 502**
 6. **协议 / adapter 过滤**：2.0 保留 `upstreamProtocol === requestProtocol` 且 `adapter === 'passthrough'` 的 Target；无匹配 → **502**。
-7. **`resolveRouteStrategy`**：先读 `route_pools.strategy`，再读 `models.route_policy` + `system_config.ROUTE_STRATEGY`（见 [route-strategies.md](../reference/route-strategies.md)）。
+7. **`resolveRouteStrategyPlan`**：解析 base（`route_pools.strategy` → `models.route_policy` → `system_config.ROUTE_STRATEGY`）以及 `route_pools.tier_strategies`；编排时每层优先用 tier override（见 [route-strategies.md](../reference/route-strategies.md)）。
 8. **Driver 出站 URL**：各 driver 按 capability 调用 `resolveUpstreamEndpoint`；Gemini 鉴权与 `alt=sse` 仍由 `prepareGeminiUpstreamFetch` 处理。
 
 ### 2.2 User+model 熔断（调度前）
@@ -186,7 +186,7 @@ sequenceDiagram
 ### 3.1 排序规则
 
 1. 按 **`model_routes.priority` 降序**分层（数字越大越先试）。
-2. **同层（同 priority）** 内调用当前策略（`affinity` / `weighted_random` / `strict` / `round_robin`）排序；策略使用 `model_routes.weight`（默认 1）。
+2. **同层（同 priority）** 内调用当前策略（`hash_affinity` / `weighted_random` / `weight_priority` / `weighted_round_robin`）排序；策略使用 `model_routes.weight`（默认 1）。
 3. 对每个候选：若 **`getProviderCircuitRemainingMs(providerId) > 0`** → 跳过，记录最早恢复时间。
 4. 高 priority 层全部试完（或跳过）后，才进入下一层。
 
@@ -209,7 +209,8 @@ sequenceDiagram
 
 ### 3.3 粘性 / 限流说明
 
-- **无**进程内 sticky key 绑定；默认策略 **`affinity`**（加权 Rendezvous hash）在同用户 + 模型 + group + 协议下给出稳定首选 provider，以利于上游 prompt cache。
+- 默认策略 **`hash_affinity`**（加权 Rendezvous hash）在同用户 + 模型 + group + 协议下给出稳定首选 provider，以利于上游 prompt cache。
+- 可选 **Provider sticky**（Pool 级）：成功后跨请求绑定 Target（共享 DB）；有效时可跨 priority 优先尝试；见 [route-strategies.md](../reference/route-strategies.md)「Provider sticky routing」。
 - **无**网关侧 RPM/TPM/并发软限流；供应商限额由上游 429 与熔断间接体现（后续可能重设计）。
 
 > **Playground 除外**：Admin **`playground-service`** 直连单条 route 打上游，**不经过** `failoverDispatch`，因此无 failover / 策略排序；生产 Proxy 路径才生效。
@@ -278,7 +279,7 @@ sequenceDiagram
 | `model_routes.priority` / `weight` | 层（DESC）+ 层内权重（默认 1） |
 | `model_routes.route_pool_id` / `upstream_operation` / `adapter` | Target 所属 Pool、上游 operation 与转换方式 |
 | `models.route_policy` | 可选 per-model / per-capability 策略覆盖 |
-| `system_config.ROUTE_STRATEGY` | 全局缺省（默认 `affinity`） |
+| `system_config.ROUTE_STRATEGY` | 全局缺省（默认 `hash_affinity`） |
 
 ---
 
@@ -324,7 +325,7 @@ packages/proxy/src/
     ├── proxy.ts                    # → failoverDispatch
     ├── failover-dispatch.ts        # 调度执行、429 全忙
     ├── route-attempt-planner.ts    # buildRouteAttemptPlan
-    ├── route-strategies/           # affinity / weighted_random / strict / round_robin
+    ├── route-strategies/           # hash_affinity / weighted_random / weight_priority / weighted_round_robin
     ├── provider-circuit-breaker.ts
     ├── user-model-circuit-breaker.ts / user-model-circuit-route.ts
     ├── gateway-error-codes.ts / gateway-error-response.ts / upstream-error-code.ts

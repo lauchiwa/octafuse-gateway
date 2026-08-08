@@ -89,16 +89,6 @@ export function useProvidersPageState() {
 		void refreshProviders();
 	}, [refreshProviders]);
 
-	const copyToClipboard = useCallback(async (text: string, feedbackId: string) => {
-		try {
-			await navigator.clipboard.writeText(text);
-			setCopiedId(feedbackId);
-			setTimeout(() => setCopiedId(null), 2000);
-		} catch (error) {
-			console.error('Copy failed:', error);
-		}
-	}, []);
-
 	const handleCopyApiKey = useCallback(
 		async (provider: GatewayProvider) => {
 			try {
@@ -345,7 +335,6 @@ export function useProvidersPageState() {
 		selectAllImportPresets,
 		clearImportPresetSelection,
 		runImportSelectedPresets,
-		copyToClipboard,
 		handleCopyApiKey,
 		handleToggleStatus,
 	};

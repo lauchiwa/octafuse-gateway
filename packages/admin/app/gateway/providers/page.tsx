@@ -68,11 +68,11 @@ export default function GatewayProvidersPage() {
 				</div>
 			) : (
 				<section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-					<div className="hidden grid-cols-[minmax(210px,0.9fr)_minmax(340px,1.7fr)_minmax(180px,0.72fr)_auto] items-center gap-5 border-b border-slate-200 bg-slate-50/80 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 lg:grid">
+					<div className="hidden grid-cols-[auto_minmax(210px,0.9fr)_minmax(340px,1.7fr)_minmax(180px,0.72fr)] items-center gap-5 border-b border-slate-200 bg-slate-50/80 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 lg:grid">
+						<span>{tCommon('status')}</span>
 						<span>{tCommon('provider')}</span>
 						<span>{t('card.supportedEndpoints')}</span>
 						<span>{t('card.apiKey')}</span>
-						<span className="text-right">{tCommon('actions')}</span>
 					</div>
 					<div className="divide-y divide-slate-200">
 						{state.filteredProviders.map((provider) => (
@@ -82,7 +82,6 @@ export default function GatewayProvidersPage() {
 								copiedId={state.copiedId}
 								statusTogglingId={state.statusTogglingId}
 								onEdit={state.handleEdit}
-								onCopyEndpoint={state.copyToClipboard}
 								onToggleStatus={state.handleToggleStatus}
 								onCopyApiKey={state.handleCopyApiKey}
 							/>

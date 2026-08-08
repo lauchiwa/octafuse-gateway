@@ -5,7 +5,7 @@
  * 流程：鉴权 → 解析 model/file → 预算预检 → openai 路由故障转移 → 成功后按秒扣费。
  * 日志禁止写入音频二进制。
  */
-import type { GatewayRepositories, ModelRow } from '@octafuse/core';
+import type { GatewayRepositories, ModelRow, ResolvedModelSurfaceRow } from '@octafuse/core';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import type { Env } from '../../app';
@@ -18,7 +18,7 @@ import { resolveModelRouting } from '../../services/resolve-model-route-group';
 import {
 	buildAffinityKey,
 	buildTierKeyPrefix,
-	resolveRouteStrategy,
+	resolveRouteStrategyPlan,
 } from '../../services/route-strategies';
 import { proxyAudioTranscriptions, type ProxyResult } from '../../services/proxy';
 import { finalizeRequestLogJson } from '../../services/request-log-shared';
@@ -48,6 +48,7 @@ import { GatewayErrorCode } from '../../services/gateway-error-codes';
 import { gatewayErrorJson } from '../../services/gateway-error-response';
 import { RequestTimingCollector } from '../../services/request-timing';
 import { scheduleBackgroundWork } from '../../runtime/schedule-background-work';
+import { stickyConfigFromSurface } from '../../services/provider-sticky-routing';
 
 type AudioEnv = Env & { Variables: { apiKey: ApiKeyContext } };
 type AudioContext = Context<AudioEnv>;
@@ -67,6 +68,8 @@ async function resolveOpenAiAudioRoutes(
 			effectiveRouteGroup: string;
 			routes: RouteResult[];
 			poolStrategy: string | null;
+			poolTierStrategies: string | null;
+			stickySurface: ResolvedModelSurfaceRow | null;
 	  }
 	| { ok: false; status: 400 | 404 | 502; error: string }
 > {
@@ -100,6 +103,8 @@ async function resolveOpenAiAudioRoutes(
 			effectiveRouteGroup,
 			routes,
 			poolStrategy: resolvedSurface.surface?.pool_strategy ?? null,
+			poolTierStrategies: resolvedSurface.surface?.pool_tier_strategies ?? null,
+			stickySurface: resolvedSurface.surface,
 		};
 	} catch (err) {
 		const message = err instanceof Error ? err.message : 'Model route resolution failed';
@@ -336,9 +341,10 @@ audioRoutes.post('/transcriptions', async (c) => {
 		return circuitBlocked;
 	}
 
-	const strategy = await resolveRouteStrategy({
+	const strategyPlan = await resolveRouteStrategyPlan({
 		routePolicyRaw: model.route_policy ?? null,
 		poolStrategy: routed.poolStrategy,
+		poolTierStrategies: routed.poolTierStrategies,
 		protocol: 'openai',
 		capability: 'audio.transcriptions',
 		routeGroup: effectiveRouteGroup,
@@ -352,12 +358,21 @@ audioRoutes.post('/transcriptions', async (c) => {
 		`[Gateway Audio] transcriptions baseModelId=${baseModelId} keyId=${apiKey.keyId} bytes=${transcription.file.bytes.byteLength}`
 	);
 
+	const stickySurface = routed.stickySurface;
 	const proxyResult = await proxyAudioTranscriptions(
 		repos,
 		routes,
 		transcription,
 		c.req.raw.signal,
-		{ affinityKey, tierKeyPrefix, strategy, timing }
+		{
+			affinityKey,
+			tierKeyPrefix,
+			strategy: strategyPlan.base,
+			tierStrategies: strategyPlan.tierOverrides,
+			timing,
+			routePoolId: stickySurface?.route_pool_id ?? routes[0]?.routePoolId ?? null,
+			sticky: stickyConfigFromSurface(stickySurface),
+		}
 	);
 
 	return finalizeAudioResponse({
@@ -405,7 +420,17 @@ async function finalizeAudioResponse(params: {
 		timing,
 	} = params;
 
-	const { chosenRoute, upstreamRequestId, circuitEvents, suppressErrorAlert } = proxyResult;
+	const {
+		chosenRoute,
+		upstreamRequestId,
+		circuitEvents,
+		suppressErrorAlert,
+		stickyTrace,
+		stickyMutationPromise,
+	} = proxyResult;
+	if (stickyMutationPromise) {
+		scheduleBackgroundWork(c, stickyMutationPromise);
+	}
 	const { response, errorBodyText } = await materializeNonOkResponse(proxyResult.response);
 	await proxyResult.usagePromise.catch(() => undefined);
 
@@ -454,46 +479,50 @@ async function finalizeAudioResponse(params: {
 
 	scheduleBackgroundWork(
 		c,
-		recordAudioUsage({
-			repos,
-			apiKeyId: apiKey.keyId,
-			userId: apiKey.userId,
-			userEmail: apiKey.userEmail,
-			modelId: baseModelId,
-			providerId: chosenRoute.providerId,
-			providerModelName: chosenRoute.providerModelName,
-			modelName: modelNameForLog,
-			providerName: chosenRoute.providerName,
-			requestBody: requestBodyForLog,
-			requestProtocol: 'openai',
-			requestOperation: 'audio.transcriptions',
-			upstreamProtocol: chosenRoute.upstreamProtocol,
-			upstreamOperation: chosenRoute.upstreamOperation,
-			modelSurfaceId: chosenRoute.modelSurfaceId,
-			routePoolId: chosenRoute.routePoolId,
-			routeTargetId: chosenRoute.targetId,
-			adapter: chosenRoute.adapter,
-			routeGroup: effectiveRouteGroup,
-			status,
-			latencyMs,
-			errorMessage,
-			billing: {
-				modelPricingProfileJson,
-				routePriceOverrideJson: chosenRoute.priceOverrideRaw,
-				durationSeconds,
-				durationSource,
-				fileBytes,
-				requestStartedAtMs: start,
-				tokenUsage,
-			},
-			providerKeyId: chosenRoute.providerKeyId ?? null,
-			providerKeyLabel: chosenRoute.providerKeyLabel ?? null,
-			providerKeyFingerprint: chosenRoute.providerKeyFingerprint ?? null,
-			upstreamRequestId,
-			timing: timing.snapshot(),
-			circuitEvents: alertCircuitEvents.length > 0 ? alertCircuitEvents : undefined,
-			suppressErrorAlert: suppressErrorAlert || undefined,
-		}).catch((err) => {
+		(async () => {
+			const stickyTraceSnapshot = stickyTrace ? await stickyTrace() : null;
+			await recordAudioUsage({
+				repos,
+				apiKeyId: apiKey.keyId,
+				userId: apiKey.userId,
+				userEmail: apiKey.userEmail,
+				modelId: baseModelId,
+				providerId: chosenRoute.providerId,
+				providerModelName: chosenRoute.providerModelName,
+				modelName: modelNameForLog,
+				providerName: chosenRoute.providerName,
+				requestBody: requestBodyForLog,
+				requestProtocol: 'openai',
+				requestOperation: 'audio.transcriptions',
+				upstreamProtocol: chosenRoute.upstreamProtocol,
+				upstreamOperation: chosenRoute.upstreamOperation,
+				modelSurfaceId: chosenRoute.modelSurfaceId,
+				routePoolId: chosenRoute.routePoolId,
+				routeTargetId: chosenRoute.targetId,
+				adapter: chosenRoute.adapter,
+				stickyTrace: stickyTraceSnapshot,
+				routeGroup: effectiveRouteGroup,
+				status,
+				latencyMs,
+				errorMessage,
+				billing: {
+					modelPricingProfileJson,
+					routePriceOverrideJson: chosenRoute.priceOverrideRaw,
+					durationSeconds,
+					durationSource,
+					fileBytes,
+					requestStartedAtMs: start,
+					tokenUsage,
+				},
+				providerKeyId: chosenRoute.providerKeyId ?? null,
+				providerKeyLabel: chosenRoute.providerKeyLabel ?? null,
+				providerKeyFingerprint: chosenRoute.providerKeyFingerprint ?? null,
+				upstreamRequestId,
+				timing: timing.snapshot(),
+				circuitEvents: alertCircuitEvents.length > 0 ? alertCircuitEvents : undefined,
+				suppressErrorAlert: suppressErrorAlert || undefined,
+			});
+		})().catch((err) => {
 			console.error(
 				`[Gateway Audio] recordAudioUsage failed baseModelId=${baseModelId} keyId=${apiKey.keyId} error=${err instanceof Error ? err.message : String(err)}`
 			);

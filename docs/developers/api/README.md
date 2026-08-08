@@ -19,7 +19,7 @@
 - [2.0 路由拓扑](../architecture/route-topology.md)（Request Surface → Route Pool → Upstream Target）
 - [渠道模型思考参数配置说明](../reference/provider-thinking-configs.md)
 - [文生图模型（gpt-image-2 / Seedream）](../reference/image-models.md)
-- [路由策略（affinity / weighted_random / …）](../reference/route-strategies.md)
+- [路由策略（hash_affinity / weighted_random / …）](../reference/route-strategies.md)
 - [流式计费与客户端取消](../reference/streaming-billing.md)
 - [Admin 分层约束](../architecture/admin-layered.md)
 - [用户审计日志（`user_audit_logs`）](../reference/user-audit-logs.md)

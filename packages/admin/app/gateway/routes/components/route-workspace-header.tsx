@@ -1,15 +1,18 @@
 'use client';
 
-import { PlusIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, Squares2X2Icon, QueueListIcon } from '@heroicons/react/24/outline';
 import { useTranslations } from 'next-intl';
+import type { RouteFlowDensity } from '../types';
 
 type Props = {
 	activeFilterSummary: string[];
+	density: RouteFlowDensity;
+	onDensityChange: (density: RouteFlowDensity) => void;
 	onCreate: () => void;
 };
 
 export function RouteWorkspaceHeader(props: Props) {
-	const { activeFilterSummary, onCreate } = props;
+	const { activeFilterSummary, density, onDensityChange, onCreate } = props;
 	const t = useTranslations('routes.workspace');
 
 	return (
@@ -27,14 +30,50 @@ export function RouteWorkspaceHeader(props: Props) {
 					<p className="mt-0.5 text-xs text-gray-500">{t('allModelsRoutes')}</p>
 				)}
 			</div>
-			<button
-				type="button"
-				onClick={onCreate}
-				className="flex shrink-0 items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-			>
-				<PlusIcon className="h-5 w-5" />
-				{t('newRoute')}
-			</button>
+			<div className="flex shrink-0 flex-wrap items-center gap-2">
+				<div
+					className="inline-flex rounded-lg bg-slate-100 p-0.5 ring-1 ring-inset ring-slate-200"
+					role="group"
+					aria-label={t('densityGroupAria')}
+				>
+					<button
+						type="button"
+						onClick={() => onDensityChange('summary')}
+						className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+							density === 'summary'
+								? 'bg-white text-slate-900 shadow-sm'
+								: 'text-slate-600 hover:text-slate-900'
+						}`}
+						aria-pressed={density === 'summary'}
+						title={t('densitySummaryHint')}
+					>
+						<QueueListIcon className="h-4 w-4" />
+						{t('densitySummary')}
+					</button>
+					<button
+						type="button"
+						onClick={() => onDensityChange('topology')}
+						className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+							density === 'topology'
+								? 'bg-white text-slate-900 shadow-sm'
+								: 'text-slate-600 hover:text-slate-900'
+						}`}
+						aria-pressed={density === 'topology'}
+						title={t('densityTopologyHint')}
+					>
+						<Squares2X2Icon className="h-4 w-4" />
+						{t('densityTopology')}
+					</button>
+				</div>
+				<button
+					type="button"
+					onClick={onCreate}
+					className="flex shrink-0 items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+				>
+					<PlusIcon className="h-5 w-5" />
+					{t('newRoute')}
+				</button>
+			</div>
 		</div>
 	);
 }

@@ -20,16 +20,15 @@ import { providerDeclaresResponsesEndpoint } from '@octafuse/core';
 import type { Env } from '../../app';
 import { requireApiKey } from '../../middleware/auth';
 import {
-  getActiveModelRouteRows,
-  resolveRouteResultsFromRows,
+  resolveRoutesForSurface,
   type RouteResult,
 } from '../../services/model-router';
 import { resolveModelRouting } from '../../services/resolve-model-route-group';
-import { selectActiveRouteRows } from '../../services/route-selection';
+import { stickyConfigFromSurface } from '../../services/provider-sticky-routing';
 import {
   buildAffinityKey,
   buildTierKeyPrefix,
-  resolveRouteStrategy,
+  resolveRouteStrategyPlan,
 } from '../../services/route-strategies';
 import { proxyResponses, EMPTY_USAGE, type UsageFromStream } from '../../services/proxy';
 import { finalizeRequestLogJson } from '../../services/request-log-shared';
@@ -143,17 +142,30 @@ responsesRoutes.post('/', async (c) => {
   }
 
   let routes: RouteResult[];
+  let poolStrategy: string | null = null;
+  let poolTierStrategies: string | null = null;
+  let stickySurface: import('@octafuse/core').ResolvedModelSurfaceRow | null = null;
   try {
-    const routeRows = await getActiveModelRouteRows(repos, baseModelId);
-    const selectedRows = selectActiveRouteRows(routeRows, explicitGroup);
-    if (selectedRows.length === 0) {
+    // 与 chat / messages / gemini / images / audio 一致走 surface 解析：否则本路由拿不到
+    // route_pool 的 strategy / tier_strategies / sticky 配置。生产库确实存在
+    // request_operation='responses' 的 surface（上游无此面，所以上游重构不会带上它）。
+    // 无 surface 时 resolveRoutesForSurface 会自动回退到 legacy 选路，行为与旧代码一致。
+    const resolvedSurface = await resolveRoutesForSurface(repos, {
+      modelId: baseModelId,
+      routeGroup: effectiveRouteGroup,
+      requestProtocol: 'openai',
+      requestOperation: 'responses',
+    });
+    routes = resolvedSurface.routes;
+    poolStrategy = resolvedSurface.surface?.pool_strategy ?? null;
+    poolTierStrategies = resolvedSurface.surface?.pool_tier_strategies ?? null;
+    stickySurface = resolvedSurface.surface;
+    if (routes.length === 0) {
       return c.json(
         { error: `No active routes for route group "${effectiveRouteGroup}" for this model` },
         400
       );
     }
-    // providerEndpoints 直到这一步才被解析出来 —— 能力门禁必须在此之后。
-    routes = await resolveRouteResultsFromRows(repos, selectedRows);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Model route resolution failed';
     console.error('[Gateway Responses] model route resolution failed', { baseModelId, err });
@@ -231,9 +243,10 @@ responsesRoutes.post('/', async (c) => {
   }
 
   const requestSignal = c.req.raw.signal;
-  const strategy = await resolveRouteStrategy({
+  const strategyPlan = await resolveRouteStrategyPlan({
     routePolicyRaw: model.route_policy ?? null,
-    poolStrategy: null,
+    poolStrategy,
+    poolTierStrategies,
     protocol: 'openai',
     capability: 'responses',
     routeGroup: effectiveRouteGroup,
@@ -246,11 +259,24 @@ responsesRoutes.post('/', async (c) => {
   const proxyResult = await proxyResponses(repos, routes, body, clientIdentity, requestSignal, {
     affinityKey,
     tierKeyPrefix,
-    strategy,
+    strategy: strategyPlan.base,
+    tierStrategies: strategyPlan.tierOverrides,
     timing,
+    routePoolId: stickySurface?.route_pool_id ?? routes[0]?.routePoolId ?? null,
+    sticky: stickyConfigFromSurface(stickySurface),
   });
-  const { usagePromise, chosenRoute, upstreamRequestId, circuitEvents, suppressErrorAlert } =
-    proxyResult;
+  const {
+    usagePromise,
+    chosenRoute,
+    upstreamRequestId,
+    circuitEvents,
+    suppressErrorAlert,
+    stickyTrace,
+    stickyMutationPromise,
+  } = proxyResult;
+  if (stickyMutationPromise) {
+    scheduleBackgroundWork(c, stickyMutationPromise);
+  }
   const { response, errorBodyText } = await materializeNonOkResponse(proxyResult.response);
 
   let userModelCircuitEvent = null;

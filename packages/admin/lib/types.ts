@@ -188,6 +188,12 @@ export interface GatewayModelRoute {
   route_pool_id?: string | null;
   pool_name?: string | null;
   pool_strategy?: string | null;
+  /** JSON map from `route_pools.tier_strategies`: {"10":"hash_affinity","0":"weight_priority"} */
+  pool_tier_strategies?: string | null;
+  /** Provider sticky routing from `route_pools` */
+  pool_sticky_enabled?: boolean | number | null;
+  pool_sticky_idle_ttl_seconds?: number | null;
+  pool_sticky_epoch?: number | null;
   pool_status?: string | null;
   /** JSON array of public ingress surfaces sharing this pool. */
   surfaces?: string | null;
@@ -198,6 +204,8 @@ export interface GatewayRequestLog {
   user_id?: string | null;
   api_key_id: string | null;
   user_email: string | null;
+  /** 用户所属外部系统；全局日志接口通过 user_id 关联 users。 */
+  external_system?: string | null;
   model_id: string | null;
   provider_id: string | null;
   /** 展示名快照（`api_key_request_logs.model_name`，读接口不 JOIN catalog） */

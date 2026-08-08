@@ -392,6 +392,12 @@ export type RecordAudioUsageParams = {
 	routePoolId?: string | null;
 	routeTargetId?: string | null;
 	adapter?: string | null;
+	/** Provider sticky routing observation (merged into route_trace.sticky). */
+	stickyTrace?: {
+		lookup: string;
+		attempted_target: string | null;
+		result: string;
+	} | null;
 	routeGroup: string;
 	status: 'success' | 'error';
 	latencyMs: number;
@@ -507,6 +513,7 @@ export async function recordAudioUsage(params: RecordAudioUsageParams): Promise<
 				surface: params.modelSurfaceId ?? null,
 				pool: params.routePoolId ?? null,
 				target: params.routeTargetId ?? null,
+				...(params.stickyTrace ? { sticky: params.stickyTrace } : {}),
 			}),
 			inputTokens: params.status === 'success' ? costs.logTokens.inputTokens : 0,
 			outputTokens: params.status === 'success' ? costs.logTokens.outputTokens : 0,

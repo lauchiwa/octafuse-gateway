@@ -1,7 +1,7 @@
 /**
  * MySQL：`model_routes`。
  */
-import type { ResultSetHeader } from 'mysql2/promise';
+import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import type { MySqlDatabaseClient } from '../../storage/database-client';
 import type { ModelRoutesRepository } from '../../storage/gateway-repository-interfaces';
 import type { ModelRouteDetailRow, ModelRouteJoinRow } from '../../storage/repository-dtos';
@@ -11,7 +11,10 @@ import { asMySqlPool } from './mysql2-compat';
 const MODEL_ROUTE_LIST_JOIN_SQL = `SELECT mr.id, mr.model_id, mr.provider_id, mr.provider_model_name, mr.priority, mr.status,
 		mr.route_group, mr.weight, mr.price_override, mr.custom_params, mr.upstream_protocol,
 		mr.route_pool_id, mr.upstream_operation, mr.adapter,
-		rp.name AS pool_name, rp.strategy AS pool_strategy, rp.status AS pool_status,
+		rp.name AS pool_name, rp.strategy AS pool_strategy, rp.tier_strategies AS pool_tier_strategies, rp.status AS pool_status,
+		rp.sticky_enabled AS pool_sticky_enabled,
+		rp.sticky_idle_ttl_seconds AS pool_sticky_idle_ttl_seconds,
+		rp.sticky_epoch AS pool_sticky_epoch,
 		CAST(COALESCE((
 			SELECT JSON_ARRAYAGG(JSON_OBJECT(
 				'id', ms.id,
@@ -142,12 +145,62 @@ export function createMySqlModelRoutesRepository(db: MySqlDatabaseClient): Model
 			return { poolId: params.poolId, surfaceId: params.surfaceId };
 		},
 
-		async updateRoutePoolStrategy(poolId: string, strategy: string | null): Promise<number> {
+		async updateRoutePoolPolicy(
+			poolId: string,
+			patch: {
+				strategy?: string | null;
+				tierStrategies?: string | null;
+				stickyEnabled?: boolean;
+				stickyIdleTtlSeconds?: number;
+			}
+		): Promise<number> {
+			const sets: string[] = [];
+			const bindValues: unknown[] = [];
+			if (patch.strategy !== undefined) {
+				sets.push('strategy = ?');
+				bindValues.push(patch.strategy);
+			}
+			if (patch.tierStrategies !== undefined) {
+				sets.push('tier_strategies = ?');
+				bindValues.push(patch.tierStrategies);
+			}
+			const stickyTouched =
+				patch.stickyEnabled !== undefined || patch.stickyIdleTtlSeconds !== undefined;
+			if (patch.stickyEnabled !== undefined) {
+				sets.push('sticky_enabled = ?');
+				bindValues.push(patch.stickyEnabled ? 1 : 0);
+			}
+			if (patch.stickyIdleTtlSeconds !== undefined) {
+				sets.push('sticky_idle_ttl_seconds = ?');
+				bindValues.push(patch.stickyIdleTtlSeconds);
+			}
+			if (stickyTouched) {
+				sets.push('sticky_epoch = sticky_epoch + 1');
+			}
+			if (sets.length === 0) return 0;
+			sets.push('updated_at = CURRENT_TIMESTAMP(6)');
 			const [result] = await pool.execute<ResultSetHeader>(
-				`UPDATE route_pools SET strategy = ?, updated_at = CURRENT_TIMESTAMP(6) WHERE id = ?`,
-				[strategy, poolId]
+				`UPDATE route_pools SET ${sets.join(', ')} WHERE id = ?`,
+				[...bindValues, poolId]
 			);
 			return result.affectedRows;
+		},
+
+		async bumpRoutePoolStickyEpoch(poolId: string): Promise<number | null> {
+			const [result] = await pool.execute<ResultSetHeader>(
+				`UPDATE route_pools
+				 SET sticky_epoch = sticky_epoch + 1,
+				     updated_at = CURRENT_TIMESTAMP(6)
+				 WHERE id = ?`,
+				[poolId]
+			);
+			if (result.affectedRows === 0) return null;
+			const [rows] = await pool.query<Array<{ sticky_epoch: number } & RowDataPacket>>(
+				`SELECT sticky_epoch FROM route_pools WHERE id = ? LIMIT 1`,
+				[poolId]
+			);
+			if (!rows[0]) return null;
+			return Number(rows[0].sticky_epoch);
 		},
 
 		async updateModelRouteByPatch(id: string, patch: Record<string, unknown>): Promise<number> {
@@ -170,6 +223,27 @@ export function createMySqlModelRoutesRepository(db: MySqlDatabaseClient): Model
 		async deleteModelRouteById(id: string): Promise<number> {
 			const [result] = await pool.execute<ResultSetHeader>('DELETE FROM model_routes WHERE id = ?', [id]);
 			return result.affectedRows;
+		},
+
+		async deleteRoutePoolIfEmpty(poolId: string): Promise<boolean> {
+			const [rows] = await pool.query<Array<{ ok: number }>>(
+				'SELECT 1 AS ok FROM model_routes WHERE route_pool_id = ? LIMIT 1',
+				[poolId]
+			);
+			if (rows.length > 0) return false;
+			const conn = await pool.getConnection();
+			try {
+				await conn.beginTransaction();
+				await conn.execute('DELETE FROM model_surfaces WHERE route_pool_id = ?', [poolId]);
+				await conn.execute('DELETE FROM route_pools WHERE id = ?', [poolId]);
+				await conn.commit();
+				return true;
+			} catch (error) {
+				await conn.rollback();
+				throw error;
+			} finally {
+				conn.release();
+			}
 		},
 	};
 }

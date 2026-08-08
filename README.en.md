@@ -34,10 +34,10 @@ Its core capabilities include:
     - More Agent tools are planned, and contributions are welcome.
 5. Unified AI capability endpoint: All connected models, platforms, and tools are exposed through the deployed Octafuse Gateway Base URL, so clients only need to remember one endpoint.
 6. Multiple routing strategies: When a model has several upstream resources, choose the strategy that best matches the workload:
-    - `affinity`: Default; keeps the same user, model, and protocol on a stable upstream for a **high prompt-cache hit rate** and session continuity, though short-term traffic may be uneven
+    - `hash_affinity`: Default; keeps the same user, model, and protocol on a stable upstream for a **high prompt-cache hit rate** and session continuity, though short-term traffic may be uneven
     - `weighted_random`: Weighted random distribution with **strong load balancing**, suitable for proportional cost allocation or A/B testing; users may switch Providers more often, reducing cache hits
-    - `strict`: Deterministic ordering from highest to lowest weight, suitable for explicit primary / backup behavior; the first Provider receives most traffic
-    - `round_robin`: Weighted rotation for more even distribution; counters are maintained per runtime instance and are not globally synchronized across instances
+    - `weight_priority`: Deterministic ordering from highest to lowest weight, suitable for explicit primary / backup behavior; the first Provider receives most traffic
+    - `weighted_round_robin`: Weighted rotation for more even distribution; counters are maintained per runtime instance and are not globally synchronized across instances
 7. Integrated user management and accounting:
     - Three-level External system, User, and API Key hierarchy: the external-system field separates systems or teams, while API Keys authenticate calls and drive charging and auditing
     - Three ledgers: every invocation records catalog price, actual provider cost, and user charge separately

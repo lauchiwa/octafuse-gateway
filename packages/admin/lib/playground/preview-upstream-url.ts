@@ -82,11 +82,16 @@ export function previewPlaygroundUpstreamUrl(input: {
 					input.geminiAction === 'streamGenerateContent'
 						? 'streamGenerateContent'
 						: 'generateContent';
-				const resolvedUrl = resolveUpstreamEndpoint(protocol, action, providerEndpoints, {
-					model: input.providerModelName || 'model',
-					action,
-					providerId: provider.id,
-				});
+				const resolvedUrl = resolveUpstreamEndpoint(
+					protocol,
+					'models.generate',
+					providerEndpoints,
+					{
+						model: input.providerModelName || 'model',
+						action,
+						providerId: provider.id,
+					}
+				);
 				const { url } = prepareGeminiUpstreamFetch({
 					resolvedUrl,
 					modelName: input.providerModelName || 'model',

@@ -8,6 +8,7 @@ import {
 	type ProviderEndpointsMap,
 	type ProtocolEndpointsConfig,
 } from '@octafuse/core/provider-endpoints';
+import { GEMINI_GENERATE_OPERATION } from '@octafuse/core/route-topology';
 import type { UpstreamProtocol } from '@octafuse/core/upstream-protocol';
 import {
 	parseProviderCustomHeaders,
@@ -15,6 +16,7 @@ import {
 } from '@octafuse/core/provider-custom-headers';
 import type {
 	CustomHeaderRow,
+	GeminiLegacyPerActionEndpoints,
 	ProtocolEndpointForm,
 	ProviderCapabilityBadge,
 	ProviderFormData,
@@ -33,8 +35,9 @@ export function capabilityDisplayBadges(
 	if (set.has('images.generations') || set.has('images.edits')) badges.push('images');
 	if (set.has('audio.transcriptions')) badges.push('audio');
 	if (set.has('messages')) badges.push('messages');
-	if (set.has('generateContent')) badges.push('generateContent');
-	if (set.has('streamGenerateContent')) badges.push('streamGenerateContent');
+	if (set.has(GEMINI_GENERATE_OPERATION) || set.has('generateContent') || set.has('streamGenerateContent')) {
+		badges.push('modelsGenerate');
+	}
 	return badges;
 }
 
@@ -43,24 +46,79 @@ function customHeadersToRows(headers: Record<string, string> | undefined): Custo
 	return Object.entries(headers).map(([name, value]) => ({ name, value }));
 }
 
+/**
+ * If both legacy URLs differ only by the trailing `:action`, collapse to a shared `{action}` template.
+ */
+export function tryCollapseGeminiLegacyEndpoints(
+	generateContent: string,
+	streamGenerateContent: string
+): string | null {
+	const gen = generateContent.trim();
+	const stream = streamGenerateContent.trim();
+	if (!gen || !stream) return null;
+	const asTemplate = (url: string, action: string): string | null => {
+		const suffix = `:${action}`;
+		if (!url.endsWith(suffix)) return null;
+		return `${url.slice(0, -suffix.length)}:{action}`;
+	};
+	const t1 = asTemplate(gen, 'generateContent');
+	const t2 = asTemplate(stream, 'streamGenerateContent');
+	if (t1 && t2 && t1 === t2) return t1;
+	return null;
+}
+
 function protocolFormFromConfig(
 	cfg: ProtocolEndpointsConfig | undefined,
 	customHeaders: Record<string, string> | undefined
 ): ProtocolEndpointForm {
-	const form: ProtocolEndpointForm = { ...EMPTY_PROTOCOL_FORM, customHeaders: [] };
-	if (cfg) {
-		form.base = cfg.base ?? '';
-		const eps = cfg.endpoints ?? {};
-		form.chat = eps.chat ?? '';
-		form.responses = eps.responses ?? '';
-		form.images_generations = eps['images.generations'] ?? '';
-		form.images_edits = eps['images.edits'] ?? '';
-		form.audio_transcriptions = eps['audio.transcriptions'] ?? '';
-		form.messages = eps.messages ?? '';
-		form.generateContent = eps.generateContent ?? '';
-		form.streamGenerateContent = eps.streamGenerateContent ?? '';
+	// customHeaders 必须在任何 early return 之前写入：下方 Gemini family /
+	// collapsed 分支都会提前 return，若在函数末尾赋值会静默丢掉自定义 header。
+	const form: ProtocolEndpointForm = {
+		...EMPTY_PROTOCOL_FORM,
+		legacyPerAction: null,
+		customHeaders: customHeadersToRows(customHeaders),
+	};
+	if (!cfg) return form;
+	form.base = cfg.base ?? '';
+	const eps = cfg.endpoints ?? {};
+	form.chat = eps.chat ?? '';
+	// fork 独有 Responses surface：上游没有这一行，合并时必须保留。
+	form.responses = eps.responses ?? '';
+	form.images_generations = eps['images.generations'] ?? '';
+	form.images_edits = eps['images.edits'] ?? '';
+	form.audio_transcriptions = eps['audio.transcriptions'] ?? '';
+	form.messages = eps.messages ?? '';
+
+	const family = eps[GEMINI_GENERATE_OPERATION]?.trim() ?? '';
+	const legacyGen = eps.generateContent?.trim() ?? '';
+	const legacyStream = eps.streamGenerateContent?.trim() ?? '';
+	if (family) {
+		form.modelsGenerate = family;
+		return form;
 	}
-	form.customHeaders = customHeadersToRows(customHeaders);
+	if (legacyGen && legacyStream) {
+		const collapsed = tryCollapseGeminiLegacyEndpoints(legacyGen, legacyStream);
+		if (collapsed) {
+			form.modelsGenerate = collapsed;
+			return form;
+		}
+		form.legacyPerAction = {
+			generateContent: legacyGen,
+			streamGenerateContent: legacyStream,
+		};
+		form.generateContent = legacyGen;
+		form.streamGenerateContent = legacyStream;
+		return form;
+	}
+	if (legacyGen || legacyStream) {
+		const legacy: GeminiLegacyPerActionEndpoints = {
+			generateContent: legacyGen,
+			streamGenerateContent: legacyStream,
+		};
+		form.legacyPerAction = legacy;
+		form.generateContent = legacyGen;
+		form.streamGenerateContent = legacyStream;
+	}
 	return form;
 }
 
@@ -97,11 +155,13 @@ function configFromProtocolForm(
 		}
 	} else if (protocol === 'anthropic') {
 		if (form.messages.trim()) endpoints.messages = form.messages.trim();
-	} else {
-		if (form.generateContent.trim()) endpoints.generateContent = form.generateContent.trim();
-		if (form.streamGenerateContent.trim()) {
-			endpoints.streamGenerateContent = form.streamGenerateContent.trim();
-		}
+	} else if (form.legacyPerAction) {
+		const gen = form.legacyPerAction.generateContent.trim();
+		const stream = form.legacyPerAction.streamGenerateContent.trim();
+		if (gen) endpoints.generateContent = gen;
+		if (stream) endpoints.streamGenerateContent = stream;
+	} else if (form.modelsGenerate.trim()) {
+		endpoints[GEMINI_GENERATE_OPERATION] = form.modelsGenerate.trim();
 	}
 	if (!base && Object.keys(endpoints).length === 0) return undefined;
 	const cfg: ProtocolEndpointsConfig = {};
@@ -165,12 +225,21 @@ export function getProviderProtocolSummaries(provider: GatewayProvider): Provide
 			try {
 				const resolved = resolveUpstreamEndpoint(key, capability, map, {
 					model: '{model}',
+					action: key === 'gemini' ? 'generateContent' : undefined,
 					providerId: provider.id,
-				}).replace(/%7Bmodel%7D/gi, '{model}');
+				})
+					.replace(/%7Bmodel%7D/gi, '{model}')
+					.replace(/:generateContent$/i, ':{action}');
+				const override =
+					Boolean(config.endpoints?.[capability]) ||
+					(key === 'gemini' &&
+						(Boolean(config.endpoints?.[GEMINI_GENERATE_OPERATION]) ||
+							Boolean(config.endpoints?.generateContent) ||
+							Boolean(config.endpoints?.streamGenerateContent)));
 				return [{
 					capability,
 					url: resolved,
-					source: config.endpoints?.[capability] ? 'override' as const : 'base' as const,
+					source: override ? 'override' as const : 'base' as const,
 				}];
 			} catch {
 				return [];
@@ -218,7 +287,12 @@ export function protocolFormHasOverrides(
 		);
 	}
 	if (protocol === 'anthropic') return !!form.messages.trim();
-	return !!(form.generateContent.trim() || form.streamGenerateContent.trim());
+	return !!(
+		form.modelsGenerate.trim() ||
+		form.legacyPerAction ||
+		form.generateContent.trim() ||
+		form.streamGenerateContent.trim()
+	);
 }
 
 /** 某协议是否配置了任意非空自定义 header（用于 Advanced 区默认展开）。 */

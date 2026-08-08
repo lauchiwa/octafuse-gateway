@@ -12,10 +12,15 @@ import {
 
 function makeRoute(providerId: string, overrides: Partial<RouteResult> = {}): RouteResult {
 	return {
+		targetId: `target-${providerId}`,
+		modelSurfaceId: null,
+		routePoolId: 'pool-1',
 		providerId,
 		providerName: providerId,
 		providerModelName: 'model-x',
 		upstreamProtocol: 'openai',
+		upstreamOperation: 'chat',
+		adapter: 'passthrough',
 		providerEndpoints: { openai: { base: 'https://example.com/v1' } },
 		providerApiKey: `sk-${providerId}`,
 		priceOverrideRaw: null,
@@ -37,7 +42,7 @@ const emptyRepos = {} as GatewayRepositories;
 const defaultOptions = {
 	affinityKey: 'u|m|default|openai',
 	tierKeyPrefix: 'm|default|openai',
-	strategy: 'strict' as const,
+	strategy: 'weight_priority' as const,
 };
 
 beforeEach(() => {
@@ -331,5 +336,328 @@ describe('failoverDispatch — soft server failures', () => {
 		assert.deepEqual(seen, ['high', 'low']);
 		assert.equal(result.response.status, 200);
 		assert.equal(result.chosenRoute.providerId, 'low');
+	});
+});
+
+describe('failoverDispatch — provider sticky', () => {
+	const stickyRepoExtras = {
+		deleteStaleBefore: mock.fn(async () => 0),
+	};
+
+	it('tries sticky low-priority target before higher priority tiers', async () => {
+		const now = Date.now();
+		const seen: string[] = [];
+		// expires far enough that last-touch approximation is outside 60s throttle window
+		const getBinding = mock.fn(async () => ({
+			route_pool_id: 'pool-1',
+			affinity_hash: 'x',
+			route_target_id: 'low-target',
+			binding_token: 'tok-1',
+			pool_epoch: 0,
+			expires_at: new Date(now + (3_600 - 120) * 1000).toISOString(),
+		}));
+		const touchBinding = mock.fn(async () => true);
+		const repos = {
+			routePoolSticky: {
+				getBinding,
+				touchBinding,
+				tryBind: mock.fn(),
+				clearBinding: mock.fn(),
+				...stickyRepoExtras,
+			},
+		} as unknown as GatewayRepositories;
+		const dispatch = mock.fn(async (route: RouteResult) => {
+			seen.push(route.targetId);
+			return {
+				response: new Response('ok', { status: 200 }),
+				usagePromise: Promise.resolve(EMPTY_USAGE),
+				upstreamRequestId: null,
+			};
+		});
+		const routes = [
+			makeRoute('high', { targetId: 'high-target', routePriority: 10 }),
+			makeRoute('low', { targetId: 'low-target', routePriority: 1 }),
+		];
+
+		const result = await failoverDispatch(repos, routes, 'openai', dispatch, undefined, {
+			...defaultOptions,
+			routePoolId: 'pool-1',
+			sticky: { enabled: true, idleTtlSeconds: 3600, epoch: 0 },
+		});
+
+		assert.deepEqual(seen, ['low-target']);
+		assert.equal(result.response.status, 200);
+		const trace = await result.stickyTrace!();
+		assert.equal(trace.lookup, 'hit');
+		assert.equal(trace.result, 'kept');
+		assert.ok(result.stickyMutationPromise);
+		await result.stickyMutationPromise;
+		assert.equal(touchBinding.mock.callCount(), 1);
+	});
+
+	it('clears sticky on provider failure and continues normal plan without retrying same target', async () => {
+		const now = Date.now();
+		const seen: string[] = [];
+		const clearBinding = mock.fn(async () => true);
+		const tryBind = mock.fn(async () => true);
+		const repos = {
+			routePoolSticky: {
+				getBinding: async () => ({
+					route_pool_id: 'pool-1',
+					affinity_hash: 'x',
+					route_target_id: 'low-target',
+					binding_token: 'tok-1',
+					pool_epoch: 0,
+					expires_at: new Date(now + 3_600_000).toISOString(),
+				}),
+				clearBinding,
+				tryBind,
+				touchBinding: mock.fn(async () => true),
+				...stickyRepoExtras,
+			},
+		} as unknown as GatewayRepositories;
+		const dispatch = mock.fn(async (route: RouteResult) => {
+			seen.push(route.targetId);
+			if (route.targetId === 'low-target') {
+				return {
+					response: new Response('busy', { status: 429 }),
+					usagePromise: Promise.resolve(EMPTY_USAGE),
+					upstreamRequestId: null,
+				};
+			}
+			return {
+				response: new Response('ok', { status: 200 }),
+				usagePromise: Promise.resolve(EMPTY_USAGE),
+				upstreamRequestId: null,
+			};
+		});
+		const routes = [
+			makeRoute('high', { targetId: 'high-target', routePriority: 10 }),
+			makeRoute('low', { targetId: 'low-target', routePriority: 1 }),
+		];
+
+		const result = await failoverDispatch(repos, routes, 'openai', dispatch, undefined, {
+			...defaultOptions,
+			routePoolId: 'pool-1',
+			sticky: { enabled: true, idleTtlSeconds: 3600, epoch: 0 },
+		});
+
+		assert.deepEqual(seen, ['low-target', 'high-target']);
+		assert.equal(result.response.status, 200);
+		assert.equal(clearBinding.mock.callCount(), 1);
+		const trace = await result.stickyTrace!();
+		assert.equal(trace.result, 'rebound');
+		assert.ok(result.stickyMutationPromise);
+		await result.stickyMutationPromise;
+		assert.equal(tryBind.mock.callCount(), 1);
+	});
+
+	it('does not clear sticky on 400 client errors', async () => {
+		const now = Date.now();
+		const clearBinding = mock.fn(async () => true);
+		const repos = {
+			routePoolSticky: {
+				getBinding: async () => ({
+					route_pool_id: 'pool-1',
+					affinity_hash: 'x',
+					route_target_id: 't1',
+					binding_token: 'tok-1',
+					pool_epoch: 0,
+					expires_at: new Date(now + 3_600_000).toISOString(),
+				}),
+				clearBinding,
+				tryBind: mock.fn(),
+				touchBinding: mock.fn(),
+				...stickyRepoExtras,
+			},
+		} as unknown as GatewayRepositories;
+		const dispatch = mock.fn(async () => ({
+			response: new Response('bad request', { status: 400 }),
+			usagePromise: Promise.resolve(EMPTY_USAGE),
+			upstreamRequestId: null,
+		}));
+		const routes = [makeRoute('p1', { targetId: 't1' }), makeRoute('p2', { targetId: 't2' })];
+
+		const result = await failoverDispatch(repos, routes, 'openai', dispatch, undefined, {
+			...defaultOptions,
+			routePoolId: 'pool-1',
+			sticky: { enabled: true, idleTtlSeconds: 3600, epoch: 0 },
+		});
+
+		assert.equal(dispatch.mock.callCount(), 1);
+		assert.equal(result.response.status, 400);
+		assert.equal(clearBinding.mock.callCount(), 0);
+		const trace = await result.stickyTrace!();
+		assert.equal(trace.lookup, 'hit');
+	});
+
+	it('binds on first success when sticky enabled and storage miss', async () => {
+		const tryBind = mock.fn(async () => true);
+		const repos = {
+			routePoolSticky: {
+				getBinding: async () => null,
+				tryBind,
+				touchBinding: mock.fn(),
+				clearBinding: mock.fn(),
+				...stickyRepoExtras,
+			},
+		} as unknown as GatewayRepositories;
+		const dispatch = mock.fn(async () => ({
+			response: new Response('ok', { status: 200 }),
+			usagePromise: Promise.resolve(EMPTY_USAGE),
+			upstreamRequestId: null,
+		}));
+		const result = await failoverDispatch(
+			repos,
+			[makeRoute('p1', { targetId: 't1' })],
+			'openai',
+			dispatch,
+			undefined,
+			{
+				...defaultOptions,
+				routePoolId: 'pool-1',
+				sticky: { enabled: true, idleTtlSeconds: 3600, epoch: 3 },
+			}
+		);
+		const trace = await result.stickyTrace!();
+		assert.equal(trace.lookup, 'miss');
+		assert.equal(trace.result, 'bound');
+		assert.equal(trace.attempted_target, 't1');
+		await result.stickyMutationPromise;
+		assert.equal(tryBind.mock.callCount(), 1);
+		const bindArgs = tryBind.mock.calls[0]?.arguments[0] as { poolEpoch: number };
+		assert.equal(bindArgs.poolEpoch, 3);
+	});
+
+	it('records unchanged when tryBind loses CAS', async () => {
+		const tryBind = mock.fn(async () => false);
+		const repos = {
+			routePoolSticky: {
+				getBinding: async () => null,
+				tryBind,
+				touchBinding: mock.fn(),
+				clearBinding: mock.fn(),
+				...stickyRepoExtras,
+			},
+		} as unknown as GatewayRepositories;
+		const dispatch = mock.fn(async () => ({
+			response: new Response('ok', { status: 200 }),
+			usagePromise: Promise.resolve(EMPTY_USAGE),
+			upstreamRequestId: null,
+		}));
+		const result = await failoverDispatch(
+			repos,
+			[makeRoute('p1', { targetId: 't1' })],
+			'openai',
+			dispatch,
+			undefined,
+			{
+				...defaultOptions,
+				routePoolId: 'pool-1',
+				sticky: { enabled: true, idleTtlSeconds: 3600, epoch: 0 },
+			}
+		);
+		const trace = await result.stickyTrace!();
+		assert.equal(trace.lookup, 'miss');
+		assert.equal(trace.result, 'unchanged');
+	});
+
+	it('skips rebind when sticky target is circuit-open but another provider succeeds', async () => {
+		resetProviderCircuitStateForTests();
+		const now = Date.now();
+		markProviderFailure('p-sticky', 'rate_limit', 60_000);
+		const tryBind = mock.fn(async () => true);
+		const repos = {
+			routePoolSticky: {
+				getBinding: async () => ({
+					route_pool_id: 'pool-1',
+					affinity_hash: 'x',
+					route_target_id: 'sticky-target',
+					binding_token: 'tok-1',
+					pool_epoch: 0,
+					expires_at: new Date(now + 3_600_000).toISOString(),
+				}),
+				clearBinding: mock.fn(),
+				tryBind,
+				touchBinding: mock.fn(),
+				...stickyRepoExtras,
+			},
+		} as unknown as GatewayRepositories;
+		const dispatch = mock.fn(async () => ({
+			response: new Response('ok', { status: 200 }),
+			usagePromise: Promise.resolve(EMPTY_USAGE),
+			upstreamRequestId: null,
+		}));
+		const result = await failoverDispatch(
+			repos,
+			[
+				makeRoute('p-sticky', { targetId: 'sticky-target', routePriority: 1 }),
+				makeRoute('p-other', { targetId: 'other-target', routePriority: 10 }),
+			],
+			'openai',
+			dispatch,
+			undefined,
+			{
+				...defaultOptions,
+				routePoolId: 'pool-1',
+				sticky: { enabled: true, idleTtlSeconds: 3600, epoch: 0 },
+			}
+		);
+		assert.equal(result.response.status, 200);
+		assert.equal(result.chosenRoute.targetId, 'other-target');
+		assert.equal(tryBind.mock.callCount(), 0);
+		const trace = await result.stickyTrace!();
+		assert.equal(trace.lookup, 'invalid_circuit');
+		assert.equal(trace.result, 'unchanged');
+		resetProviderCircuitStateForTests();
+	});
+
+	it('skips sticky attempt when all candidates are circuit-open and leaves binding untouched', async () => {
+		resetProviderCircuitStateForTests();
+		const now = Date.now();
+		markProviderFailure('p1', 'rate_limit', 60_000);
+		const clearBinding = mock.fn(async () => true);
+		const tryBind = mock.fn(async () => true);
+		const repos = {
+			routePoolSticky: {
+				getBinding: async () => ({
+					route_pool_id: 'pool-1',
+					affinity_hash: 'x',
+					route_target_id: 't1',
+					binding_token: 'tok-1',
+					pool_epoch: 0,
+					expires_at: new Date(now + 3_600_000).toISOString(),
+				}),
+				clearBinding,
+				tryBind,
+				touchBinding: mock.fn(),
+				...stickyRepoExtras,
+			},
+		} as unknown as GatewayRepositories;
+		const dispatch = mock.fn(async () => ({
+			response: new Response('ok', { status: 200 }),
+			usagePromise: Promise.resolve(EMPTY_USAGE),
+			upstreamRequestId: null,
+		}));
+
+		const result = await failoverDispatch(
+			repos,
+			[makeRoute('p1', { targetId: 't1' })],
+			'openai',
+			dispatch,
+			undefined,
+			{
+				...defaultOptions,
+				routePoolId: 'pool-1',
+				sticky: { enabled: true, idleTtlSeconds: 3600, epoch: 0 },
+			}
+		);
+
+		assert.equal(dispatch.mock.callCount(), 0);
+		assert.equal(clearBinding.mock.callCount(), 0);
+		assert.equal(tryBind.mock.callCount(), 0);
+		const trace = await result.stickyTrace!();
+		assert.equal(trace.lookup, 'invalid_circuit');
+		resetProviderCircuitStateForTests();
 	});
 });

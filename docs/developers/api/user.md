@@ -389,7 +389,19 @@ Admin 中 Provider 的权威配置为 **`providers.endpoints`** JSON（迁移 `0
 { "gemini": { "base": "https://generativelanguage.googleapis.com/v1beta/models" } }
 ```
 
-`base` 须配置到 **`{model}` 之前**的完整路径前缀（网关不再自动补 `/v1beta/models`）；出站由 `resolveUpstreamEndpoint` 派生为 `{base}/{upstreamModel}:{action}`。非标准厂商可在 `endpoints.gemini.endpoints.generateContent` / `streamGenerateContent` 写完整 URL 模板（须含 `{model}`）。
+`base` 须配置到 **`{model}` 之前**的完整路径前缀（网关不再自动补 `/v1beta/models`）；出站由 `resolveUpstreamEndpoint` 派生为 `{base}/{upstreamModel}:{action}`。非标准厂商优先配置统一模板：
+
+```json
+{
+  "gemini": {
+    "endpoints": {
+      "models.generate": "https://example.com/v1beta/models/{model}:{action}"
+    }
+  }
+}
+```
+
+`models.generate` 模板必须同时包含 **`{model}`** 与 **`{action}`**，一次配置覆盖 `generateContent` 和 `streamGenerateContent`。旧的 `generateContent` / `streamGenerateContent` 独立模板仍可读写以兼容历史数据；运行时优先级为 `models.generate` → 对应旧 action 模板 → `base` 派生。新配置不应继续拆成两个旧键。
 
 **客户端入口**始终为 `POST /v1beta/models/...`（与 `@google/genai` SDK 兼容）。
 
@@ -1175,7 +1187,7 @@ LLM 及 token 模式的价格以每百万 token 为单位（per-million-token pr
 **排序与 failover**：
 
 - **层**：按 `model_routes.priority` **降序**（数字越大越先试）。
-- **同层**：按生效策略排序（默认 **`affinity`**：加权 Rendezvous，利于 prompt cache；另有 `weighted_random` / `strict` / `round_robin`），权重为 `model_routes.weight`。
+- **同层**：按生效策略排序（默认 **`hash_affinity`**：加权 Rendezvous，利于 prompt cache；另有 `weighted_random` / `weight_priority` / `weighted_round_robin`），权重为 `model_routes.weight`。
 - **跳过**：`providers.status = disabled`、无 `api_key`，或处于 **provider 熔断** 的候选不参与本次 attempt。
 - **全部不可用**（均熔断）：网关直接返回 **429**，响应体为 `{ "error": { "code": "upstream_capacity_exhausted", ... } }`，并带 `Retry-After`；**不调用上游**。
 - **有可试路由时**：按序打上游；可重试失败则换下一 Provider；全部 attempt 失败则返回**最后一次**上游响应。

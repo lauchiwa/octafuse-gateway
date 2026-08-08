@@ -6,7 +6,7 @@
  * 流程：鉴权 → 解析 model → 预算预检 → openai 路由故障转移 → 成功后按 Images usage token 分项扣费。
  * 日志禁止写入 prompt 原文、参考图与 Base64。
  */
-import type { GatewayRepositories, ModelRow } from '@octafuse/core';
+import type { GatewayRepositories, ModelRow, ResolvedModelSurfaceRow } from '@octafuse/core';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import type { Env } from '../../app';
@@ -19,7 +19,7 @@ import { resolveModelRouting } from '../../services/resolve-model-route-group';
 import {
 	buildAffinityKey,
 	buildTierKeyPrefix,
-	resolveRouteStrategy,
+	resolveRouteStrategyPlan,
 } from '../../services/route-strategies';
 import { proxyImageEdits, proxyImageGenerations, type ProxyResult } from '../../services/proxy';
 import { finalizeRequestLogJson } from '../../services/request-log-shared';
@@ -55,6 +55,7 @@ import { GatewayErrorCode } from '../../services/gateway-error-codes';
 import { gatewayErrorJson } from '../../services/gateway-error-response';
 import { RequestTimingCollector } from '../../services/request-timing';
 import { scheduleBackgroundWork } from '../../runtime/schedule-background-work';
+import { stickyConfigFromSurface } from '../../services/provider-sticky-routing';
 
 type ImagesEnv = Env & { Variables: { apiKey: ApiKeyContext } };
 type ImagesContext = Context<ImagesEnv>;
@@ -75,6 +76,8 @@ async function resolveOpenAiImageRoutes(
 			effectiveRouteGroup: string;
 			routes: RouteResult[];
 			poolStrategy: string | null;
+			poolTierStrategies: string | null;
+			stickySurface: ResolvedModelSurfaceRow | null;
 	  }
 	| { ok: false; status: 400 | 404 | 502; error: string }
 > {
@@ -108,6 +111,8 @@ async function resolveOpenAiImageRoutes(
 			effectiveRouteGroup,
 			routes,
 			poolStrategy: resolvedSurface.surface?.pool_strategy ?? null,
+			poolTierStrategies: resolvedSurface.surface?.pool_tier_strategies ?? null,
+			stickySurface: resolvedSurface.surface,
 		};
 	} catch (err) {
 		const message = err instanceof Error ? err.message : 'Model route resolution failed';
@@ -536,7 +541,17 @@ async function finalizeImageResponse(params: FinalizeImageParams): Promise<Respo
 		timing,
 	} = params;
 
-	const { chosenRoute, upstreamRequestId, circuitEvents, suppressErrorAlert } = proxyResult;
+	const {
+		chosenRoute,
+		upstreamRequestId,
+		circuitEvents,
+		suppressErrorAlert,
+		stickyTrace,
+		stickyMutationPromise,
+	} = proxyResult;
+	if (stickyMutationPromise) {
+		scheduleBackgroundWork(c, stickyMutationPromise);
+	}
 	const { response, errorBodyText } = await materializeNonOkResponse(proxyResult.response);
 	await proxyResult.usagePromise.catch(() => undefined);
 
@@ -623,45 +638,49 @@ async function finalizeImageResponse(params: FinalizeImageParams): Promise<Respo
 
 	scheduleBackgroundWork(
 		c,
-		recordImageUsage({
-			repos,
-			apiKeyId: apiKey.keyId,
-			userId: apiKey.userId,
-			userEmail: apiKey.userEmail,
-			modelId: baseModelId,
-			providerId: chosenRoute.providerId,
-			providerModelName: chosenRoute.providerModelName,
-			modelName: modelNameForLog,
-			providerName: chosenRoute.providerName,
-			requestBody: requestBodyForLog,
-			upstreamRequestBody: upstreamRequestBodyForLog,
-			requestProtocol: 'openai',
-			requestOperation: operation === 'generations' ? 'images.generations' : 'images.edits',
-			upstreamProtocol: chosenRoute.upstreamProtocol,
-			upstreamOperation: chosenRoute.upstreamOperation,
-			modelSurfaceId: chosenRoute.modelSurfaceId,
-			routePoolId: chosenRoute.routePoolId,
-			routeTargetId: chosenRoute.targetId,
-			adapter: chosenRoute.adapter,
-			routeGroup: effectiveRouteGroup,
-			status,
-			latencyMs: latency,
-			errorMessage,
-			billing,
-			effectiveImageCount: validImages,
-			imageUsage,
-			clientAbortPrecheck,
-			imageAbortReason,
-			resultConfirmed: status === 'success' && validImages > 0,
-			upstreamSupplierCostUsdTicks,
-			providerKeyId: chosenRoute.providerKeyId ?? null,
-			providerKeyLabel: chosenRoute.providerKeyLabel ?? null,
-			providerKeyFingerprint: chosenRoute.providerKeyFingerprint ?? null,
-			upstreamRequestId,
-			timing: timing.snapshot(),
-			circuitEvents: alertCircuitEvents.length > 0 ? alertCircuitEvents : undefined,
-			suppressErrorAlert: suppressErrorAlert || undefined,
-		}).catch((err) => {
+		(async () => {
+			const stickyTraceSnapshot = stickyTrace ? await stickyTrace() : null;
+			await recordImageUsage({
+				repos,
+				apiKeyId: apiKey.keyId,
+				userId: apiKey.userId,
+				userEmail: apiKey.userEmail,
+				modelId: baseModelId,
+				providerId: chosenRoute.providerId,
+				providerModelName: chosenRoute.providerModelName,
+				modelName: modelNameForLog,
+				providerName: chosenRoute.providerName,
+				requestBody: requestBodyForLog,
+				upstreamRequestBody: upstreamRequestBodyForLog,
+				requestProtocol: 'openai',
+				requestOperation: operation === 'generations' ? 'images.generations' : 'images.edits',
+				upstreamProtocol: chosenRoute.upstreamProtocol,
+				upstreamOperation: chosenRoute.upstreamOperation,
+				modelSurfaceId: chosenRoute.modelSurfaceId,
+				routePoolId: chosenRoute.routePoolId,
+				routeTargetId: chosenRoute.targetId,
+				adapter: chosenRoute.adapter,
+				stickyTrace: stickyTraceSnapshot,
+				routeGroup: effectiveRouteGroup,
+				status,
+				latencyMs: latency,
+				errorMessage,
+				billing,
+				effectiveImageCount: validImages,
+				imageUsage,
+				clientAbortPrecheck,
+				imageAbortReason,
+				resultConfirmed: status === 'success' && validImages > 0,
+				upstreamSupplierCostUsdTicks,
+				providerKeyId: chosenRoute.providerKeyId ?? null,
+				providerKeyLabel: chosenRoute.providerKeyLabel ?? null,
+				providerKeyFingerprint: chosenRoute.providerKeyFingerprint ?? null,
+				upstreamRequestId,
+				timing: timing.snapshot(),
+				circuitEvents: alertCircuitEvents.length > 0 ? alertCircuitEvents : undefined,
+				suppressErrorAlert: suppressErrorAlert || undefined,
+			});
+		})().catch((err) => {
 			console.error(
 				`[Gateway Images] recordImageUsage failed baseModelId=${baseModelId} keyId=${apiKey.keyId} clientModel=${clientModelId} error=${err instanceof Error ? err.message : String(err)}`
 			);
@@ -833,9 +852,10 @@ imageRoutes.post('/generations', async (c) => {
 	// Seedream 等兼容扩展：用户显式传入时透传；亦可由 route `custom_params` 注入默认值
 	applyOpenAiImageGenerationExtras(upstreamBody, body);
 
-	const strategy = await resolveRouteStrategy({
+	const strategyPlan = await resolveRouteStrategyPlan({
 		routePolicyRaw: model.route_policy ?? null,
 		poolStrategy: routed.poolStrategy,
+		poolTierStrategies: routed.poolTierStrategies,
 		protocol: 'openai',
 		capability: 'images.generations',
 		routeGroup: effectiveRouteGroup,
@@ -849,11 +869,15 @@ imageRoutes.post('/generations', async (c) => {
 		`[Gateway Images] generations baseModelId=${baseModelId} keyId=${apiKey.keyId} n=${common.n}`
 	);
 
+	const stickySurface = routed.stickySurface;
 	const proxyResult = await proxyImageGenerations(repos, routes, upstreamBody, c.req.raw.signal, {
 		affinityKey,
 		tierKeyPrefix,
-		strategy,
+		strategy: strategyPlan.base,
+		tierStrategies: strategyPlan.tierOverrides,
 		timing,
+		routePoolId: stickySurface?.route_pool_id ?? routes[0]?.routePoolId ?? null,
+		sticky: stickyConfigFromSurface(stickySurface),
 	});
 
 	return finalizeImageResponse({
@@ -983,9 +1007,10 @@ imageRoutes.post('/edits', async (c) => {
 		return circuitBlocked;
 	}
 
-	const strategy = await resolveRouteStrategy({
+	const strategyPlan = await resolveRouteStrategyPlan({
 		routePolicyRaw: model.route_policy ?? null,
 		poolStrategy: routed.poolStrategy,
+		poolTierStrategies: routed.poolTierStrategies,
 		protocol: 'openai',
 		capability: 'images.edits',
 		routeGroup: effectiveRouteGroup,
@@ -999,11 +1024,15 @@ imageRoutes.post('/edits', async (c) => {
 		`[Gateway Images] edits baseModelId=${baseModelId} keyId=${apiKey.keyId} refs=${edit.images.length}`
 	);
 
+	const stickySurface = routed.stickySurface;
 	const proxyResult = await proxyImageEdits(repos, routes, edit, c.req.raw.signal, {
 		affinityKey,
 		tierKeyPrefix,
-		strategy,
+		strategy: strategyPlan.base,
+		tierStrategies: strategyPlan.tierOverrides,
 		timing,
+		routePoolId: stickySurface?.route_pool_id ?? routes[0]?.routePoolId ?? null,
+		sticky: stickyConfigFromSurface(stickySurface),
 	});
 
 	return finalizeImageResponse({

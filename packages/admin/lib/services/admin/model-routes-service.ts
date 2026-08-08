@@ -3,6 +3,7 @@
  */
 import type { GatewayRepositories, UpstreamProtocol } from '@octafuse/core';
 import {
+	canonicalizeRequestOperation,
 	isRequestOperationForProtocol,
 	normalizeRouteOperation,
 	PASSTHROUGH_ROUTE_ADAPTER,
@@ -13,9 +14,13 @@ import {
 } from '@octafuse/core/db/model-modalities';
 import { normalizeUpstreamProtocol } from '@octafuse/core/upstream-protocol';
 import { isRouteStrategyName } from '@octafuse/core/db/model-route-policy';
+import { normalizeRoutePoolTierStrategiesInput } from '@octafuse/core/db/route-pool-tier-strategies';
+import { buildAffinityKey, hashAffinityKey } from '@octafuse/core/db/route-affinity-key';
+import { normalizeStickyRoutingInput } from '@octafuse/core/db/route-pool-sticky-types';
 import { badRequest, notFound } from './errors';
 import { coerceRoutePriceOverrideInput, assertRoutePriceOverrideFactors } from './pricing-input';
 import { normalizeJsonObjectField, providerSupportsUpstreamProtocol } from './shared';
+import { listAdminUsers, resolveAdminUserId } from './users-service';
 import type {
 	AdminCreatedIdOutput,
 	AdminModelRouteMutationInput,
@@ -119,13 +124,19 @@ export async function createModelRouteService(
 	} catch (e) {
 		throw badRequest(e instanceof Error ? e.message : 'Invalid request_protocol');
 	}
-	const requestOperation = normalizeRouteOperation(body.request_operation);
+	const requestOperation = canonicalizeRequestOperation(
+		requestProtocol,
+		normalizeRouteOperation(body.request_operation)
+	);
 	if (!isRequestOperationForProtocol(requestProtocol, requestOperation)) {
 		throw badRequest(
 			`request_operation "${requestOperation}" is not valid for request_protocol "${requestProtocol}"`
 		);
 	}
-	const upstreamOperation = normalizeRouteOperation(body.upstream_operation);
+	const upstreamOperation = canonicalizeRequestOperation(
+		proto,
+		normalizeRouteOperation(body.upstream_operation)
+	);
 	if (!isRequestOperationForProtocol(proto, upstreamOperation)) {
 		throw badRequest(
 			`upstream_operation "${upstreamOperation}" is not valid for upstream_protocol "${proto}"`
@@ -257,7 +268,16 @@ export async function updateModelRouteService(
 
 	const requestProtocolRaw = body.request_protocol;
 	const requestOperationRaw = body.request_operation;
-	if (requestProtocolRaw !== undefined || requestOperationRaw !== undefined) {
+	const routeGroupChanging = patch.route_group !== undefined;
+	const oldPoolId =
+		existing.route_pool_id != null && String(existing.route_pool_id).trim() !== ''
+			? String(existing.route_pool_id)
+			: null;
+	if (
+		requestProtocolRaw !== undefined ||
+		requestOperationRaw !== undefined ||
+		routeGroupChanging
+	) {
 		let requestProtocol: UpstreamProtocol;
 		try {
 			requestProtocol = normalizeUpstreamProtocol(
@@ -266,7 +286,16 @@ export async function updateModelRouteService(
 		} catch (e) {
 			throw badRequest(e instanceof Error ? e.message : 'Invalid request_protocol');
 		}
-		const requestOperation = normalizeRouteOperation(requestOperationRaw);
+		// When body omits request_operation (e.g. only route_group change), keep the
+		// passthrough-aligned operation from the existing target instead of defaulting to '*'.
+		const requestOperation = canonicalizeRequestOperation(
+			requestProtocol,
+			normalizeRouteOperation(
+				requestOperationRaw !== undefined && requestOperationRaw !== null
+					? requestOperationRaw
+					: existing.upstream_operation
+			)
+		);
 		if (!isRequestOperationForProtocol(requestProtocol, requestOperation)) {
 			throw badRequest(
 				`request_operation "${requestOperation}" is not valid for request_protocol "${requestProtocol}"`
@@ -279,8 +308,9 @@ export async function updateModelRouteService(
 		if (requestProtocol !== effectiveProto && effectiveAdapter === PASSTHROUGH_ROUTE_ADAPTER) {
 			throw badRequest('Cross-protocol targets require a conversion adapter');
 		}
-		const effectiveUpstreamOperation = normalizeRouteOperation(
-			body.upstream_operation ?? existing.upstream_operation
+		const effectiveUpstreamOperation = canonicalizeRequestOperation(
+			effectiveProto,
+			normalizeRouteOperation(body.upstream_operation ?? existing.upstream_operation)
 		);
 		if (
 			effectiveAdapter === PASSTHROUGH_ROUTE_ADAPTER &&
@@ -306,7 +336,10 @@ export async function updateModelRouteService(
 		patch.route_pool_id = topology.poolId;
 	}
 	if (patch.upstream_operation !== undefined) {
-		const operation = normalizeRouteOperation(patch.upstream_operation);
+		const operation = canonicalizeRequestOperation(
+			effectiveProto,
+			normalizeRouteOperation(patch.upstream_operation)
+		);
 		if (!isRequestOperationForProtocol(effectiveProto, operation)) {
 			throw badRequest(
 				`upstream_operation "${operation}" is not valid for upstream_protocol "${effectiveProto}"`
@@ -326,24 +359,280 @@ export async function updateModelRouteService(
 	if (!hasPatch) return;
 	const changes = await repos.routes.updateModelRouteByPatch(id, patch);
 	if (!changes) throw notFound('Route not found');
+
+	const newPoolId =
+		patch.route_pool_id != null && String(patch.route_pool_id).trim() !== ''
+			? String(patch.route_pool_id)
+			: null;
+	if (oldPoolId && newPoolId && oldPoolId !== newPoolId) {
+		await repos.routes.deleteRoutePoolIfEmpty(oldPoolId);
+	}
 }
 
-/** 删除路由；不存在抛 `notFound`。 */
+/** 删除路由；不存在抛 `notFound`。空 Pool / Surface 一并 GC。 */
 export async function deleteModelRouteService(repos: GatewayRepositories, id: string): Promise<void> {
+	const existing = await repos.routes.getModelRouteRowById(id);
+	if (!existing) throw notFound('Route not found');
+	const poolId =
+		existing.route_pool_id != null && String(existing.route_pool_id).trim() !== ''
+			? String(existing.route_pool_id)
+			: null;
 	const changes = await repos.routes.deleteModelRouteById(id);
 	if (!changes) throw notFound('Route not found');
+	if (poolId) {
+		await repos.routes.deleteRoutePoolIfEmpty(poolId);
+	}
 }
 
-/** Update the strategy owned by one concrete route pool. `null` inherits the model/global policy. */
+/**
+ * Update pool-level routing policy.
+ * - `strategy`: pool default (null/empty inherits model/global)
+ * - `tier_strategies`: JSON map of priority → strategy (null/empty clears overrides)
+ * - `sticky_routing`: `{ enabled, idle_ttl_seconds }` — bumps sticky_epoch
+ * Only provided fields are written.
+ */
+export async function updateRoutePoolPolicyService(
+	repos: GatewayRepositories,
+	poolId: string,
+	body: { strategy?: unknown; tier_strategies?: unknown; sticky_routing?: unknown }
+): Promise<void> {
+	const patch: {
+		strategy?: string | null;
+		tierStrategies?: string | null;
+		stickyEnabled?: boolean;
+		stickyIdleTtlSeconds?: number;
+	} = {};
+
+	if (body.strategy !== undefined) {
+		const raw = body.strategy == null ? '' : String(body.strategy).trim().toLowerCase();
+		if (raw && !isRouteStrategyName(raw)) {
+			throw badRequest(`Invalid route pool strategy "${raw}"`);
+		}
+		patch.strategy = raw || null;
+	}
+
+	if (body.tier_strategies !== undefined) {
+		try {
+			if (
+				body.tier_strategies == null ||
+				(typeof body.tier_strategies === 'string' && body.tier_strategies.trim() === '')
+			) {
+				patch.tierStrategies = null;
+			} else if (typeof body.tier_strategies === 'string') {
+				patch.tierStrategies = normalizeRoutePoolTierStrategiesInput(body.tier_strategies);
+			} else if (typeof body.tier_strategies === 'object' && !Array.isArray(body.tier_strategies)) {
+				patch.tierStrategies = normalizeRoutePoolTierStrategiesInput(
+					body.tier_strategies as Record<string, unknown>
+				);
+			} else {
+				throw new Error('tier_strategies must be a JSON object');
+			}
+		} catch (err) {
+			throw badRequest(err instanceof Error ? err.message : 'Invalid tier_strategies');
+		}
+	}
+
+	if (body.sticky_routing !== undefined) {
+		try {
+			const sticky = normalizeStickyRoutingInput(body.sticky_routing);
+			patch.stickyEnabled = sticky.enabled;
+			patch.stickyIdleTtlSeconds = sticky.idle_ttl_seconds;
+		} catch (err) {
+			throw badRequest(err instanceof Error ? err.message : 'Invalid sticky_routing');
+		}
+	}
+
+	if (
+		patch.strategy === undefined &&
+		patch.tierStrategies === undefined &&
+		patch.stickyEnabled === undefined
+	) {
+		throw badRequest('Provide strategy, tier_strategies, and/or sticky_routing');
+	}
+
+	const changes = await repos.routes.updateRoutePoolPolicy(poolId, patch);
+	if (!changes) throw notFound('Route pool not found');
+}
+
+/** @deprecated Use `updateRoutePoolPolicyService` */
 export async function updateRoutePoolStrategyService(
 	repos: GatewayRepositories,
 	poolId: string,
 	strategyInput: unknown
 ): Promise<void> {
-	const raw = strategyInput == null ? '' : String(strategyInput).trim().toLowerCase();
-	if (raw && !isRouteStrategyName(raw)) {
-		throw badRequest(`Invalid route pool strategy "${raw}"`);
+	await updateRoutePoolPolicyService(repos, poolId, { strategy: strategyInput });
+}
+
+export type StickyBindingsSummary = {
+	total_active: number;
+	stale_count: number;
+	targets: Array<{
+		route_target_id: string;
+		active_count: number;
+		share: number;
+		last_updated_at: string | null;
+	}>;
+};
+
+/** Aggregate active sticky bindings for a pool (epoch-valid + not expired). */
+export async function getStickyBindingsSummaryService(
+	repos: GatewayRepositories,
+	poolId: string
+): Promise<StickyBindingsSummary> {
+	const id = poolId.trim();
+	if (!id) throw badRequest('poolId is required');
+	const nowIso = new Date().toISOString();
+	const [counts, stale_count] = await Promise.all([
+		repos.routePoolSticky.listBindingTargetCounts(id, nowIso),
+		repos.routePoolSticky.countStaleBindings(id, nowIso),
+	]);
+	const total_active = counts.reduce((sum, row) => sum + row.active_count, 0);
+	return {
+		total_active,
+		stale_count,
+		targets: counts.map((row) => ({
+			route_target_id: row.route_target_id,
+			active_count: row.active_count,
+			share: total_active > 0 ? row.active_count / total_active : 0,
+			last_updated_at: row.last_updated_at,
+		})),
+	};
+}
+
+export type StickyBindingLookupResult = {
+	user_id: string;
+	affinity_hash: string;
+	affinity_key: string;
+	binding: null | {
+		route_target_id: string;
+		expires_at: string;
+		pool_epoch: number;
+		remaining_seconds: number;
+		epoch_valid: boolean;
+		expired: boolean;
+	};
+};
+
+/**
+ * Lookup sticky binding for one user on a pool.
+ * Requires surface context (model/group/protocol/operation) and asserts it maps to `poolId`.
+ */
+export async function lookupStickyBindingService(
+	repos: GatewayRepositories,
+	poolId: string,
+	query: {
+		user_id?: string | null;
+		email?: string | null;
+		model_id?: string | null;
+		route_group?: string | null;
+		protocol?: string | null;
+		request_operation?: string | null;
 	}
-	const changes = await repos.routes.updateRoutePoolStrategy(poolId, raw || null);
-	if (!changes) throw notFound('Route pool not found');
+): Promise<StickyBindingLookupResult> {
+	const id = poolId.trim();
+	if (!id) throw badRequest('poolId is required');
+
+	const modelId = query.model_id?.trim() || '';
+	const routeGroup = query.route_group?.trim() || 'default';
+	const protocolRaw = query.protocol?.trim() || '';
+	const requestOperationRaw = query.request_operation?.trim() || '*';
+	if (!modelId) throw badRequest('model_id is required');
+	if (!protocolRaw) throw badRequest('protocol is required');
+
+	let requestProtocol: UpstreamProtocol;
+	try {
+		requestProtocol = normalizeUpstreamProtocol(protocolRaw);
+	} catch (e) {
+		throw badRequest(e instanceof Error ? e.message : 'Invalid protocol');
+	}
+	const requestOperation = canonicalizeRequestOperation(
+		requestProtocol,
+		normalizeRouteOperation(requestOperationRaw)
+	);
+
+	const surface = await repos.modelRouting.resolveModelSurface({
+		modelId,
+		routeGroup,
+		requestProtocol,
+		requestOperation,
+	});
+	if (!surface) throw notFound('Model surface not found for the given context');
+	if (String(surface.route_pool_id) !== id) {
+		throw badRequest('Surface does not belong to this route pool');
+	}
+
+	let userId = query.user_id?.trim() || '';
+	const email = query.email?.trim() || '';
+	if (!userId && email) {
+		const listed = await listAdminUsers(repos, { email, page: 1, page_size: 5 });
+		const exact = listed.data.filter(
+			(u) => String(u.email ?? '').toLowerCase() === email.toLowerCase()
+		);
+		if (exact.length === 0) throw notFound('User not found for email');
+		if (exact.length > 1) {
+			throw badRequest('Multiple users match this email; pass user_id instead');
+		}
+		userId = exact[0].id;
+	}
+	if (!userId) throw badRequest('user_id or email is required');
+	userId = await resolveAdminUserId(repos, userId);
+
+	const affinity_key = buildAffinityKey(userId, modelId, routeGroup, requestProtocol);
+	const affinity_hash = await hashAffinityKey(affinity_key);
+	const row = await repos.routePoolSticky.getBinding(id, affinity_hash);
+	if (!row) {
+		return { user_id: userId, affinity_hash, affinity_key, binding: null };
+	}
+
+	const nowMs = Date.now();
+	const expiresMs = Date.parse(row.expires_at);
+	const expired = !Number.isFinite(expiresMs) || expiresMs <= nowMs;
+	const poolEpoch = Number(surface.pool_sticky_epoch ?? 0);
+	const epoch_valid = row.pool_epoch === poolEpoch;
+	const remaining_seconds = expired
+		? 0
+		: Math.max(0, Math.floor((expiresMs - nowMs) / 1000));
+
+	return {
+		user_id: userId,
+		affinity_hash,
+		affinity_key,
+		binding: {
+			route_target_id: row.route_target_id,
+			expires_at: row.expires_at,
+			pool_epoch: row.pool_epoch,
+			remaining_seconds,
+			epoch_valid,
+			expired,
+		},
+	};
+}
+
+/** Admin force-clear one sticky binding (no token CAS). */
+export async function forceClearStickyBindingService(
+	repos: GatewayRepositories,
+	poolId: string,
+	affinityHash: string
+): Promise<{ cleared: boolean }> {
+	const id = poolId.trim();
+	const hash = affinityHash.trim().toLowerCase();
+	if (!id) throw badRequest('poolId is required');
+	if (!/^[0-9a-f]{64}$/.test(hash)) throw badRequest('affinityHash must be a 64-char hex SHA-256');
+	const cleared = await repos.routePoolSticky.forceClearBinding({
+		routePoolId: id,
+		affinityHash: hash,
+	});
+	return { cleared };
+}
+
+/** Bump pool sticky_epoch to invalidate all bindings. */
+export async function resetStickyBindingsService(
+	repos: GatewayRepositories,
+	poolId: string
+): Promise<{ sticky_epoch: number }> {
+	const id = poolId.trim();
+	if (!id) throw badRequest('poolId is required');
+	const sticky_epoch = await repos.routes.bumpRoutePoolStickyEpoch(id);
+	if (sticky_epoch == null) throw notFound('Route pool not found');
+	return { sticky_epoch };
 }

@@ -69,7 +69,11 @@ export interface ResolvedGatewayKeyRow extends ApiKeyRow {
 export type ProviderStatus = 'active' | 'disabled';
 
 /** 同层路由排序策略名。 */
-export type RouteStrategyName = 'affinity' | 'weighted_random' | 'strict' | 'round_robin';
+export type RouteStrategyName =
+	| 'hash_affinity'
+	| 'weighted_random'
+	| 'weight_priority'
+	| 'weighted_round_robin';
 
 /** `providers` 表行。 */
 export interface ProviderRow {
@@ -152,6 +156,8 @@ export interface RequestLogRow {
 	user_id: string | null;
 	api_key_id: string | null;
 	user_email: string | null;
+	/** 管理端全局日志查询从 users 关联得到；物理日志行本身不存储。 */
+	external_system?: string | null;
   model_id: string | null;
   provider_id: string | null;
   /** 请求当时转发到上游的模型名；升级前列不存在或旧行为 null */

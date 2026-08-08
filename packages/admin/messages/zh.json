@@ -316,15 +316,15 @@
 			"copyApiKey": "复制 API Key",
 			"apiKey": "API Key",
 			"supportedEndpoints": "支持的端点",
-			"editProvider": "编辑供应商",
+			"editProvider": "编辑供应商：{name}",
 			"baseWithOverrides": "公共 Base + {count} 个覆盖",
 			"endpointCount": "{count} 个独立端点",
 			"showEndpointDetails": "展开端点详情",
 			"hideEndpointDetails": "收起端点详情",
 			"derived": "派生",
 			"override": "覆盖",
-			"providerEnabled": "供应商已启用（取消勾选以禁用）",
-			"providerDisabled": "供应商已禁用（勾选以启用）",
+			"providerEnabled": "供应商已启用；点击停用",
+			"providerDisabled": "供应商已停用；点击启用",
 			"capabilitiesTitle": "{label}: {caps} · {url}",
 			"capabilitiesSr": "{label} 能力: {caps}",
 			"cap": {
@@ -334,7 +334,8 @@
 				"audio": "audio",
 				"messages": "messages",
 				"generateContent": "generate",
-				"streamGenerateContent": "stream"
+				"streamGenerateContent": "stream",
+				"modelsGenerate": "generate"
 			}
 		},
 		"import": {
@@ -403,7 +404,9 @@
 			"apiKeyHint": "该供应商的上游凭证。",
 			"apiKeyEditHint": "留空保持当前密钥；填写新值则替换。",
 			"statusEnabled": "启用供应商",
-			"statusHint": "禁用后不会参与路由与 Playground。"
+			"statusHint": "禁用后不会参与路由与 Playground。",
+			"capModelsGenerate": "models.generate (/v1beta/models/{model}:{action}) — 流式 + 非流式",
+			"legacyPerActionNotice": "该 Provider 仍保留无法安全合并的 generateContent / streamGenerateContent 覆盖项。保存时原样写回。复核后可改为单一 {action} 模板。"
 		}
 	},
 	"models": {
@@ -556,11 +559,18 @@
 			"title": "路由配置",
 			"filteredBy": "筛选条件：{summary}",
 			"allModelsRoutes": "全部模型与路由",
-			"newRoute": "新建路由"
+			"newRoute": "新建路由",
+			"densityGroupAria": "路由展示密度",
+			"densitySummary": "摘要",
+			"densityTopology": "拓扑",
+			"densitySummaryHint": "按优先级阶梯折叠 Provider 详情",
+			"densityTopologyHint": "完整卡片流，便于排查 Provider 接线"
 		},
 		"flow": {
 			"overviewTitle": "请求处理流程",
-			"overviewHint": "从左到右查看每个模型的完整流转，可配置项显示在实际生效的环节中。",
+			"overviewHint": "自上而下阅读优先级层，需要时再展开查看 Provider 详情。",
+			"overviewHintSummary": "摘要视图：自上而下跟随优先级阶梯，展开某一层查看 Provider 卡片。",
+			"overviewHintTopology": "拓扑视图：从左到右查看每个模型的完整流转，可配置项显示在实际生效的环节中。",
 			"step": "步骤 {number}",
 			"requestStep": "客户端请求",
 			"lookupStep": "匹配模型",
@@ -575,8 +585,21 @@
 			"strategyInherit": "策略：继承",
 			"inheritShort": "继承",
 			"effectiveStrategy": "实际生效策略",
+			"tierStrategy": "层策略",
+			"tierStrategyEdit": "编辑层策略：{strategy}（{source}）",
+			"failoverRules": "Failover 规则",
+			"failoverContinue": "失败后",
+			"priorityLadderAria": "优先级故障转移阶梯",
+			"expandTier": "展开供应商",
+			"collapseTier": "折叠供应商",
+			"expandTierAria": "展开优先级 {priority} 的供应商",
+			"collapseTierAria": "折叠优先级 {priority} 的供应商",
+			"tierActiveTotal": "{active}/{total}",
+			"tierPreviewEnabled": "{name} · 已启用",
+			"tierPreviewDisabled": "{name} · 未启用",
 			"strategySource": {
-				"pool": "当前路由池",
+				"tier": "本层",
+				"pool": "继承自路由池",
 				"modelOperation": "继承自模型端点规则",
 				"modelProtocol": "继承自模型协议规则",
 				"model": "继承自模型默认",
@@ -591,14 +614,21 @@
 			"enabledShort": "已启用",
 			"disabledShort": "未启用",
 			"addRoute": "添加路由",
+			"noProviders": "当前没有可用供应商",
 			"firstAttempt": "首选层",
 			"fallback": "失败后继续",
 			"fallbackLayer": "回退层",
-			"weight": "权重 {value}",
-			"chargedShort": "计费",
-			"meteredShort": "成本",
-			"scheduled": "时段",
-			"defaults": "默认参数",
+			"weight": "W{value}",
+			"chargedShort": "C",
+			"meteredShort": "M",
+			"scheduled": "Schedule",
+			"customParams": "P",
+			"customParamsTooltip": "自定义请求参数（深度合并到上游请求体；客户端字段优先）",
+			"badgeWeightTooltip": "权重：{value}",
+			"badgeParamsTooltip": "自定义参数（深度合并到上游请求体；客户端字段优先）",
+			"badgeChargedTooltip": "计费：{value} · {status}",
+			"badgeMeteredTooltip": "成本：{value} · {status}",
+			"badgeScheduleTooltip": "时段：{windows}",
 			"providerDisabled": "供应商停用",
 			"editRoute": "编辑此路由"
 		},
@@ -637,12 +667,34 @@
 			"routeDisabled": "路由已禁用（勾选以启用）",
 			"priorityTitle": "优先级（故障转移顺序）",
 			"factorsAria": "计费与计量目录系数",
-			"chargedFactorAria": "计费系数 {value}",
-			"meteredFactorAria": "计量系数 {value}",
+			"chargedFactorAria": "计费系数 {value}：{status}",
+			"meteredFactorAria": "计量系数 {value}：{status}",
 			"scheduleBadge": "时段",
 			"scheduleAria": "每日时段：{windows}",
-			"chargedTooltip": "计费系数：{value} · 相对目录价格的客户计费乘数",
-			"meteredTooltip": "计量系数：{value} · 相对目录价格的供应商成本乘数"
+			"chargedTooltip": "计费系数：{value} · {status} · 相对目录价格的客户计费乘数",
+			"meteredTooltip": "计量系数：{value} · {status} · 相对目录价格的供应商成本乘数",
+			"baseInversionBadge": "倒挂",
+			"baseInversionTooltip": "基础计费系数低于基础成本系数，可能存在利润倒挂；时段系数未计入此判断",
+			"factorStatus": {
+				"charged": {
+					"invalid": "无效配置",
+					"zero": "免费计费，请确认配置",
+					"veryLow": "大幅折扣，请关注收入",
+					"low": "低于目录价",
+					"baseline": "接近目录基准",
+					"high": "高于目录价",
+					"veryHigh": "大幅高于目录价，请确认配置"
+				},
+				"metered": {
+					"invalid": "无效配置",
+					"zero": "零成本，请确认配置",
+					"veryLow": "显著成本优势",
+					"low": "低于目录成本",
+					"baseline": "接近目录基准",
+					"high": "成本偏高",
+					"veryHigh": "成本显著偏高，请确认配置"
+				}
+			}
 		},
 		"modal": {
 			"editTitle": "编辑路由",
@@ -717,7 +769,8 @@
 			"audioPricePerSecond": "每秒价格",
 			"audioMinimumSeconds": "最低秒数",
 			"weight": "权重",
-			"weightHint": "同 priority 层内权重（≥ 1）。加权策略下数值越大流量越多。"
+			"weightHint": "同 priority 层内权重（≥ 1）。加权策略下数值越大流量越多。",
+			"operationModelsGenerate": "models.generate · Generate Content（流式 + 非流式）"
 		},
 		"kindAudio": "音频",
 		"strategy": {
@@ -730,10 +783,18 @@
 			"inheritedResult": "当前实际继承",
 			"effective": "当前效果",
 			"guideTitle": "策略说明",
-			"guideHint": "点击策略卡片即可选择；保存前可在下方预览当前 Target 的处理方式。",
+			"guideHint": "点击策略卡片即可选择。",
+			"cacheHitGuideTitle": "想提高缓存命中率？",
+			"cacheHitGuideBody": "哈希分配会让同一用户优先使用固定的 Provider，天然更容易命中缓存。若选择其他策略，请在路由池开启「Provider 粘性」；系统会优先复用上一次成功的 Provider，减少来回切换，提高缓存命中率。",
 			"bestFor": "适合",
 			"tradeoff": "取舍",
+			"labelSeparator": "：",
+			"tierLevel": "本层策略",
+			"tierLevelHint": "仅影响该 priority 层内的 Target 排序。留空则继承路由池默认策略。",
+			"tierInheritReadonlyHint": "路由池默认与全局策略不在此修改，请到路由池入口或 Config 中调整。",
+			"tierRequiresPool": "本层策略需要路由池（route pool）。请先为该入口添加供应商以创建路由池。",
 			"source": {
+				"tier": "本层覆盖",
 				"pool": "当前路由池",
 				"modelOperation": "模型端点规则",
 				"modelProtocol": "模型协议规则",
@@ -741,48 +802,122 @@
 				"global": "全局配置",
 				"default": "系统默认"
 			},
-			"affinity": "affinity",
-			"weighted_random": "weighted_random",
-			"strict": "strict",
-			"round_robin": "round_robin",
+			"display": {
+				"hash_affinity": "哈希分配",
+				"weighted_random": "加权随机",
+				"weight_priority": "权重优先",
+				"weighted_round_robin": "加权轮询"
+			},
+			"diagramCaption": {
+				"hash_affinity": "同一用户固定一家",
+				"weight_priority": "全体共用一份名单",
+				"weighted_random": "每次按权重抓阄",
+				"weighted_round_robin": "轮流当首选"
+			},
 			"description": {
-				"affinity": {
-					"summary": "按用户与模型生成稳定偏好，同一类请求通常命中同一 Provider；权重影响整体分布。",
-					"bestFor": "Prompt Cache、会话连续性",
-					"tradeoff": "短时间流量不一定完全均匀"
+				"hash_affinity": {
+					"summary": "按「用户 + 模型 + 分组 + 协议」算出固定归属，同一个用户总是先走同一家，不同用户可能分到不同家。",
+					"bestFor": "让同一用户长期稳定在一家，提高上游 Prompt Cache 命中",
+					"tradeoff": "用户数少时流量会明显不均"
+				},
+				"weight_priority": {
+					"summary": "所有请求共用一份固定名单，权重最高的排第一、其余依次当备用，与调用者是谁无关。",
+					"bestFor": "明确主备、结果可预测、便于排查",
+					"tradeoff": "主用几乎承担全部流量，备用平时闲置"
+				},
+				"weighted_round_robin": {
+					"summary": "按权重轮流当首选，权重 3 和 1 的两家大致每 4 次请求有 3 次先走前者、1 次先走后者。",
+					"bestFor": "想让多家供应商都用上、额度平摊",
+					"tradeoff": "每个运行实例各自计数，跨实例不完全同步"
 				},
 				"weighted_random": {
-					"summary": "每次请求按权重随机选择，并为失败后的重试生成无重复候选顺序。",
-					"bestFor": "按比例分流、A/B 或成本分配",
-					"tradeoff": "同一用户可能频繁切换 Provider"
-				},
-				"strict": {
-					"summary": "同优先级内按权重从高到低固定排序，权重相同时按 Provider ID 排序。",
-					"bestFor": "明确主备、结果可预测",
-					"tradeoff": "首选 Provider 会承担大部分流量"
-				},
-				"round_robin": {
-					"summary": "按权重展开轮询序列，让请求依次落到不同 Provider。",
-					"bestFor": "均匀轮转、容量分摊",
-					"tradeoff": "计数器按运行实例维护，并非跨实例全局同步"
+					"summary": "每次请求按权重抓阄决定先找谁，占 60% 权重的供应商长期约拿到 60% 的首次请求。",
+					"bestFor": "按比例分流、A/B 对比、成本分配",
+					"tradeoff": "相邻两次请求可能落到不同供应商"
 				}
 			},
 			"effectTitle": "策略效果预览",
 			"effectHint": "基于当前启用的 Target 解释选择顺序，不会发送真实请求。",
 			"effect": {
-				"affinity": "同一用户、模型、分组和协议会得到稳定的首选 Target；失败时继续尝试该层其余 Target。",
-				"weighted_random": "每次请求按权重随机决定首选 Target；百分比是该优先级内首次命中的近似占比。",
-				"strict": "数字表示同优先级内的固定尝试顺序：权重越高越靠前。",
-				"round_robin": "同优先级内按权重轮流成为首选 Target；实际起点随当前运行实例的计数器变化。"
+				"hash_affinity": "同一个用户每次都从同一家开始，这家失败再按顺序试同层其余供应商；不同用户的首选可以不同。",
+				"weight_priority": "数字表示所有请求共用的固定尝试顺序：权重越高越靠前，与用户无关。",
+				"weighted_round_robin": "同优先级内按权重轮流成为首选；实际起点随当前运行实例的计数器变化。",
+				"weighted_random": "每次请求按权重随机决定首选；百分比是该优先级内首次命中的近似占比。"
 			},
-			"priorityFirst": "Priority 始终先于策略：只有最高优先级全部失败后，才进入下一回退层。",
+			"priorityFirst": "策略只决定同一层内的顺序：Priority 始终优先，只有最高优先级全部失败后，才进入下一回退层。",
 			"runtimeHealthHint": "实际请求还会先排除熔断中的 Provider，因此运行时顺序可能随健康状态变化。",
+			"roundRobinInstanceHint": "在 Cloudflare Workers 上，每个 isolate 各自维护计数器，轮询仅为尽力均匀，并非全局协调。",
 			"singleTargetEffect": "当前有 {count} 个可用 Target；少于 2 个时，各策略的首选结果相同。",
 			"firstAttemptLayer": "首选层",
 			"fallbackLayer": "回退层",
 			"inactiveExcluded": "停用的 Route 或 Provider 已从预览中排除。",
-			"hintCache": "非 affinity 可能降低 prompt cache 命中率。",
-			"hintNoCache": "上游无 prompt cache；建议 weighted_random 或 round_robin。"
+			"hintCache": "除哈希分配外，其他策略可能降低 prompt cache 命中率。",
+			"hintNoCache": "上游无 prompt cache；建议加权随机或加权轮询。",
+			"hash_affinity": "hash_affinity",
+			"weighted_random": "weighted_random",
+			"weight_priority": "weight_priority",
+			"weighted_round_robin": "weighted_round_robin"
+		},
+		"providerSticky": {
+			"title": "Provider 粘性",
+			"chipOff": "粘性 · 关闭",
+			"chipOn": "粘性 · {ttl}",
+			"chipOnWithCount": "粘性 · {ttl} · {count}",
+			"tooltip": "优先使用上一次成功调用的 Provider；每次成功调用都会重新计算粘性 TTL。",
+			"enable": "启用 Provider 粘性",
+			"idleTtl": "粘性 TTL（秒）",
+			"idleTtlHint": "允许范围 {min}–{max} 秒，默认 {default}。每次成功调用都会重新计算 TTL；超过 TTL 没有调用时，粘性自动失效。",
+			"scopeHint": "优先使用上一次成功调用的 Provider。",
+			"orderPreview": "同一调用方再次请求时，会先尝试上一次成功的 Provider。",
+			"tradeoff": "只要该 Provider 持续调用成功，系统就会继续优先使用它；调用失败后才会尝试其他 Provider。",
+			"poolSharedHint": "其他 Provider 调用成功后，它会成为新的优先选择。此设置应用于该路由池关联的所有请求入口。",
+			"requiresPool": "Provider 粘性需要路由池（route pool）。请先为该入口添加供应商以创建路由池。",
+			"effectTitle": "开启后会怎样",
+			"distributionTitle": "当前绑定分布",
+			"distributionHint": "按 target 统计有效绑定（epoch 匹配且未过期）。权重展示为与路由卡片相同的绝对 W，以及在本 pool 全量 target 上归一化后的占比（非同 priority 层内占比），便于与绑定占比对比。",
+			"distributionTotals": "{active} 活跃 · {stale} 陈旧",
+			"distributionEmpty": "暂无 target 或活跃绑定。",
+			"bindingShare": "绑定占比",
+			"weightShare": "权重（全池）",
+			"weightShareValue": "W{weight} · {pct}%",
+			"refresh": "刷新",
+			"lookupTitle": "按用户查询绑定",
+			"lookupHint": "输入用户邮箱或 user id，查看当前粘在哪个 target。",
+			"lookupPlaceholder": "邮箱或 user id",
+			"lookup": "查询",
+			"lookupRequired": "请输入邮箱或 user id。",
+			"lookupUser": "用户",
+			"lookupTarget": "绑定到",
+			"lookupTtl": "剩余 {seconds}s",
+			"lookupEpochValid": "epoch 有效",
+			"lookupEpochInvalid": "epoch 已失效",
+			"lookupExpired": "已过期",
+			"lookupNone": "该用户在本 pool 上没有粘性绑定。",
+			"clearBinding": "解绑",
+			"clearConfirm": "清除该用户的粘性绑定？下次请求将按正常策略重新选路。",
+			"clearDone": "已清除粘性绑定。",
+			"clearMiss": "没有可清除的绑定行。",
+			"resetTitle": "清空本 pool 全部绑定",
+			"resetHint": "通过 bump sticky_epoch 使所有用户下次请求重新选路。历史行不会立即删除，会随 GC 或覆盖消失。",
+			"resetButton": "使全部绑定失效",
+			"resetConfirm": "使本 pool 的全部粘性绑定失效？所有用户下次请求都会重新选路。",
+			"resetDone": "绑定已失效（epoch={epoch}）。",
+			"residualTitle": "仍有历史绑定",
+			"residualHint": "粘性已关闭，但仍有 {active} 条活跃、{stale} 条陈旧绑定。关闭后不会再记录新绑定；如需清空可点下方按钮。",
+			"showOps": "查看详情",
+			"hideOps": "收起详情"
+		},
+		"failover": {
+			"title": "Failover 规则",
+			"readonlyHint": "当前为固定策略，暂不可配置。",
+			"order": "尝试顺序：按 priority 从高到低分层；层内按该层路由策略排序；跳过冷却中的 Provider。",
+			"sameLayer": "同层 failover：429 / 5xx / 401 / 403 / 524 / 网络错误会换下一个候选；400 / 404 等客户端错误不会换 Provider。",
+			"crossLayer": "跨层 failover：高层候选耗尽后进入下一 priority 层（运维配置的主备关系）。",
+			"attemptLimit": "无固定重试次数上限：会尝试所有未熔断的 active 路由。",
+			"circuitCooldown": "Provider 冷却：429 递增 5s→15s→30s→60s（优先上游 Retry-After，封顶 15 分钟）；401/403 固定 5 分钟；5xx 连续 3 次后冷却 10 秒。",
+			"allBusy": "全部冷却时：网关直接返回 429 circuit.upstream_capacity_exhausted（零上游调用），请按 Retry-After 重试。",
+			"memoryNote": "冷却状态为单实例内存态，Cloudflare Workers 多 isolate 之间不共享。",
+			"imagesAbort": "图片生成：客户端取消或网关超时返回 504，不会 failover 到其他 Provider。"
 		}
 	},
 	"playground": {
@@ -1144,11 +1279,16 @@
 		"headers": {
 			"statusTime": "状态 · 时间",
 			"user": "用户",
+			"userSystem": "用户 · 系统",
 			"model": "模型",
 			"route": "路由",
 			"tokens": "Token",
 			"cost": "成本（{currency}）",
 			"profit": "毛利（{currency}）"
+		},
+		"identity": {
+			"user": "用户",
+			"system": "系统"
 		},
 		"titles": {
 			"model": "Gateway 模型名称、协议与路由组",
@@ -1396,8 +1536,10 @@
 		},
 		"routeStrategy": {
 			"title": "全局路由策略",
-			"description": "模型未配置 route_policy 时的默认策略（system_config.ROUTE_STRATEGY）。",
-			"strategy": "策略"
+			"description": "模型或路由池未覆盖时的默认策略（system_config.ROUTE_STRATEGY）。",
+			"strategy": "策略",
+			"change": "修改",
+			"dialogHint": "选择模型或路由池未覆盖时使用的默认策略。"
 		},
 		"saveRouteStrategy": "保存路由策略"
 	},
@@ -1420,6 +1562,23 @@
 			"saveAiDetection": "保存 AI 率检测",
 			"testInPlayground": "在 Playground 测试"
 		},
+		"providerCards": {
+			"active": "已启用",
+			"editing": "正在编辑",
+			"unsaved": "未保存",
+			"missingCredentials": "缺少凭证",
+			"unavailable": "暂不可用",
+			"lossPricing": "存在亏损",
+			"configured": "已配置",
+			"priceLegend": "S 标准价 · C 用户扣费 · M 供应价",
+			"selectHint": "点击 Provider 打开右侧配置抽屉；需保存后才会生效。",
+			"detailTitle": "配置 {name}",
+			"activeSummary": "已启用 · {name}",
+			"noActive": "未启用任何引擎",
+			"saveConfig": "保存配置",
+			"saveAndActivate": "保存并启用",
+			"saveConfigOnly": "仅保存配置"
+		},
 		"unitPrices": {
 			"title": "单价（{currency}）",
 			"legend": "标准价 → 用户扣费 → 供应价",
@@ -1431,7 +1590,7 @@
 		"webSearch": {
 			"title": "Web Search",
 			"description": "供 POST /v1/tools/web-search 使用。仅可选已实现的引擎，禁止自由文本。留空 API Key 并保存将清除密钥（未配置时接口返回 503）。",
-			"descriptionCatalog": "供 POST /v1/tools/web-search 使用。为每个引擎分别配置 API Key 与三账本单价（供应 / 目录 / 用户），再选择 Active。仅 charged 计入用户额度；未配置 Key 的引擎不可激活。",
+			"descriptionCatalog": "供 POST /v1/tools/web-search 使用。为每个引擎分别配置 API Key 与三账本单价，再「保存并启用」其中一张卡片。仅 charged 计入用户额度；未配置 Key 的引擎不可激活。",
 			"provider": "搜索引擎",
 			"active": "当前 Active 引擎",
 			"catalogProvider": "引擎",
@@ -1490,7 +1649,7 @@
 		"webFetch": {
 			"title": "Web Fetch",
 			"description": "供 POST /v1/tools/web-fetch 使用。仅可选已实现的抓取引擎，禁止自由文本。留空 API Key 并保存将清除密钥（未配置时接口返回 503）。",
-			"descriptionCatalog": "供 POST /v1/tools/web-fetch 使用。为每个抓取引擎分别配置 API Key 与三账本单价（供应 / 目录 / 用户），再选择 Active。仅 charged 计入用户额度；未配置 Key 的引擎不可激活。",
+			"descriptionCatalog": "供 POST /v1/tools/web-fetch 使用。为每个抓取引擎分别配置 API Key 与三账本单价，再「保存并启用」其中一张卡片。仅 charged 计入用户额度；未配置 Key 的引擎不可激活。",
 			"provider": "抓取引擎",
 			"active": "当前 Active 引擎",
 			"catalogProvider": "引擎",
@@ -1509,7 +1668,7 @@
 		},
 		"webDeepSearch": {
 			"title": "Web Deep Search",
-			"descriptionCatalog": "供 POST /v1/tools/web-deep-search 使用。搜+读一体引擎（Firecrawl Search / Jina Search），结果含页面正文，比普通 Web Search 更重、更贵。为每个引擎配置 Key 与三账本单价后选择 Active。",
+			"descriptionCatalog": "供 POST /v1/tools/web-deep-search 使用。搜+读一体引擎（Firecrawl Search / Jina Search），结果含页面正文，比普通 Web Search 更重、更贵。为每个引擎配置后「保存并启用」其中一张卡片。",
 			"active": "当前 Active 引擎",
 			"catalogProvider": "引擎",
 			"noKey": "无 Key",
@@ -1525,7 +1684,7 @@
 		},
 		"aiDetection": {
 			"title": "AI 率检测",
-			"descriptionCatalog": "供 POST /v1/tools/ai-detection 使用。多引擎 catalog：为每个引擎配置凭证与三账本单价后选择 Active。计费按字符单元（billingUnitChars）缩放三列金额。当前仅实现腾讯云 TMS。",
+			"descriptionCatalog": "供 POST /v1/tools/ai-detection 使用。多引擎 catalog：为每个引擎配置凭证与三账本单价后「保存并启用」一张卡片。计费按字符单元（billingUnitChars）缩放三列金额。当前仅实现腾讯云 TMS。",
 			"active": "当前 Active 引擎",
 			"catalogProvider": "引擎",
 			"noKey": "无凭证",

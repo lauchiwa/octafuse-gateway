@@ -1,12 +1,13 @@
 /**
  * 上游调度与故障转移：
- * - 按 priority 硬序 + 层内 route strategy（affinity / weighted_random / strict / round_robin）编排尝试序列。
+ * - 可选 Provider sticky（跨 Tier 优先）→ priority 硬序 + 层内 route strategy 编排尝试序列。
  * - 失败按类别进入 provider 熔断（`provider-circuit-breaker`：429 无头 5s→60s 梯度；普通 5xx 连续 3 次后 10s；524/fetch 不跨请求熔断）。
  * - 全部候选因熔断不可用时返回 429 + Retry-After（而非 502）。
  * - 循环内复查：本次请求内刚被熔断的 provider（同 providerId 多 target）不再打。
  */
 import type { GatewayRepositories, RouteStrategyName, UpstreamProtocol } from '@octafuse/core';
 import { DEFAULT_ROUTE_STRATEGY, fingerprintProviderApiKey } from '@octafuse/core';
+import type { RoutePoolStickyRoutingConfig } from '@octafuse/core/db/route-pool-sticky-types';
 import type { RouteResult } from './model-router';
 import type { UsageFromStream } from './proxy';
 import { EMPTY_USAGE } from './proxy';
@@ -19,12 +20,44 @@ import {
 } from './provider-circuit-breaker';
 import type { GatewayCircuitAlertEvent } from './circuit-alert-types';
 import {
+	classifyUpstreamFetchFailure,
 	classifyUpstreamHttpFailure,
 	type UpstreamFailureClassification,
 } from './upstream-failure-classifier';
 import type { RequestTimingAttempt, RequestTimingCollector } from './request-timing';
 import { GatewayErrorCode } from './gateway-error-codes';
 import { gatewayErrorResponse, gatewayNestedErrorResponse } from './gateway-error-response';
+import {
+	clearStickyBindingSync,
+	mergeStickyIntoAttempts,
+	resolveStickySession,
+	resolveStickyTrace,
+	scheduleStickyBind,
+	scheduleStickyTouchIfNeeded,
+	shouldInvalidateStickyBinding,
+	stickyMutationPromise,
+	type StickySession,
+	type StickyTraceSnapshot,
+} from './provider-sticky-routing';
+
+/** Opportunistic hygiene: ~1/500 sticky-enabled requests purge expired rows. */
+const STICKY_STALE_GC_PROBABILITY = 1 / 500;
+const STICKY_STALE_GC_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const STICKY_STALE_GC_LIMIT = 500;
+
+function maybeScheduleStickyStaleGc(
+	repos: GatewayRepositories,
+	session: StickySession,
+	nowMs = Date.now()
+): void {
+	if (Math.random() >= STICKY_STALE_GC_PROBABILITY) return;
+	const cutoffIso = new Date(nowMs - STICKY_STALE_GC_MAX_AGE_MS).toISOString();
+	session.mutations.push(
+		repos.routePoolSticky.deleteStaleBefore(cutoffIso, STICKY_STALE_GC_LIMIT).catch((err) => {
+			console.warn('[Gateway Sticky] stale GC failed', err);
+		})
+	);
+}
 
 /** Images 合成 abort（Gateway 超时 / 客户端取消）——禁止 failover 再打上游。 */
 export type ImageDispatchAbortReason = 'client_abort' | 'gateway_timeout';
@@ -68,23 +101,36 @@ export type ProxyFailoverResult = {
 	/** 因已有 provider 熔断短路、无需重复 webhook 告警 */
 	suppressErrorAlert: boolean;
 	meta?: ProxyDispatchMeta;
+	/**
+	 * Lazy sticky observation for `route_trace`.
+	 * Await inside request-log background work so CAS outcomes are visible.
+	 */
+	stickyTrace?: (() => Promise<StickyTraceSnapshot>) | undefined;
+	/** Background bind/touch mutations (schedule via waitUntil) */
+	stickyMutationPromise?: Promise<unknown> | null;
 };
 
 export type FailoverDispatchOptions = {
-	/**
-	 * 以下三项省略时由本模块兜底（`affinityKey`/`tierKeyPrefix` → 空串，
-	 * `strategy` → `DEFAULT_ROUTE_STRATEGY`）。声明为可选是为了与实现一致：
-	 * 调用方允许只传部分字段，例如仅追加 `preferWithinTier`。
-	 */
-	affinityKey?: string;
-	tierKeyPrefix?: string;
-	strategy?: RouteStrategyName;
+	affinityKey: string;
+	tierKeyPrefix: string;
+	strategy: RouteStrategyName;
+	/** Per-priority overrides from `route_pools.tier_strategies` */
+	tierStrategies?: ReadonlyMap<number, RouteStrategyName> | null;
 	/**
 	 * 层内偏好：返回 true 的 route 在**同一 priority 层内**排到前面。
 	 * 不跨层生效，故 admin 配置的 priority 分层始终优先。见 `route-attempt-planner`。
+	 *
+	 * 2026-08 起**无生产调用点**：`/v1/responses` 改为直接过滤出原生 provider
+	 * （见该路由的 providerDeclaresResponsesEndpoint 过滤），不再需要「原生优先、
+	 * chat 兜底」的两分区排序。保留此扩展点是因为语义已由 planner 的 5 个用例锁定，
+	 * 且是 fork 唯一的层内排序注入口（见 docs/developers/upstream-sync.md §5）。
 	 */
 	preferWithinTier?: (route: RouteResult) => boolean;
 	timing?: RequestTimingCollector | null;
+	/** Route pool id for sticky bindings (null disables sticky) */
+	routePoolId?: string | null;
+	/** Pool sticky config from surface join */
+	sticky?: RoutePoolStickyRoutingConfig | null;
 };
 
 type DispatchFn = (
@@ -159,10 +205,10 @@ function allProvidersBusyResponse(retryAfterMs: number | null): Response {
 }
 
 /**
- * 按「provider priority 层 → route strategy」调度上游请求。
+ * 按「可选 sticky → provider priority 层 → route strategy」调度上游请求。
  */
 export async function failoverDispatch(
-	_repos: GatewayRepositories,
+	repos: GatewayRepositories,
 	routes: RouteResult[],
 	expectedProtocol: UpstreamProtocol,
 	dispatch: DispatchFn,
@@ -197,15 +243,37 @@ export async function failoverDispatch(
 	const affinityKey = options?.affinityKey ?? '';
 	const tierKeyPrefix = options?.tierKeyPrefix ?? '';
 	const strategy: RouteStrategyName = options?.strategy ?? DEFAULT_ROUTE_STRATEGY;
+	const tierStrategies = options?.tierStrategies ?? null;
+	const stickyConfig = options?.sticky ?? null;
+	const routePoolId =
+		options?.routePoolId ?? protocolRoutes.find((r) => r.routePoolId)?.routePoolId ?? null;
+
+	const { session: stickySession, stickyRoute } = stickyConfig?.enabled
+		? await resolveStickySession(repos, {
+				routePoolId,
+				affinityKey,
+				config: stickyConfig,
+				candidates: protocolRoutes,
+			})
+		: { session: null, stickyRoute: null };
+
+	if (stickySession) {
+		maybeScheduleStickyStaleGc(repos, stickySession);
+	}
 
 	const circuitEvents: GatewayCircuitAlertEvent[] = [];
 	const plan = buildRouteAttemptPlan(
 		protocolRoutes,
+		// fork 独有的 preferInTier 与上游的 tierStrategies 并存：前者在层内做稳定分区，
+		// 后者决定该层用哪个排序策略，互不覆盖。
 		{ affinityKey, tierKeyPrefix, preferInTier: options?.preferWithinTier },
-		strategy
+		strategy,
+		Date.now(),
+		tierStrategies
 	);
+	const attempts = mergeStickyIntoAttempts(plan.attempts, stickyRoute);
 
-	if (plan.attempts.length === 0) {
+	if (attempts.length === 0) {
 		return {
 			response: allProvidersBusyResponse(plan.earliestRetryAfterMs),
 			usagePromise: Promise.resolve(EMPTY_USAGE),
@@ -213,15 +281,26 @@ export async function failoverDispatch(
 			chosenRoute: protocolRoutes[0]!,
 			circuitEvents: [],
 			suppressErrorAlert: allProvidersBusyDueToCircuitOnly(plan),
+			stickyTrace: () => resolveStickyTrace(stickySession),
+			stickyMutationPromise: stickyMutationPromise(stickySession),
 		};
 	}
 
 	let lastResponse: Response | null = null;
 	let lastRoute: RouteResult = protocolRoutes[0]!;
 	let lastTimingAttempt: RequestTimingAttempt | undefined;
+	let stickyAttemptCleared = false;
 
-	for (let attemptIndex = 0; attemptIndex < plan.attempts.length; attemptIndex += 1) {
-		const route = plan.attempts[attemptIndex]!;
+	const finish = (result: ProxyFailoverResult): ProxyFailoverResult => ({
+		...result,
+		stickyTrace: () => resolveStickyTrace(stickySession),
+		stickyMutationPromise: stickyMutationPromise(stickySession),
+	});
+
+	for (let attemptIndex = 0; attemptIndex < attempts.length; attemptIndex += 1) {
+		const route = attempts[attemptIndex]!;
+		const isStickyAttempt =
+			Boolean(stickyRoute) && route.targetId === stickyRoute!.targetId && attemptIndex === 0;
 
 		if (getProviderCircuitRemainingMs(route.providerId) > 0) {
 			console.warn(
@@ -232,9 +311,9 @@ export async function failoverDispatch(
 
 		const timingAttempt = timing?.startAttempt(route);
 		lastTimingAttempt = timingAttempt;
-		const hasNextAttempt = attemptIndex < plan.attempts.length - 1;
+		const hasNextAttempt = attemptIndex < attempts.length - 1;
 		console.log(
-			`[Gateway Proxy] calling provider providerId=${route.providerId} model=${route.providerModelName}`
+			`[Gateway Proxy] calling provider providerId=${route.providerId} model=${route.providerModelName}${isStickyAttempt ? ' sticky=1' : ''}`
 		);
 
 		let response: Response;
@@ -254,6 +333,15 @@ export async function failoverDispatch(
 			console.warn(
 				`[Gateway Proxy] fetch failed providerId=${route.providerId} error=${errMessage}`
 			);
+			const fetchClassification = classifyUpstreamFetchFailure();
+			if (
+				stickySession &&
+				isStickyAttempt &&
+				shouldInvalidateStickyBinding(fetchClassification)
+			) {
+				await clearStickyBindingSync(repos, stickySession);
+				stickyAttemptCleared = true;
+			}
 			// 与 route_resolution_failed 一致：把 fetch 层原文带给客户端（DNS/TLS/abort 等，不含凭据）
 			lastResponse = gatewayErrorResponse({
 				status: 502,
@@ -272,7 +360,21 @@ export async function failoverDispatch(
 		if (response.ok) {
 			timing?.markFinalAttempt(timingAttempt);
 			markProviderSuccess(route.providerId);
-			return {
+			if (stickySession) {
+				if (isStickyAttempt && stickySession.bindingToken) {
+					scheduleStickyTouchIfNeeded(repos, stickySession);
+				} else if (stickySession.lookup !== 'invalid_circuit') {
+					// invalid_circuit: keep the existing binding until the provider cools down;
+					// tryBind would lose to CAS on a still-fresh row.
+					scheduleStickyBind(repos, stickySession, route, {
+						rebound:
+							stickyAttemptCleared ||
+							stickySession.lookup === 'hit' ||
+							stickySession.lookup === 'invalid_target',
+					});
+				}
+			}
+			return finish({
 				response,
 				usagePromise,
 				upstreamRequestId,
@@ -280,7 +382,7 @@ export async function failoverDispatch(
 				circuitEvents,
 				suppressErrorAlert: false,
 				meta: dispatchMeta,
-			};
+			});
 		}
 
 		// 403 需要看响应体才能区分「凭据无效」与「请求身份被拒」（后者不该熔断 provider）。
@@ -300,9 +402,20 @@ export async function failoverDispatch(
 			: classifyUpstreamHttpFailure(response.status, forbiddenBodyText);
 		logProviderSwitchAlert(route, classification, response.status);
 
+		if (
+			stickySession &&
+			isStickyAttempt &&
+			shouldInvalidateStickyBinding(classification, {
+				imageAbort: shouldFailImmediatelyForImageAbort(dispatchMeta),
+			})
+		) {
+			await clearStickyBindingSync(repos, stickySession);
+			stickyAttemptCleared = true;
+		}
+
 		if (classification.action === 'fail_immediately') {
 			timing?.markFinalAttempt(timingAttempt);
-			return {
+			return finish({
 				response,
 				usagePromise: Promise.resolve(EMPTY_USAGE),
 				upstreamRequestId,
@@ -310,7 +423,7 @@ export async function failoverDispatch(
 				circuitEvents,
 				suppressErrorAlert: false,
 				meta: dispatchMeta,
-			};
+			});
 		}
 
 		if (classification.failureKind) {
@@ -342,7 +455,7 @@ export async function failoverDispatch(
 	}
 
 	if (!lastResponse) {
-		return {
+		return finish({
 			response: gatewayErrorResponse({
 				status: 502,
 				code: GatewayErrorCode.noRoute,
@@ -353,18 +466,18 @@ export async function failoverDispatch(
 			chosenRoute: lastRoute,
 			circuitEvents,
 			suppressErrorAlert: false,
-		};
+		});
 	}
 
 	timing?.markFinalAttempt(lastTimingAttempt);
-	return {
+	return finish({
 		response: lastResponse,
 		usagePromise: Promise.resolve(EMPTY_USAGE),
 		upstreamRequestId: null,
 		chosenRoute: lastRoute,
 		circuitEvents,
 		suppressErrorAlert: false,
-	};
+	});
 }
 
 /** @deprecated 使用 {@link failoverDispatch} */

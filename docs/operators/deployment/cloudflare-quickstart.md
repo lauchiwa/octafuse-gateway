@@ -417,7 +417,7 @@ Admin → **Inference → Models**：
 Admin → **Inference → Routes**：
 
 1. 为 Model 创建或选择 Request Surface，确定客户端协议与 operation，例如 `openai.chat`；
-2. 让 Surface 指向一个 Route Pool；Pool 可单独设置 `affinity`、`weighted_random`、`strict` 或 `round_robin`；
+2. 让 Surface 指向一个 Route Pool；Pool 可单独设置 `hash_affinity`、`weighted_random`、`weight_priority` 或 `weighted_round_robin`；
 3. 在 Pool 中添加 Upstream Target；
 4. 为 Target 选择 Provider、填写供应商实际模型名和上游 operation；
 5. 设置 `route_group`（例如 `default`）、`priority` 与 `weight`；

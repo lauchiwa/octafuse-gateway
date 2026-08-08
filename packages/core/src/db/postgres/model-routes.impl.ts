@@ -43,7 +43,11 @@ export function createPostgresModelRoutesRepository(db: PostgresDatabaseClient):
 					adapter: pgMr.adapter,
 					pool_name: pgPools.name,
 					pool_strategy: pgPools.strategy,
+					pool_tier_strategies: pgPools.tierStrategies,
 					pool_status: pgPools.status,
+					pool_sticky_enabled: pgPools.stickyEnabled,
+					pool_sticky_idle_ttl_seconds: pgPools.stickyIdleTtlSeconds,
+					pool_sticky_epoch: pgPools.stickyEpoch,
 					model_name: pgModels.displayName,
 					provider_name: pgProviders.name,
 				})
@@ -91,7 +95,15 @@ export function createPostgresModelRoutesRepository(db: PostgresDatabaseClient):
 				surfaces: r.route_pool_id ? (surfacesByPool.get(r.route_pool_id) ?? '[]') : '[]',
 				pool_name: r.pool_name,
 				pool_strategy: r.pool_strategy,
+				pool_tier_strategies: r.pool_tier_strategies,
 				pool_status: r.pool_status,
+				pool_sticky_enabled: r.pool_sticky_enabled,
+				pool_sticky_idle_ttl_seconds:
+					r.pool_sticky_idle_ttl_seconds == null
+						? null
+						: Number(r.pool_sticky_idle_ttl_seconds),
+				pool_sticky_epoch:
+					r.pool_sticky_epoch == null ? null : Number(r.pool_sticky_epoch),
 				model_name: r.model_name,
 				provider_name: r.provider_name,
 			}));
@@ -192,14 +204,49 @@ export function createPostgresModelRoutesRepository(db: PostgresDatabaseClient):
 			return { poolId: params.poolId, surfaceId: params.surfaceId };
 		},
 
-		async updateRoutePoolStrategy(poolId: string, strategy: string | null): Promise<number> {
+		async updateRoutePoolPolicy(
+			poolId: string,
+			patch: {
+				strategy?: string | null;
+				tierStrategies?: string | null;
+				stickyEnabled?: boolean;
+				stickyIdleTtlSeconds?: number;
+			}
+		): Promise<number> {
+			const stickyTouched =
+				patch.stickyEnabled !== undefined || patch.stickyIdleTtlSeconds !== undefined;
+			if (
+				patch.strategy === undefined &&
+				patch.tierStrategies === undefined &&
+				!stickyTouched
+			) {
+				return 0;
+			}
 			const rows = await pg<Array<{ id: string }>>`
 				UPDATE route_pools
-				SET strategy = ${strategy}, updated_at = CURRENT_TIMESTAMP
+				SET
+					strategy = CASE WHEN ${patch.strategy !== undefined} THEN ${patch.strategy ?? null} ELSE strategy END,
+					tier_strategies = CASE WHEN ${patch.tierStrategies !== undefined} THEN ${patch.tierStrategies ?? null} ELSE tier_strategies END,
+					sticky_enabled = CASE WHEN ${patch.stickyEnabled !== undefined} THEN ${patch.stickyEnabled ?? false} ELSE sticky_enabled END,
+					sticky_idle_ttl_seconds = CASE WHEN ${patch.stickyIdleTtlSeconds !== undefined} THEN ${patch.stickyIdleTtlSeconds ?? 3600} ELSE sticky_idle_ttl_seconds END,
+					sticky_epoch = CASE WHEN ${stickyTouched} THEN sticky_epoch + 1 ELSE sticky_epoch END,
+					updated_at = CURRENT_TIMESTAMP
 				WHERE id = ${poolId}
 				RETURNING id
 			`;
 			return rows.length;
+		},
+
+		async bumpRoutePoolStickyEpoch(poolId: string): Promise<number | null> {
+			const rows = await pg<Array<{ sticky_epoch: number | string }>>`
+				UPDATE route_pools
+				SET sticky_epoch = sticky_epoch + 1,
+					updated_at = CURRENT_TIMESTAMP
+				WHERE id = ${poolId}
+				RETURNING sticky_epoch
+			`;
+			if (!rows[0]) return null;
+			return Number(rows[0].sticky_epoch);
 		},
 
 		async updateModelRouteByPatch(id: string, patch: Record<string, unknown>): Promise<number> {
@@ -221,6 +268,18 @@ export function createPostgresModelRoutesRepository(db: PostgresDatabaseClient):
 		async deleteModelRouteById(id: string): Promise<number> {
 			const deleted = await drizzle.delete(pgMr).where(eq(pgMr.id, id)).returning({ id: pgMr.id });
 			return deleted.length;
+		},
+
+		async deleteRoutePoolIfEmpty(poolId: string): Promise<boolean> {
+			const remaining = await pg<Array<{ ok: number }>>`
+				SELECT 1 AS ok FROM model_routes WHERE route_pool_id = ${poolId} LIMIT 1
+			`;
+			if (remaining[0]) return false;
+			await pg.begin(async (tx) => {
+				await tx`DELETE FROM model_surfaces WHERE route_pool_id = ${poolId}`;
+				await tx`DELETE FROM route_pools WHERE id = ${poolId}`;
+			});
+			return true;
 		},
 	};
 }

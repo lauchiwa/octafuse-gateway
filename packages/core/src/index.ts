@@ -28,6 +28,8 @@ export * from './db/api-keys-types';
 export * from './db/providers-types';
 export * from './db/provider-key-utils';
 export * from './db/model-route-policy';
+export * from './db/route-pool-tier-strategies';
+export * from './db/route-pool-sticky-types';
 export * from './db/request-logs-types';
 export * from './db/pricing-audit';
 export * from './db/pricing-profile';

@@ -59,14 +59,15 @@ function applyTierPreference(
 
 /**
  * 构建本次请求的 route 尝试计划。
+ * `tierOverrides` 按 priority 覆盖 `strategyName`（未配置的层仍用 base）。
  */
 export function buildRouteAttemptPlan(
 	routes: RouteResult[],
 	ctx: RouteAttemptPlanOptions,
 	strategyName: RouteStrategyName,
-	now = Date.now()
+	now = Date.now(),
+	tierOverrides?: ReadonlyMap<number, RouteStrategyName> | null
 ): RouteAttemptPlan {
-	const strategy = ROUTE_STRATEGIES[strategyName] ?? ROUTE_STRATEGIES.affinity;
 	const attempts: RouteResult[] = [];
 	let earliestRetryAfterMs: number | null = null;
 	let skippedByCircuit = 0;
@@ -78,6 +79,11 @@ export function buildRouteAttemptPlan(
 	};
 
 	for (const tier of groupRoutesByPriorityDesc(routes)) {
+		// 上游 v2.2.0 引入的按层策略覆盖：每个 priority 层可用不同排序策略。
+		const name = tierOverrides?.get(tier.priority) ?? strategyName;
+		const strategy = ROUTE_STRATEGIES[name] ?? ROUTE_STRATEGIES.hash_affinity;
+		// fork 独有的层内偏好必须包在 strategy 外层：先由策略（含本层覆盖）排序，
+		// 再做稳定分区。顺序反了就会被 strategy 重排而静默丢掉偏好。
 		const ordered = applyTierPreference(
 			strategy(tier.routes, {
 				affinityKey: ctx.affinityKey,

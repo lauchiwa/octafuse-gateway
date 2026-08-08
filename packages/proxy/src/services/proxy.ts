@@ -23,6 +23,7 @@ import {
 	type ProxyDispatchMeta,
 } from './failover-dispatch';
 import type { GatewayCircuitAlertEvent } from './circuit-alert-types';
+import type { StickyTraceSnapshot } from './provider-sticky-routing';
 import type { RequestTimingAttempt, RequestTimingCollector } from './request-timing';
 
 export type { FailoverDispatchOptions, ProxyDispatchMeta } from './failover-dispatch';
@@ -65,6 +66,17 @@ export interface ProxyResult {
 	suppressErrorAlert: boolean;
 	/** Images 等协议透传已解析字段，避免 route 侧重复 parse */
 	meta?: ProxyDispatchMeta;
+	/**
+	 * Sticky routing observation for `route_trace`（惰求值）。
+	 *
+	 * 上游 v2.3.0 把 `ProxyFailoverResult.stickyTrace` 改成了 thunk（为了在请求日志
+	 * 后台任务里 await，以看到 CAS 结果），但漏改这里的 `ProxyResult`，导致
+	 * 上游自身的 typecheck 就报 TS2322 / TS2349（5 个路由都写的 `await stickyTrace()`）。
+	 * 以实际运行时契约（thunk）为准修正。
+	 */
+	stickyTrace?: (() => Promise<StickyTraceSnapshot>) | undefined;
+	/** Background bind/touch mutations (schedule via waitUntil) */
+	stickyMutationPromise?: Promise<unknown> | null;
 }
 
 /** 无用量或解析失败时的零值占位（避免 undefined 传播）。 */

@@ -1,8 +1,10 @@
 'use client';
 
+import { useState, type KeyboardEvent } from 'react';
 import {
 	ArrowDownIcon,
 	ArrowLongRightIcon,
+	ChevronDownIcon,
 	ClipboardDocumentIcon,
 	ExclamationTriangleIcon,
 	PencilSquareIcon,
@@ -25,10 +27,13 @@ import type { GatewayModel, GatewayProvider } from '@/lib/types';
 import { tagBadgeClass } from '../../models/model-utils';
 import type { RouteModelGroup } from '../route-utils';
 import {
+	compareRoutesWithinPriorityLayer,
 	factorChipClassForValue,
+	factorLevelForValue,
 	formatFactorMultiplier,
 	formatFactorMultiplierForChip,
 	formatScheduleWindowsHint,
+	hasBasePricingInversion,
 	parseModelTagsList,
 	protocolBadgeClass,
 	resolveEffectiveRouteStrategy,
@@ -36,15 +41,81 @@ import {
 } from '../route-utils';
 import {
 	FACTOR_CHIP_BASE,
+	type RouteFlowDensity,
 	type RouteListRow,
 	type RouteProtocolGroupSection,
 } from '../types';
+import { FailoverRulesDialog } from './failover-rules-dialog';
+import { ProviderStickyChip } from './provider-sticky-chip';
+
+type PriorityTierPreviewItem = {
+	id: string;
+	name: string;
+	enabled: boolean;
+};
+
+type PriorityTierSummary = {
+	activeCount: number;
+	totalCount: number;
+	previewItems: PriorityTierPreviewItem[];
+};
+
+function summarizePriorityTier(
+	routes: RouteListRow[],
+	providerMeta: Map<string, GatewayProvider>
+): PriorityTierSummary {
+	let activeCount = 0;
+	const previewItems: PriorityTierPreviewItem[] = [];
+
+	for (const route of routes) {
+		const enabled = route.status === 'active';
+		if (enabled) activeCount += 1;
+		const provider = providerMeta.get(route.provider_id);
+		previewItems.push({
+			id: route.id,
+			name: route.provider_name || provider?.name || route.provider_id,
+			enabled,
+		});
+	}
+
+	return {
+		activeCount,
+		totalCount: routes.length,
+		previewItems,
+	};
+}
+
+type OpenStrategyDialog = (
+	modelId: string,
+	modelTitle: string,
+	protocol: string,
+	protocolLabel: string,
+	group: string,
+	poolId?: string | null,
+	poolStrategy?: string | null,
+	requestOperation?: string,
+	extras?: { priority?: number; poolTierStrategies?: string | null }
+) => void;
+
+type OpenProviderStickyDialog = (
+	modelId: string,
+	modelTitle: string,
+	protocol: string,
+	protocolLabel: string,
+	group: string,
+	requestOperation: string,
+	poolId: string | null,
+	enabled: boolean,
+	idleTtlSeconds: number,
+	targets: Array<{ id: string; providerName: string; priority: number; weight: number }>
+) => void;
 
 type Props = {
 	card: RouteModelGroup;
 	meta: GatewayModel | undefined;
 	providerMeta: Map<string, GatewayProvider>;
 	globalRouteStrategy: string | null;
+	density: RouteFlowDensity;
 	copiedModelId: string | null;
 	togglingId: string | null;
 	onCopyModelId: (modelId: string) => void;
@@ -52,16 +123,8 @@ type Props = {
 	onEdit: (route: RouteListRow) => void;
 	onEditModel: (modelId: string) => void;
 	onToggleStatus: (route: RouteListRow) => void;
-	onOpenStrategyDialog: (
-		modelId: string,
-		modelTitle: string,
-		protocol: string,
-		protocolLabel: string,
-		group: string,
-		poolId?: string | null,
-		poolStrategy?: string | null,
-		requestOperation?: string
-	) => void;
+	onOpenStrategyDialog: OpenStrategyDialog;
+	onOpenProviderStickyDialog: OpenProviderStickyDialog;
 };
 
 function RouteTarget({
@@ -90,6 +153,11 @@ function RouteTarget({
 	const schedule = parseRoutePricingSchedule(route.price_override);
 	const scheduleHint =
 		formatScheduleWindowsHint(schedule.charged) || formatScheduleWindowsHint(schedule.metered);
+	const chargedLevel = factorLevelForValue(chargedValue);
+	const meteredLevel = factorLevelForValue(meteredValue);
+	const chargedStatus = tList(`factorStatus.charged.${chargedLevel}`);
+	const meteredStatus = tList(`factorStatus.metered.${meteredLevel}`);
+	const hasPricingInversion = hasBasePricingInversion(chargedValue, meteredValue);
 	const enabled = route.status === 'active';
 	const providerDisabled = provider?.status === 'disabled';
 	const configuredUpstreamOperation = route.upstream_operation ?? '*';
@@ -102,7 +170,7 @@ function RouteTarget({
 
 	return (
 		<div
-			className={`w-full min-w-0 rounded-lg border shadow-sm transition hover:shadow-md sm:w-64 sm:max-w-full ${
+			className={`w-full min-w-0 rounded-lg border shadow-sm transition hover:shadow-md sm:w-52 sm:max-w-full ${
 				enabled
 					? 'border-emerald-300 bg-emerald-50/70 shadow-emerald-100/60 hover:border-emerald-400'
 					: 'border-red-300 bg-red-50/70 shadow-red-100/60 hover:border-red-400'
@@ -140,89 +208,133 @@ function RouteTarget({
 					</p>
 				</button>
 			</div>
-			<div className={`flex flex-wrap items-center gap-1 border-t bg-white/55 px-2.5 py-1.5 ${
+			<div className={`flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t bg-white/55 px-2.5 py-1.5 ${
 				enabled ? 'border-emerald-200' : 'border-red-200'
 			}`}>
-				{showUpstreamMapping ? (
-					<span className={`inline-flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${protocolBadgeClass(route.upstream_protocol)}`}>
-						<UpstreamProtocolBrandIcon protocol={route.upstream_protocol} />
-						{route.upstream_protocol}.{effectiveUpstreamOperation}
+				<div className="flex min-w-0 flex-wrap items-center gap-1">
+					{showUpstreamMapping ? (
+						<span className={`inline-flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${protocolBadgeClass(route.upstream_protocol)}`}>
+							<UpstreamProtocolBrandIcon protocol={route.upstream_protocol} />
+							{route.upstream_protocol}.{effectiveUpstreamOperation}
+						</span>
+					) : null}
+					<span
+						className="rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-inset ring-violet-200"
+						title={t('badgeWeightTooltip', { value: route.weight ?? 1 })}
+						aria-label={t('badgeWeightTooltip', { value: route.weight ?? 1 })}
+					>
+						{`W${route.weight ?? 1}`}
 					</span>
-				) : null}
-				<span className="rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-inset ring-violet-200">
-					{t('weight', { value: route.weight ?? 1 })}
-				</span>
-				<span
-					className={factorChipClassForValue(chargedValue)}
-					title={tList('chargedTooltip', { value: formatFactorMultiplier(chargedValue) })}
-				>
-					{t('chargedShort')} {formatFactorMultiplierForChip(chargedValue)}
-				</span>
-				<span
-					className={factorChipClassForValue(meteredValue)}
-					title={tList('meteredTooltip', { value: formatFactorMultiplier(meteredValue) })}
-				>
-					{t('meteredShort')} {formatFactorMultiplierForChip(meteredValue)}
-				</span>
-				{scheduleHint ? (
-					<span className={`${FACTOR_CHIP_BASE} w-auto bg-sky-50 text-sky-800 ring-sky-200`} title={scheduleHint}>
-						{t('scheduled')}
+					{route.custom_params ? (
+						<span
+							className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 ring-1 ring-inset ring-gray-200"
+							title={t('badgeParamsTooltip')}
+							aria-label={t('badgeParamsTooltip')}
+						>
+							P
+						</span>
+					) : null}
+					{providerDisabled ? (
+						<span className="inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">
+							<ExclamationTriangleIcon className="h-3 w-3" />
+							{t('providerDisabled')}
+						</span>
+					) : null}
+				</div>
+				<div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+					<span
+						className={factorChipClassForValue(chargedValue, 'charged')}
+						title={t('badgeChargedTooltip', {
+							value: formatFactorMultiplier(chargedValue),
+							status: chargedStatus,
+						})}
+						aria-label={t('badgeChargedTooltip', {
+							value: formatFactorMultiplier(chargedValue),
+							status: chargedStatus,
+						})}
+					>
+						{`C ${formatFactorMultiplierForChip(chargedValue)}`}
 					</span>
-				) : null}
-				{route.custom_params ? (
-					<span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 ring-1 ring-inset ring-gray-200">
-						{t('defaults')}
+					<span
+						className={factorChipClassForValue(meteredValue, 'metered')}
+						title={t('badgeMeteredTooltip', {
+							value: formatFactorMultiplier(meteredValue),
+							status: meteredStatus,
+						})}
+						aria-label={t('badgeMeteredTooltip', {
+							value: formatFactorMultiplier(meteredValue),
+							status: meteredStatus,
+						})}
+					>
+						{`M ${formatFactorMultiplierForChip(meteredValue)}`}
 					</span>
-				) : null}
-				{providerDisabled ? (
-					<span className="inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">
-						<ExclamationTriangleIcon className="h-3 w-3" />
-						{t('providerDisabled')}
-					</span>
-				) : null}
+					{hasPricingInversion ? (
+						<span
+							className={`${FACTOR_CHIP_BASE} w-auto bg-rose-100 text-rose-950 ring-rose-300/90`}
+							title={tList('baseInversionTooltip')}
+						>
+							{tList('baseInversionBadge')}
+						</span>
+					) : null}
+					{scheduleHint ? (
+						<span
+							className={`${FACTOR_CHIP_BASE} w-auto bg-sky-50 text-sky-800 ring-sky-200`}
+							title={t('badgeScheduleTooltip', { windows: scheduleHint })}
+							aria-label={t('badgeScheduleTooltip', { windows: scheduleHint })}
+						>
+							Schedule
+						</span>
+					) : null}
+				</div>
 			</div>
 		</div>
 	);
 }
 
-function FlowConnector({ onAdd }: { onAdd: () => void }) {
+function UpstreamToolbar({
+	routeGroup,
+	poolId,
+	stickyEnabled,
+	stickyIdleTtlSeconds,
+	onOpenSticky,
+	onAdd,
+}: {
+	routeGroup: string;
+	poolId: string | null;
+	stickyEnabled: boolean;
+	stickyIdleTtlSeconds: number;
+	onOpenSticky: () => void;
+	onAdd: () => void;
+}) {
 	const t = useTranslations('routes.flow');
 
 	return (
-		<>
-			<div className="relative hidden h-5 xl:block">
-				<span className="absolute inset-x-0 top-1/2 h-px bg-blue-300" aria-hidden />
-				<ArrowLongRightIcon
-					className="absolute -right-px top-1/2 h-5 w-5 -translate-y-1/2 text-blue-500"
-					aria-hidden
-				/>
-				<span className="absolute bottom-[calc(50%+0.45rem)] left-0 right-0 truncate text-center text-[10px] font-semibold uppercase tracking-wider text-emerald-600">
+		<div className="mb-2 flex min-w-0 flex-wrap items-center justify-between gap-2">
+			<div className="flex min-w-0 flex-wrap items-center gap-1.5">
+				<span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600">
 					{t('providerStep')}
+				</span>
+				<span className="max-w-full truncate rounded-md bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-inset ring-violet-200">
+					{t('routeGroup')} · {routeGroup}
 				</span>
 				<button
 					type="button"
 					onClick={onAdd}
-					className="absolute left-1/2 top-[calc(50%+0.7rem)] inline-flex -translate-x-1/2 items-center gap-0.5 whitespace-nowrap rounded-md bg-white px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 ring-1 ring-inset ring-blue-200 hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+					className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-white px-2 py-1 text-[10px] font-semibold text-blue-600 ring-1 ring-inset ring-blue-200 hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
 				>
 					<PlusIcon className="h-3 w-3" />
 					{t('addProvider')}
 				</button>
 			</div>
-			<div className="flex flex-col items-center gap-1 py-1 xl:hidden">
-				<span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600">
-					{t('providerStep')}
-				</span>
-				<ArrowDownIcon className="h-4 w-4 text-blue-400" aria-hidden />
-				<button
-					type="button"
-					onClick={onAdd}
-					className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[11px] font-semibold text-blue-600 ring-1 ring-inset ring-blue-200 hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-				>
-					<PlusIcon className="h-3.5 w-3.5" />
-					{t('addProvider')}
-				</button>
+			<div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+				<ProviderStickyChip
+					enabled={stickyEnabled}
+					idleTtlSeconds={stickyIdleTtlSeconds}
+					poolId={poolId}
+					onClick={onOpenSticky}
+				/>
 			</div>
-		</>
+		</div>
 	);
 }
 
@@ -236,44 +348,31 @@ function RoutingMatchConnector({
 	const t = useTranslations('routes.flow');
 	const requestedModelId = routeGroup === 'default' ? modelId : `${modelId}:${routeGroup}`;
 
+	const modelBlock = (
+		<span
+			className="line-clamp-2 max-w-full break-all rounded-md bg-sky-50 px-2 py-0.5 text-center font-mono text-[10px] font-semibold leading-3 text-sky-700 ring-1 ring-inset ring-sky-200"
+			title={`model=${requestedModelId}`}
+		>
+			model={requestedModelId}
+		</span>
+	);
+
 	return (
 		<>
+			{/* Desktop: requested model stays on the routing rail. */}
 			<div
-				className="relative hidden h-5 min-w-0 xl:block"
+				className="relative hidden min-w-0 items-center justify-center xl:flex"
 				aria-label={t('routeMatchAria', { group: routeGroup, model: requestedModelId })}
 			>
-				<span
-					className="absolute inset-x-0 top-1/2 h-px bg-blue-300"
-					aria-hidden
-				/>
-				<span className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-200">
-					{t('routeGroup')} · {routeGroup}
-				</span>
-				<ArrowLongRightIcon
-					className="absolute -right-px top-1/2 h-5 w-5 -translate-y-1/2 text-blue-500"
-					aria-hidden
-				/>
-				<p
-					className="absolute left-0 right-0 top-[calc(50%+0.8rem)] line-clamp-2 break-all text-center font-mono text-[10px] font-medium leading-3 text-blue-600"
-					title={`model=${requestedModelId}`}
-				>
-					model={requestedModelId}
-				</p>
+				<span className="absolute inset-x-0 top-1/2 h-px bg-blue-300" aria-hidden />
+				<div className="relative z-[1] flex w-full max-w-full justify-center">{modelBlock}</div>
 			</div>
+			{/* Mobile: keep the requested model before the downstream pool. */}
 			<div
-				className="flex min-w-0 flex-col items-center gap-1 py-0.5 xl:hidden"
+				className="flex min-w-0 justify-center py-0.5 xl:hidden"
 				aria-label={t('routeMatchAria', { group: routeGroup, model: requestedModelId })}
 			>
-				<span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-200">
-					{t('routeGroup')} · {routeGroup}
-				</span>
-				<span
-					className="line-clamp-2 max-w-full break-all text-center font-mono text-[10px] font-medium leading-3 text-blue-600"
-					title={`model=${requestedModelId}`}
-				>
-					model={requestedModelId}
-				</span>
-				<ArrowDownIcon className="h-4 w-4 text-blue-400" aria-hidden />
+				{modelBlock}
 			</div>
 		</>
 	);
@@ -298,6 +397,11 @@ function requestSurfacePath(
 		return operation === '*' ? '/v1/*' : '/v1/messages';
 	}
 	if (protocol === 'gemini') {
+		// `models.generate` is the routing-family operation, not the URL wire action.
+		// Real client paths use generateContent / streamGenerateContent after the last `:`.
+		if (operation === 'models.generate') {
+			return `/v1beta/models/${modelId}:{generateContent|streamGenerateContent}`;
+		}
 		return `/v1beta/models/${modelId}:${operation}`;
 	}
 	return operation === '*' ? '/*' : `/${operation}`;
@@ -372,12 +476,277 @@ function RequestSurfaceNode({
 	);
 }
 
+function strategyDisplayKey(strategy: string): string {
+	if (
+		strategy === 'hash_affinity' ||
+		strategy === 'weighted_random' ||
+		strategy === 'weight_priority' ||
+		strategy === 'weighted_round_robin'
+	) {
+		return strategy;
+	}
+	return strategy;
+}
+
+function FailoverConnector({
+	density,
+	onOpen,
+}: {
+	density: RouteFlowDensity;
+	onOpen: () => void;
+}) {
+	const t = useTranslations('routes.flow');
+	const isSummary = density === 'summary';
+
+	return (
+		<div
+			className={
+				isSummary
+					? 'flex shrink-0 items-center justify-center py-1'
+					: 'flex shrink-0 items-center justify-center py-1 md:px-0.5 md:py-0'
+			}
+		>
+			<button
+				type="button"
+				onClick={onOpen}
+				className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1.5 text-[10px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-200 transition hover:bg-blue-50 hover:text-blue-700 hover:ring-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+				title={t('failoverRules')}
+			>
+				{isSummary ? (
+					<ArrowDownIcon className="h-3 w-3" />
+				) : (
+					<>
+						<ArrowDownIcon className="h-3 w-3 md:hidden" />
+						<ArrowLongRightIcon className="hidden h-4 w-4 md:block" />
+					</>
+				)}
+				<span>{isSummary ? t('failoverContinue') : t('failoverRules')}</span>
+			</button>
+		</div>
+	);
+}
+
+function PriorityTierPanel({
+	priority,
+	routes,
+	layerIndex,
+	density,
+	expanded,
+	onToggleExpanded,
+	section,
+	card,
+	meta,
+	providerMeta,
+	globalRouteStrategy,
+	togglingId,
+	onEdit,
+	onToggleStatus,
+	onOpenStrategyDialog,
+}: {
+	priority: number;
+	routes: RouteListRow[];
+	layerIndex: number;
+	density: RouteFlowDensity;
+	expanded: boolean;
+	onToggleExpanded: () => void;
+	section: RouteProtocolGroupSection<RouteListRow>;
+	card: RouteModelGroup;
+	meta: GatewayModel | undefined;
+	providerMeta: Map<string, GatewayProvider>;
+	globalRouteStrategy: string | null;
+	togglingId: string | null;
+	onEdit: Props['onEdit'];
+	onToggleStatus: Props['onToggleStatus'];
+	onOpenStrategyDialog: Props['onOpenStrategyDialog'];
+}) {
+	const t = useTranslations('routes.flow');
+	const tStrategy = useTranslations('routes.strategy');
+	const isSummary = density === 'summary';
+	const summary = summarizePriorityTier(routes, providerMeta);
+	const strategy = resolveEffectiveRouteStrategy({
+		poolStrategy: section.poolStrategy,
+		poolTierStrategies: section.poolTierStrategies,
+		priority,
+		routePolicyRaw: meta?.route_policy ?? null,
+		protocol: section.protocol,
+		requestOperation: section.requestOperation,
+		routeGroup: section.group,
+		globalStrategy: globalRouteStrategy,
+	});
+	const displayKey = strategyDisplayKey(strategy.strategy);
+	const displayName =
+		displayKey === 'hash_affinity' ||
+		displayKey === 'weighted_random' ||
+		displayKey === 'weight_priority' ||
+		displayKey === 'weighted_round_robin'
+			? tStrategy(`display.${displayKey}`)
+			: strategy.strategy;
+	const sourceLabel = t(`strategySource.${strategy.source}`);
+	const showDetails = !isSummary || expanded;
+	const layerLabel = layerIndex === 0 ? t('firstAttempt') : t('fallbackLayer');
+
+	return (
+		<div
+			className={
+				isSummary
+					? 'min-w-0 max-w-full rounded-lg border border-slate-200 bg-white/80 shadow-sm'
+					: 'min-w-[18rem] max-w-full rounded-lg border border-slate-200 bg-white/80 p-2.5 shadow-sm'
+			}
+		>
+			<div
+				className={
+					isSummary
+						? `flex min-w-0 cursor-pointer flex-wrap items-center gap-1.5 px-2.5 py-2 transition hover:bg-slate-50/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 ${showDetails ? 'border-b border-slate-100' : ''}`
+						: 'mb-2 flex min-w-0 flex-wrap items-center gap-1.5 border-b border-slate-100 pb-2'
+				}
+				{...(isSummary
+					? {
+							role: 'button' as const,
+							tabIndex: 0,
+							'aria-expanded': expanded,
+							'aria-label': expanded
+								? t('collapseTierAria', { priority })
+								: t('expandTierAria', { priority }),
+							title: expanded ? t('collapseTier') : t('expandTier'),
+							onClick: onToggleExpanded,
+							onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+								if (event.key === 'Enter' || event.key === ' ') {
+									event.preventDefault();
+									onToggleExpanded();
+								}
+							},
+						}
+					: {})}
+			>
+				{isSummary ? (
+					<span
+						className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-slate-500"
+						aria-hidden
+					>
+						<ChevronDownIcon
+							className={`h-3.5 w-3.5 transition-transform ${expanded ? '' : '-rotate-90'}`}
+						/>
+					</span>
+				) : null}
+				<span className="rounded bg-gray-800 px-1.5 py-0.5 text-[10px] font-bold text-white">
+					P{priority}
+				</span>
+				<span className="text-[10px] font-medium text-gray-500">{layerLabel}</span>
+				{isSummary ? (
+					<span
+						className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ring-1 ring-inset ${
+							summary.activeCount > 0
+								? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+								: 'bg-red-50 text-red-700 ring-red-200'
+						}`}
+						title={t('tierActiveTotal', {
+							active: summary.activeCount,
+							total: summary.totalCount,
+						})}
+					>
+						{t('tierActiveTotal', {
+							active: summary.activeCount,
+							total: summary.totalCount,
+						})}
+					</span>
+				) : null}
+				<div
+					className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5"
+					onClick={isSummary ? (event) => event.stopPropagation() : undefined}
+					onKeyDown={isSummary ? (event) => event.stopPropagation() : undefined}
+				>
+					<button
+						type="button"
+						onClick={() =>
+							onOpenStrategyDialog(
+								card.model_id,
+								card.title,
+								section.protocol,
+								section.protocolLabel,
+								section.group,
+								section.poolId,
+								section.poolStrategy,
+								section.requestOperation,
+								{
+									priority,
+									poolTierStrategies: section.poolTierStrategies,
+								}
+							)
+						}
+						className="inline-flex max-w-full items-center gap-1 rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200 transition hover:bg-indigo-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+						title={t('tierStrategyEdit', {
+							strategy: displayName,
+							source: sourceLabel,
+						})}
+					>
+						<span className="truncate">{displayName}</span>
+						<PencilSquareIcon className="h-3 w-3 shrink-0 text-indigo-400" />
+					</button>
+				</div>
+			</div>
+
+			{isSummary && !expanded ? (
+				<button
+					type="button"
+					onClick={onToggleExpanded}
+					className="flex w-full min-w-0 flex-wrap items-center gap-1.5 px-2.5 py-2.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+					aria-label={t('expandTierAria', { priority })}
+				>
+					{summary.previewItems.map((item) => (
+						<span
+							key={item.id}
+							className="inline-flex max-w-[12rem] items-center gap-1 truncate rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 ring-1 ring-inset ring-slate-200"
+							title={
+								item.enabled
+									? t('tierPreviewEnabled', { name: item.name })
+									: t('tierPreviewDisabled', { name: item.name })
+							}
+						>
+							<span
+								className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+									item.enabled ? 'bg-emerald-500' : 'bg-red-400'
+								}`}
+								aria-hidden
+							/>
+							<span className="min-w-0 truncate">{item.name}</span>
+						</span>
+					))}
+					{summary.previewItems.length === 0 ? (
+						<span className="text-[10px] text-gray-400">{t('noProviders')}</span>
+					) : null}
+				</button>
+			) : null}
+
+			{showDetails ? (
+				<div className={`flex min-w-0 flex-wrap gap-2 ${isSummary ? 'px-2.5 pb-2.5 pt-2' : ''}`}>
+					{routes.map((route) => (
+						<RouteTarget
+							key={route.id}
+							route={route}
+							provider={providerMeta.get(route.provider_id)}
+							requestProtocol={section.protocol}
+							requestOperation={section.requestOperation}
+							togglingId={togglingId}
+							onEdit={onEdit}
+							onToggleStatus={onToggleStatus}
+						/>
+					))}
+					{routes.length === 0 ? (
+						<span className="text-[11px] text-gray-400">{t('noProviders')}</span>
+					) : null}
+				</div>
+			) : null}
+		</div>
+	);
+}
+
 function FlowBranch({
 	section,
 	card,
 	meta,
 	providerMeta,
 	globalRouteStrategy,
+	density,
 	branchIndex,
 	branchCount,
 	togglingId,
@@ -385,12 +754,14 @@ function FlowBranch({
 	onEdit,
 	onToggleStatus,
 	onOpenStrategyDialog,
+	onOpenProviderStickyDialog,
 }: {
 	section: RouteProtocolGroupSection<RouteListRow>;
 	card: RouteModelGroup;
 	meta: GatewayModel | undefined;
 	providerMeta: Map<string, GatewayProvider>;
 	globalRouteStrategy: string | null;
+	density: RouteFlowDensity;
 	branchIndex: number;
 	branchCount: number;
 	togglingId: string | null;
@@ -398,23 +769,45 @@ function FlowBranch({
 	onEdit: Props['onEdit'];
 	onToggleStatus: Props['onToggleStatus'];
 	onOpenStrategyDialog: Props['onOpenStrategyDialog'];
+	onOpenProviderStickyDialog: Props['onOpenProviderStickyDialog'];
 }) {
 	const t = useTranslations('routes.flow');
-	const strategy = resolveEffectiveRouteStrategy({
-		poolStrategy: section.poolStrategy,
-		routePolicyRaw: meta?.route_policy ?? null,
-		protocol: section.protocol,
-		requestOperation: section.requestOperation,
-		routeGroup: section.group,
-		globalStrategy: globalRouteStrategy,
-	});
-	const strategySourceLabel = t(`strategySource.${strategy.source}`);
+	const [failoverOpen, setFailoverOpen] = useState(false);
 	const priorityLayers = [...section.routes.reduce((map, route) => {
 		const layer = map.get(route.priority) ?? [];
 		layer.push(route);
 		map.set(route.priority, layer);
 		return map;
-	}, new Map<number, RouteListRow[]>())].sort(([a], [b]) => b - a);
+	}, new Map<number, RouteListRow[]>())]
+		.sort(([a], [b]) => b - a)
+		.map(([priority, routes]) =>
+			[priority, [...routes].sort(compareRoutesWithinPriorityLayer)] as const
+		);
+	const highestPriority = priorityLayers[0]?.[0];
+	/** Explicit user overrides; missing keys mean "default" (highest priority expanded). */
+	const [tierExpandOverrides, setTierExpandOverrides] = useState<Record<number, boolean>>({});
+
+	const isTierExpanded = (priority: number) => {
+		if (density !== 'summary') return true;
+		if (Object.prototype.hasOwnProperty.call(tierExpandOverrides, priority)) {
+			return tierExpandOverrides[priority] === true;
+		}
+		return priority === highestPriority;
+	};
+
+	const togglePriority = (priority: number) => {
+		setTierExpandOverrides((prev) => {
+			const currently =
+				Object.prototype.hasOwnProperty.call(prev, priority)
+					? prev[priority] === true
+					: priority === highestPriority;
+			return { ...prev, [priority]: !currently };
+		});
+	};
+
+	const isSummary = density === 'summary';
+	// The branch line targets the visual center of the complete route-group
+	// configuration, regardless of whether provider details are collapsed.
 	const railClass =
 		branchIndex === 0
 			? 'top-1/2 bottom-0'
@@ -434,85 +827,99 @@ function FlowBranch({
 				className="absolute left-0 top-1/2 hidden h-px w-4 bg-blue-300 xl:block"
 				aria-hidden
 			/>
-			<div className="grid min-w-0 gap-y-2 xl:grid-cols-[minmax(150px,240px)_minmax(160px,200px)_112px_minmax(360px,1fr)] xl:items-center">
-				<RoutingMatchConnector modelId={card.model_id} routeGroup={section.group} />
-
-				<button
-					type="button"
-					onClick={() =>
-						onOpenStrategyDialog(
-							card.model_id,
-							card.title,
-							section.protocol,
-							section.protocolLabel,
-							section.group,
-							section.poolId,
-							section.poolStrategy,
-							section.requestOperation
-						)
-					}
-					className="min-w-0 rounded-lg border border-indigo-200 bg-indigo-50/75 px-3 py-2.5 text-left shadow-sm transition hover:border-indigo-300 hover:bg-indigo-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-					title={`${t('effectiveStrategy')}: ${strategy.strategy} · ${strategySourceLabel}`}
-				>
-					<span className="flex items-center justify-between gap-2">
-						<span className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600">
-							{t('policyNode')}
-						</span>
-						<PencilSquareIcon className="h-3.5 w-3.5 shrink-0 text-indigo-400" />
-					</span>
-					<span className="mt-1.5 block truncate text-xs font-semibold text-gray-800">
-						{strategy.inherited ? `${t('inheritShort')} → ${strategy.strategy}` : strategy.strategy}
-					</span>
-					<span className="mt-0.5 block truncate text-[10px] text-indigo-500">
-						{strategySourceLabel}
-					</span>
-				</button>
-
-				<FlowConnector
-					onAdd={() => onCreate(card.model_id, {
-						protocol: section.protocol,
-						operation: section.requestOperation,
-						group: section.group,
-					})}
+			<div
+				className={
+					isSummary
+						? 'grid min-w-0 gap-y-3 xl:grid-cols-[minmax(150px,240px)_auto_minmax(320px,1fr)] xl:items-center'
+						: 'grid min-w-0 gap-y-3 xl:grid-cols-[minmax(150px,240px)_auto_minmax(420px,1fr)] xl:items-center'
+				}
+			>
+				<RoutingMatchConnector
+					modelId={card.model_id}
+					routeGroup={section.group}
 				/>
 
-				<div className="w-full min-w-0 rounded-lg border border-slate-200 bg-white/55 p-2 shadow-sm xl:w-fit xl:max-w-full xl:justify-self-start">
-					<div className="space-y-1.5">
+				<div className="flex items-center justify-center py-0.5" aria-hidden>
+					<ArrowDownIcon className="h-4 w-4 text-blue-400 xl:hidden" />
+				</div>
+
+				<div className="min-w-0">
+					<UpstreamToolbar
+						routeGroup={section.group}
+						poolId={section.poolId}
+						stickyEnabled={section.poolStickyEnabled}
+						stickyIdleTtlSeconds={section.poolStickyIdleTtlSeconds}
+						onOpenSticky={() =>
+							onOpenProviderStickyDialog(
+								card.model_id,
+								card.title,
+								section.protocol,
+								section.protocolLabel,
+								section.group,
+								section.requestOperation,
+								section.poolId,
+								section.poolStickyEnabled,
+								section.poolStickyIdleTtlSeconds,
+								section.routes.map((r) => ({
+									id: r.id,
+									providerName: r.provider_name || r.provider_id,
+									priority: r.priority,
+									weight: Number(r.weight ?? 1) || 1,
+								}))
+							)
+						}
+						onAdd={() => onCreate(card.model_id, {
+							protocol: section.protocol,
+							operation: section.requestOperation,
+							group: section.group,
+						})}
+					/>
+					<div
+						className={
+							isSummary
+								? 'flex min-w-0 flex-col items-stretch gap-1'
+								: 'flex min-w-0 flex-col items-stretch gap-3 md:flex-row md:flex-wrap'
+						}
+						aria-label={t('priorityLadderAria')}
+					>
 						{priorityLayers.map(([priority, routes], layerIndex) => (
-							<div key={priority}>
+							<div
+								key={priority}
+								className={
+									isSummary
+										? 'flex min-w-0 flex-col items-stretch'
+										: 'flex min-w-0 flex-col items-stretch gap-2 md:flex-row'
+								}
+							>
 								{layerIndex > 0 ? (
-									<div className="flex items-center gap-1.5 py-0.5 text-[10px] font-medium text-gray-400">
-										<ArrowDownIcon className="h-3 w-3" />
-										<span>{t('fallback')}</span>
-									</div>
+									<FailoverConnector
+										density={density}
+										onOpen={() => setFailoverOpen(true)}
+									/>
 								) : null}
-								<div className="mb-1 flex items-center gap-1.5">
-									<span className="rounded bg-gray-800 px-1.5 py-0.5 text-[10px] font-bold text-white">
-										P{priority}
-									</span>
-									<span className="text-[10px] font-medium text-gray-500">
-										{layerIndex === 0 ? t('firstAttempt') : t('fallbackLayer')}
-									</span>
-								</div>
-								<div className="flex min-w-0 flex-wrap gap-2">
-									{routes.map((route) => (
-										<RouteTarget
-											key={route.id}
-											route={route}
-											provider={providerMeta.get(route.provider_id)}
-											requestProtocol={section.protocol}
-											requestOperation={section.requestOperation}
-											togglingId={togglingId}
-											onEdit={onEdit}
-											onToggleStatus={onToggleStatus}
-										/>
-									))}
-								</div>
+								<PriorityTierPanel
+									priority={priority}
+									routes={routes}
+									layerIndex={layerIndex}
+									density={density}
+									expanded={isTierExpanded(priority)}
+									onToggleExpanded={() => togglePriority(priority)}
+									section={section}
+									card={card}
+									meta={meta}
+									providerMeta={providerMeta}
+									globalRouteStrategy={globalRouteStrategy}
+									togglingId={togglingId}
+									onEdit={onEdit}
+									onToggleStatus={onToggleStatus}
+									onOpenStrategyDialog={onOpenStrategyDialog}
+								/>
 							</div>
 						))}
 					</div>
 				</div>
 			</div>
+			<FailoverRulesDialog open={failoverOpen} onClose={() => setFailoverOpen(false)} />
 		</div>
 	);
 }
@@ -523,22 +930,26 @@ function FlowSection({
 	meta,
 	providerMeta,
 	globalRouteStrategy,
+	density,
 	togglingId,
 	onCreate,
 	onEdit,
 	onToggleStatus,
 	onOpenStrategyDialog,
+	onOpenProviderStickyDialog,
 }: {
 	surface: RequestSurfaceGroup;
 	card: RouteModelGroup;
 	meta: GatewayModel | undefined;
 	providerMeta: Map<string, GatewayProvider>;
 	globalRouteStrategy: string | null;
+	density: RouteFlowDensity;
 	togglingId: string | null;
 	onCreate: Props['onCreate'];
 	onEdit: Props['onEdit'];
 	onToggleStatus: Props['onToggleStatus'];
 	onOpenStrategyDialog: Props['onOpenStrategyDialog'];
+	onOpenProviderStickyDialog: Props['onOpenProviderStickyDialog'];
 }) {
 	return (
 		<div className="bg-slate-50/70 px-3 sm:px-4">
@@ -562,6 +973,7 @@ function FlowSection({
 							meta={meta}
 							providerMeta={providerMeta}
 							globalRouteStrategy={globalRouteStrategy}
+							density={density}
 							branchIndex={branchIndex}
 							branchCount={surface.sections.length}
 							togglingId={togglingId}
@@ -569,6 +981,7 @@ function FlowSection({
 							onEdit={onEdit}
 							onToggleStatus={onToggleStatus}
 							onOpenStrategyDialog={onOpenStrategyDialog}
+							onOpenProviderStickyDialog={onOpenProviderStickyDialog}
 						/>
 					))}
 				</div>
@@ -583,6 +996,7 @@ export function RouteModelFlow(props: Props) {
 		meta,
 		providerMeta,
 		globalRouteStrategy,
+		density,
 		copiedModelId,
 		togglingId,
 		onCopyModelId,
@@ -591,6 +1005,7 @@ export function RouteModelFlow(props: Props) {
 		onEditModel,
 		onToggleStatus,
 		onOpenStrategyDialog,
+		onOpenProviderStickyDialog,
 	} = props;
 	const t = useTranslations('routes.card');
 	const tFlow = useTranslations('routes.flow');
@@ -674,21 +1089,18 @@ export function RouteModelFlow(props: Props) {
 						meta={meta}
 						providerMeta={providerMeta}
 						globalRouteStrategy={globalRouteStrategy}
+						density={density}
 						togglingId={togglingId}
 						onCreate={onCreate}
 						onEdit={onEdit}
 						onToggleStatus={onToggleStatus}
 						onOpenStrategyDialog={onOpenStrategyDialog}
+						onOpenProviderStickyDialog={onOpenProviderStickyDialog}
 					/>
 				)) : (
-					<button
-						type="button"
-						onClick={() => onCreate(card.model_id)}
-						className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white/80 px-4 py-8 text-sm font-medium text-gray-500 hover:border-blue-300 hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-					>
-						<PlusIcon className="h-5 w-5" />
-						{t('clickToAdd')}
-					</button>
+					<div className="flex min-h-20 items-center justify-center py-5 text-sm font-medium text-gray-400">
+						{tFlow('noProviders')}
+					</div>
 				)}
 			</div>
 		</article>

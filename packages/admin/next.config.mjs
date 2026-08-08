@@ -22,6 +22,10 @@ const nextConfig = {
 	outputFileTracingRoot: workspaceRoot,
 	turbopack: {
 		root: workspaceRoot,
+		resolveAlias: {
+			// Turbopack alias 从 Admin 目录解析；使用相对路径避免绝对路径被误判为 server-relative import。
+			'@octafuse/core': '../core/src/index.ts',
+		},
 	},
 	webpack: (config) => {
 		config.resolve.alias = {

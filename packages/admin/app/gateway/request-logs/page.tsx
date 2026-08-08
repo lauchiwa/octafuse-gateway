@@ -737,7 +737,7 @@ export default function GatewayRequestLogsPage() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">{t('headers.statusTime')}</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">{t('headers.user')}</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">{t('headers.userSystem')}</th>
                 <th
                   scope="col"
                   className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[9rem] max-w-xs"
@@ -820,20 +820,26 @@ export default function GatewayRequestLogsPage() {
                           aria-hidden
                         />
                       </div>
+                      {log.status === 'error' && log.error_message?.trim() ? (
+                        <div
+                          className="mt-1 max-w-[18rem] truncate text-[11px] leading-snug text-red-600"
+                          title={log.error_message}
+                        >
+                          {log.error_message.trim()}
+                        </div>
+                      ) : null}
                     </td>
-                    <td className="px-3 py-2 text-xs text-gray-900 max-w-[14rem] min-w-0">
-                      <div className="min-w-0">
-                        <div className="truncate" title={log.user_email || undefined}>
+                    <td className="px-3 py-2 text-xs max-w-[14rem] min-w-0">
+                      <div className="min-w-0 space-y-0.5 leading-snug">
+                        <div className="truncate text-gray-900" title={log.user_email || undefined}>
                           {log.user_email || '-'}
                         </div>
-                        {log.status === 'error' && log.error_message?.trim() ? (
-                          <div
-                            className="mt-0.5 truncate text-[11px] leading-snug text-red-600"
-                            title={log.error_message}
-                          >
-                            {log.error_message.trim()}
-                          </div>
-                        ) : null}
+                        <div
+                          className="truncate font-mono text-[11px] text-gray-500"
+                          title={log.external_system?.trim() || undefined}
+                        >
+                          {log.external_system?.trim() || '-'}
+                        </div>
                       </div>
                     </td>
                     <td className="px-3 py-2 text-xs max-w-xs">

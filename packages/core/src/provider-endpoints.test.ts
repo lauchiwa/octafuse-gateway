@@ -54,10 +54,10 @@ describe('resolveUpstreamEndpoint', () => {
 		assert.equal(url, 'https://vendor.example/custom/chat');
 	});
 
-	it('fills gemini {model} in template', () => {
+	it('fills gemini {model} in legacy per-action template', () => {
 		const url = resolveUpstreamEndpoint(
 			'gemini',
-			'generateContent',
+			'models.generate',
 			{
 				gemini: {
 					endpoints: {
@@ -65,9 +65,39 @@ describe('resolveUpstreamEndpoint', () => {
 					},
 				},
 			},
-			{ model: 'gemini-2.0-flash' }
+			{ model: 'gemini-2.0-flash', action: 'generateContent' }
 		);
 		assert.equal(url, 'https://x.example/models/gemini-2.0-flash:generateContent');
+	});
+
+	it('prefers models.generate family template over legacy per-action', () => {
+		const url = resolveUpstreamEndpoint(
+			'gemini',
+			'models.generate',
+			{
+				gemini: {
+					endpoints: {
+						'models.generate': 'https://family.example/models/{model}:{action}',
+						generateContent: 'https://legacy.example/models/{model}:generateContent',
+					},
+				},
+			},
+			{ model: 'gemini-2.0-flash', action: 'streamGenerateContent' }
+		);
+		assert.equal(url, 'https://family.example/models/gemini-2.0-flash:streamGenerateContent');
+	});
+
+	it('derives gemini URL from base when no templates exist', () => {
+		const url = resolveUpstreamEndpoint(
+			'gemini',
+			'models.generate',
+			{ gemini: { base: 'https://generativelanguage.googleapis.com/v1beta/models' } },
+			{ model: 'gemini-2.0-flash', action: 'generateContent' }
+		);
+		assert.equal(
+			url,
+			'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
+		);
 	});
 });
 
@@ -98,13 +128,56 @@ describe('validateAndNormalizeProviderEndpoints', () => {
 			/must include \{model\}/
 		);
 	});
+
+	it('accepts legacy gemini per-action keys on write', () => {
+		const map = validateAndNormalizeProviderEndpoints({
+			gemini: {
+				endpoints: {
+					generateContent: 'https://x.example/models/{model}:generateContent',
+				},
+			},
+		});
+		assert.equal(
+			map.gemini?.endpoints?.generateContent,
+			'https://x.example/models/{model}:generateContent'
+		);
+	});
+
+	it('rejects models.generate template without {action}', () => {
+		assert.throws(
+			() =>
+				validateAndNormalizeProviderEndpoints({
+					gemini: {
+						endpoints: {
+							'models.generate': 'https://x.example/models/{model}:generateContent',
+						},
+					},
+				}),
+			/must include \{action\}/
+		);
+	});
 });
 
 describe('listConfiguredCapabilities', () => {
-	it('returns all protocol capabilities when base is set', () => {
+	it('returns all base-derivable capabilities when base is set, but never responses', () => {
 		assert.deepEqual(
 			listConfiguredCapabilities(
 				{ openai: { base: 'https://api.openai.com/v1' } },
+				'openai'
+			),
+			['chat', 'images.generations', 'images.edits', 'audio.transcriptions']
+		);
+	});
+
+	it('includes responses only when explicitly declared alongside base', () => {
+		assert.deepEqual(
+			listConfiguredCapabilities(
+				{
+					openai: {
+						base: 'https://relay.example/v1',
+						endpoints: { responses: 'https://relay.example/v1/responses' },
+					},
+				},
 				'openai'
 			),
 			['chat', 'responses', 'images.generations', 'images.edits', 'audio.transcriptions']
@@ -125,7 +198,7 @@ describe('listConfiguredCapabilities', () => {
 		);
 	});
 
-	it('returns all capabilities when base is set even with partial overrides', () => {
+	it('keeps base-derived capabilities with partial overrides, still excluding responses', () => {
 		assert.deepEqual(
 			listConfiguredCapabilities(
 				{
@@ -136,12 +209,28 @@ describe('listConfiguredCapabilities', () => {
 				},
 				'openai'
 			),
-			['chat', 'responses', 'images.generations', 'images.edits', 'audio.transcriptions']
+			['chat', 'images.generations', 'images.edits', 'audio.transcriptions']
 		);
 	});
 
 	it('returns empty array when protocol is not configured', () => {
 		assert.deepEqual(listConfiguredCapabilities({}, 'anthropic'), []);
+	});
+
+	it('maps any gemini override key to models.generate', () => {
+		assert.deepEqual(
+			listConfiguredCapabilities(
+				{
+					gemini: {
+						endpoints: {
+							generateContent: 'https://x.example/models/{model}:generateContent',
+						},
+					},
+				},
+				'gemini'
+			),
+			['models.generate']
+		);
 	});
 });
 
@@ -168,13 +257,13 @@ describe('responses capability (never derived from base)', () => {
 		);
 	});
 
-	it('providerDeclaresResponsesEndpoint is the routing gate, not listConfiguredCapabilities', () => {
+	it('listConfiguredCapabilities and providerDeclaresResponsesEndpoint agree on responses', () => {
 		const baseOnly = parseProviderEndpoints({
 			endpoints: JSON.stringify({ openai: { base: 'https://api.openai.com/v1' } }),
 		});
-		// listConfiguredCapabilities reports every capability when `base` is set — that is why
-		// the route gate must use the explicit-declaration helper instead.
-		assert.ok(listConfiguredCapabilities(baseOnly, 'openai').includes('responses'));
+		// 自 2026-08 v2.3.0 合并起，两者对 `responses` 的结论必须一致：
+		// 只配 `base` 时都认为未声明，否则 Admin 会列出一个运行时必抛错的能力。
+		assert.equal(listConfiguredCapabilities(baseOnly, 'openai').includes('responses'), false);
 		assert.equal(providerDeclaresResponsesEndpoint(baseOnly), false);
 
 		const declared = parseProviderEndpoints({
@@ -182,7 +271,13 @@ describe('responses capability (never derived from base)', () => {
 				openai: { base: 'https://relay.example/v1', endpoints: { responses: 'https://relay.example/v1/responses' } },
 			}),
 		});
+		assert.equal(listConfiguredCapabilities(declared, 'openai').includes('responses'), true);
 		assert.equal(providerDeclaresResponsesEndpoint(declared), true);
+
+		// 空白串视为未声明（两者复用同一判定，不会出现 Boolean() vs trim() 分歧）。
+		const blank = { openai: { base: 'https://relay.example/v1', endpoints: { responses: '   ' } } };
+		assert.equal(listConfiguredCapabilities(blank, 'openai').includes('responses'), false);
+		assert.equal(providerDeclaresResponsesEndpoint(blank), false);
 	});
 
 	it('accepts an explicit responses endpoint through admin validation', () => {

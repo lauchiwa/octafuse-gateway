@@ -52,8 +52,8 @@ function ProtocolFields(props: {
 		imagesEdits: string;
 		audioTranscriptions: string;
 		messages: string;
-		generateContent: string;
-		streamGenerateContent: string;
+		modelsGenerate: string;
+		legacyPerActionNotice: string;
 	};
 	customHeaderLabels: {
 		toggle: string;
@@ -209,36 +209,44 @@ function ProtocolFields(props: {
 						) : null}
 						{protocol === 'gemini' ? (
 							<>
-								<div>
-									<label className="mb-1 block text-xs text-gray-600">
-										{capLabels.generateContent}
-									</label>
-									<input
-										type="url"
-										value={form.generateContent}
-										onChange={(e) =>
-											onChange({ ...form, generateContent: e.target.value })
-										}
-										className={inputClass}
-										placeholder="https://…/models/{model}:generateContent"
-										autoComplete="off"
-									/>
-								</div>
-								<div>
-									<label className="mb-1 block text-xs text-gray-600">
-										{capLabels.streamGenerateContent}
-									</label>
-									<input
-										type="url"
-										value={form.streamGenerateContent}
-										onChange={(e) =>
-											onChange({ ...form, streamGenerateContent: e.target.value })
-										}
-										className={inputClass}
-										placeholder="https://…/models/{model}:streamGenerateContent"
-										autoComplete="off"
-									/>
-								</div>
+								{form.legacyPerAction ? (
+									<div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+										<p className="font-medium">{capLabels.legacyPerActionNotice}</p>
+										<ul className="mt-1 list-inside list-disc break-all">
+											{form.legacyPerAction.generateContent ? (
+												<li>
+													generateContent: {form.legacyPerAction.generateContent}
+												</li>
+											) : null}
+											{form.legacyPerAction.streamGenerateContent ? (
+												<li>
+													streamGenerateContent:{' '}
+													{form.legacyPerAction.streamGenerateContent}
+												</li>
+											) : null}
+										</ul>
+									</div>
+								) : (
+									<div>
+										<label className="mb-1 block text-xs text-gray-600">
+											{capLabels.modelsGenerate}
+										</label>
+										<input
+											type="url"
+											value={form.modelsGenerate}
+											onChange={(e) =>
+												onChange({
+													...form,
+													modelsGenerate: e.target.value,
+													legacyPerAction: null,
+												})
+											}
+											className={inputClass}
+											placeholder="https://…/models/{model}:{action}"
+											autoComplete="off"
+										/>
+									</div>
+								)}
 							</>
 						) : null}
 					</div>
@@ -342,8 +350,8 @@ export function ProviderModal(props: ProviderModalProps) {
 		imagesEdits: t('capImagesEdits'),
 		audioTranscriptions: t('capAudioTranscriptions'),
 		messages: t('capMessages'),
-		generateContent: t('capGenerateContent'),
-		streamGenerateContent: t('capStreamGenerateContent'),
+		modelsGenerate: t('capModelsGenerate'),
+		legacyPerActionNotice: t('legacyPerActionNotice'),
 	};
 
 	const customHeaderLabels = {

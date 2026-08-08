@@ -42,11 +42,11 @@ Provider 导入模板的维护说明见 [developers/reference/provider-import-pr
   - **Request protocol / operation**：客户端从哪个协议与操作进入，例如 `openai.chat`、`anthropic.messages`、`openai.images.generations`。
   - **Upstream protocol / operation**：Target 实际调用的供应商能力。2.0 仅开放 `passthrough` adapter，因此请求协议与上游协议必须一致；`*` 用于迁移兼容。
   - **`priority`（层）**：数字**越大**越先试（硬序）。
-  - **`weight`（同层）**：配合 Pool / 模型 / 全局路由策略（默认 **affinity**）决定层内顺序。
+  - **`weight`（同层）**：配合 Pool / 模型 / 全局路由策略（默认 **hash_affinity**）决定层内顺序。
   - **`route_group`**：如 `default` / `free`，客户端用 `modelId:group` 选择。
 - 图片生成模型：导入或手建后确认 `output_modalities` 含 `image`、`pricing_profile` 的 `image_billing_mode`（`token` / `per_image`），并挂 **OpenAI 协议** active 路由；细节见 [developers/reference/image-models.md](../developers/reference/image-models.md)。
 - 语音转写模型：导入或手建后确认 `pricing_profile.audio_billing_mode`（`per_second` / `token`）与对应单价块，并挂 **OpenAI 协议** active 路由；细节见 [developers/api/user.md「语音转写」](../developers/api/user.md#语音转写audio-transcriptions)。
-- **路由策略**：按六级解析：Route Pool `strategy` → 模型 `route_policy.rules` 的 `{protocol}.{capability}:{group}` → `{protocol}:{group}` → 模型顶层 `route_policy.strategy` → Admin Config 全局 `ROUTE_STRATEGY` → 代码默认 `affinity`。四种策略及完整键格式见 [developers/reference/route-strategies.md](../developers/reference/route-strategies.md)。
+- **路由策略**：先按 priority 层读 Route Pool `tier_strategies[priority]`（若有）；否则 Route Pool `strategy` → 模型 `route_policy.rules` 的 `{protocol}.{capability}:{group}` → `{protocol}:{group}` → 模型顶层 `route_policy.strategy` → Admin Config 全局 `ROUTE_STRATEGY` → 代码默认 `hash_affinity`。四种策略及完整键格式见 [developers/reference/route-strategies.md](../developers/reference/route-strategies.md)。
 - 在 Route 上配置默认参数，例如思考参数、输出长度或供应商扩展字段。
 - 设置价格口径：先维护模型**目录标准价**，再在路由上设用户计费 / 供应成本的基础倍率；如需对齐供应商高峰 / 闲时价，再配置 **Daily schedule**（每日时段倍率，时区见系统配置的业务时区）。
 - 在请求日志中核对三笔账：供应成本、目录标准价、用户计费是否符合业务预期。
@@ -55,14 +55,17 @@ Route 默认参数合并规则见 [developers/api/user.md](../developers/api/use
 
 ## 4. 配置 Agent Tools（可选）
 
-Agent Tools 是 Proxy 上面向 Agent 的 **可扩展产品 API**（`/v1/tools/*`），**不是** Chat Completions 的一部分。当前已接入联网类工具，后续可继续扩展。在 Admin → **Tools → Configuration**：
+Agent Tools 是 Proxy 上面向 Agent 的 **可扩展产品 API**（`/v1/tools/*`），**不是** Chat Completions 的一部分。在 Admin → **Tools → Configuration**：
 
-- 为当前已支持的工具分别维护引擎 catalog（API Key + 单价）：
+- 每种工具以 Provider 卡片展示各引擎；点击卡片后在右侧抽屉维护凭证与三账本单价：**Standard（目录标准价）/ Charged（用户扣费）/ Metered（供应成本）**。
+- 当前工具与引擎：
   - **Web Search**：博查、Tavily、阿里云 CleverSee、腾讯云联网搜索 WSA
   - **Web Fetch**：Firecrawl、Tavily Extract、Jina Reader
   - **Web Deep Search**：Firecrawl Search、Jina Search
-- 每种工具只选 **一个 Active** 引擎；未配置 Key 的引擎不可激活，调用时返回 **503**。
-- 成功按引擎固定单价扣用户预算；上游失败不扣费。工具日志的 `metered_cost`、`standard_cost`、`charged_cost` 当前均等于该单价，不应用模型 Route 的倍率或 Daily schedule。单价币种由 `BILLING_CURRENCY` 决定。调用记录见 **Tools → Invocations**（与 Request Logs 同源）。
+  - **AI Detection**：多引擎 catalog，当前仅腾讯云 TMS 已实现；按 `billingUnitChars` 字符单元计费
+- **仅保存配置**不会切换线上引擎；**保存并启用**会保存当前草稿并把该 Provider 设为此工具唯一的 Active。未实现或凭证不完整的引擎不可启用。
+- 卡片会提示 Active、未保存、缺少凭证、暂不可用与亏损定价（`charged < metered`）等状态。清空当前 Active 的凭证前，应先切换到另一个凭证完整的引擎。
+- 成功请求分别按三种绝对单价写入 `metered_cost` / `standard_cost` / `charged_cost`，仅 **charged** 累加用户预算；上游失败三列均为 0。Tools 不应用模型 Route 倍率或 Daily schedule。币种由 `BILLING_CURRENCY` 决定，调用记录见 **Tools → Invocations**（与 Request Logs 同源）。
 
 字段与引擎白名单见 [developers/api/user.md](../developers/api/user.md) 中各 Tools 章节。
 

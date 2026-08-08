@@ -4,21 +4,59 @@
  * 模型路由：`model_routes` CRUD、协议与 route_group、URL 查询参数驱动列表筛选（`useSearchParams` + Suspense）。
  * 模型卡片标题 / 铅笔图标可就地打开 ModelModal（改 Tag 等），无需跳转 Models 页。
  */
-import { Suspense } from 'react';
+import { Suspense, useCallback, useSyncExternalStore } from 'react';
 import { useTranslations } from 'next-intl';
 import { ModelModal } from '../models/components/model-modal';
 import { useRoutesPageState } from './use-routes-page-state';
 import { RouteFilterSidebar } from './components/route-filter-sidebar';
 import { RouteFlowOverview } from './components/route-flow-overview';
 import { RouteModal } from './components/route-modal';
+import { ProviderStickyDialog } from './components/provider-sticky-dialog';
 import { RoutePolicyDialog } from './components/route-policy-dialog';
 import { RouteVendorGroup } from './components/route-vendor-group';
 import { RouteWorkspaceHeader } from './components/route-workspace-header';
+import type { RouteFlowDensity } from './types';
+
+const FLOW_DENSITY_STORAGE_KEY = 'octafuse.admin.routes.flowDensity';
+const FLOW_DENSITY_EVENT = 'octafuse-admin-routes-flow-density';
+
+function readStoredFlowDensity(): RouteFlowDensity {
+	if (typeof window === 'undefined') return 'summary';
+	try {
+		const raw = window.localStorage.getItem(FLOW_DENSITY_STORAGE_KEY);
+		return raw === 'topology' ? 'topology' : 'summary';
+	} catch {
+		return 'summary';
+	}
+}
+
+function subscribeFlowDensity(onStoreChange: () => void) {
+	window.addEventListener('storage', onStoreChange);
+	window.addEventListener(FLOW_DENSITY_EVENT, onStoreChange);
+	return () => {
+		window.removeEventListener('storage', onStoreChange);
+		window.removeEventListener(FLOW_DENSITY_EVENT, onStoreChange);
+	};
+}
 
 function RoutesContent() {
 	const t = useTranslations('routes');
 	const tCommon = useTranslations('common');
 	const state = useRoutesPageState();
+	const flowDensity = useSyncExternalStore(
+		subscribeFlowDensity,
+		readStoredFlowDensity,
+		() => 'summary' as const
+	);
+
+	const handleFlowDensityChange = useCallback((density: RouteFlowDensity) => {
+		try {
+			window.localStorage.setItem(FLOW_DENSITY_STORAGE_KEY, density);
+		} catch {
+			// Ignore quota / private-mode failures; preference is best-effort.
+		}
+		window.dispatchEvent(new Event(FLOW_DENSITY_EVENT));
+	}, []);
 
 	if (state.isLoading) {
 		return (
@@ -35,7 +73,7 @@ function RoutesContent() {
 				<p className="mt-1 text-sm text-gray-500">{t('subtitle')}</p>
 			</div>
 
-			<RouteFlowOverview />
+			<RouteFlowOverview density={flowDensity} />
 
 			<div className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white/70 shadow-sm ring-1 ring-black/[0.02]">
 				<div className="flex min-w-0 flex-col lg:flex-row lg:items-start">
@@ -67,6 +105,8 @@ function RoutesContent() {
 					<section className="min-w-0 flex-1 bg-slate-100/70">
 						<RouteWorkspaceHeader
 							activeFilterSummary={state.activeFilterSummary}
+							density={flowDensity}
+							onDensityChange={handleFlowDensityChange}
 							onCreate={() => state.handleCreate()}
 						/>
 
@@ -101,6 +141,7 @@ function RoutesContent() {
 													modelMeta={state.modelMeta}
 													providerMeta={state.providerMeta}
 													globalRouteStrategy={state.globalRouteStrategy}
+													density={flowDensity}
 													copiedModelId={state.copiedModelId}
 													togglingId={state.togglingId}
 													onCopyModelId={state.copyModelId}
@@ -111,6 +152,7 @@ function RoutesContent() {
 													}
 													onToggleStatus={state.handleToggleStatus}
 													onOpenStrategyDialog={state.handleOpenStrategyDialog}
+													onOpenProviderStickyDialog={state.handleOpenProviderStickyDialog}
 												/>
 											)
 										)}
@@ -187,6 +229,18 @@ function RoutesContent() {
 					onClose={state.closeStrategyDialog}
 					onFormChange={state.setStrategyForm}
 					onSave={() => void state.handleSaveStrategy()}
+				/>
+			)}
+
+			{state.stickyDialog && (
+				<ProviderStickyDialog
+					dialog={state.stickyDialog}
+					form={state.stickyForm}
+					error={state.stickyError}
+					saving={state.stickySaving}
+					onClose={state.closeStickyDialog}
+					onFormChange={state.setStickyForm}
+					onSave={() => void state.handleSaveProviderSticky()}
 				/>
 			)}
 		</div>

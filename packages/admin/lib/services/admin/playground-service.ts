@@ -189,7 +189,7 @@ export function buildPlaygroundGeminiUpstreamRequest(
 	route: PlaygroundResolvedRoute,
 	action: GeminiContentAction
 ): { url: string; headers: Record<string, string> } {
-	const resolvedUrl = resolveUpstreamEndpoint('gemini', action, route.providerEndpoints, {
+	const resolvedUrl = resolveUpstreamEndpoint('gemini', 'models.generate', route.providerEndpoints, {
 		model: route.providerModelName,
 		action,
 		providerId: route.providerId,

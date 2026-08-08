@@ -316,15 +316,15 @@
 			"copyApiKey": "API キーをコピー",
 			"apiKey": "API キー",
 			"supportedEndpoints": "対応エンドポイント",
-			"editProvider": "Provider を編集",
+			"editProvider": "Provider を編集：{name}",
 			"baseWithOverrides": "共通 Base + {count} 件の上書き",
 			"endpointCount": "{count} 件の独立エンドポイント",
 			"showEndpointDetails": "エンドポイント詳細を表示",
 			"hideEndpointDetails": "エンドポイント詳細を非表示",
 			"derived": "派生",
 			"override": "上書き",
-			"providerEnabled": "プロバイダー有効（チェックを外すと無効）",
-			"providerDisabled": "プロバイダー無効（チェックで有効）",
+			"providerEnabled": "プロバイダーは有効です。クリックして無効化",
+			"providerDisabled": "プロバイダーは無効です。クリックして有効化",
 			"capabilitiesTitle": "{label}: {caps} · {url}",
 			"capabilitiesSr": "{label} 能力: {caps}",
 			"cap": {
@@ -334,7 +334,8 @@
 				"audio": "audio",
 				"messages": "messages",
 				"generateContent": "generate",
-				"streamGenerateContent": "stream"
+				"streamGenerateContent": "stream",
+				"modelsGenerate": "generate"
 			}
 		},
 		"import": {
@@ -403,7 +404,9 @@
 			"apiKeyHint": "このプロバイダーの上流認証情報。",
 			"apiKeyEditHint": "空欄で現行キーを維持。新しい値を入力すると置換します。",
 			"statusEnabled": "プロバイダーを有効化",
-			"statusHint": "無効なプロバイダーはルーティングと Playground から除外されます。"
+			"statusHint": "無効なプロバイダーはルーティングと Playground から除外されます。",
+			"capModelsGenerate": "models.generate (/v1beta/models/{model}:{action}) — ストリーム + 非ストリーム",
+			"legacyPerActionNotice": "このプロバイダーには安全に統合できない generateContent / streamGenerateContent の個別上書きが残っています。保存時はそのまま保持されます。確認後に単一の {action} テンプレートへ変更してください。"
 		}
 	},
 	"models": {
@@ -556,11 +559,18 @@
 			"title": "Route 設定",
 			"filteredBy": "フィルター：{summary}",
 			"allModelsRoutes": "すべてのモデルと Route",
-			"newRoute": "新しい Route"
+			"newRoute": "新しい Route",
+			"densityGroupAria": "ルート表示密度",
+			"densitySummary": "要約",
+			"densityTopology": "トポロジー",
+			"densitySummaryHint": "優先度ラダーでプロバイダー詳細を折りたたみ",
+			"densityTopologyHint": "配線確認向けの完全カードフロー"
 		},
 		"flow": {
 			"overviewTitle": "リクエスト処理フロー",
-			"overviewHint": "各モデルを左から右へ確認できます。設定項目は実際に適用される段階に表示されます。",
+			"overviewHint": "優先度レイヤーを上から下へ確認し、必要なときだけプロバイダー詳細を展開します。",
+			"overviewHintSummary": "要約ビュー：優先度ラダーを上から下へ追い、レイヤーを展開してプロバイダーカードを確認します。",
+			"overviewHintTopology": "トポロジービュー：各モデルを左から右へ確認できます。設定項目は実際に適用される段階に表示されます。",
 			"step": "ステップ {number}",
 			"requestStep": "クライアントリクエスト",
 			"lookupStep": "モデルを解決",
@@ -575,8 +585,21 @@
 			"strategyInherit": "戦略：継承",
 			"inheritShort": "継承",
 			"effectiveStrategy": "実際に適用される戦略",
+			"tierStrategy": "層戦略",
+			"tierStrategyEdit": "層戦略を編集：{strategy}（{source}）",
+			"failoverRules": "Failover ルール",
+			"failoverContinue": "失敗後",
+			"priorityLadderAria": "優先度フェイルオーバーラダー",
+			"expandTier": "プロバイダーを展開",
+			"collapseTier": "プロバイダーを折りたたむ",
+			"expandTierAria": "優先度 {priority} のプロバイダーを展開",
+			"collapseTierAria": "優先度 {priority} のプロバイダーを折りたたむ",
+			"tierActiveTotal": "{active}/{total}",
+			"tierPreviewEnabled": "{name} · 有効",
+			"tierPreviewDisabled": "{name} · 無効",
 			"strategySource": {
-				"pool": "現在のルートプール",
+				"tier": "この層",
+				"pool": "ルートプールから継承",
 				"modelOperation": "モデルエンドポイントルールから継承",
 				"modelProtocol": "モデルプロトコルルールから継承",
 				"model": "モデル既定から継承",
@@ -591,14 +614,21 @@
 			"enabledShort": "有効",
 			"disabledShort": "無効",
 			"addRoute": "ルートを追加",
+			"noProviders": "利用可能なプロバイダーがありません",
 			"firstAttempt": "最初の試行レイヤー",
 			"fallback": "失敗時に続行",
 			"fallbackLayer": "フォールバックレイヤー",
 			"weight": "W{value}",
-			"chargedShort": "課金",
-			"meteredShort": "原価",
-			"scheduled": "時間帯",
-			"defaults": "既定値",
+			"chargedShort": "C",
+			"meteredShort": "M",
+			"scheduled": "Schedule",
+			"customParams": "P",
+			"customParamsTooltip": "カスタムリクエストパラメーター（アップストリーム Body にディープマージ；クライアント側の項目が優先）",
+			"badgeWeightTooltip": "重み：{value}",
+			"badgeParamsTooltip": "カスタムパラメーター（アップストリーム Body にディープマージ；クライアント側の項目が優先）",
+			"badgeChargedTooltip": "課金：{value} · {status}",
+			"badgeMeteredTooltip": "原価：{value} · {status}",
+			"badgeScheduleTooltip": "時間帯：{windows}",
 			"providerDisabled": "プロバイダー停止中",
 			"editRoute": "このルートを編集"
 		},
@@ -637,12 +667,34 @@
 			"routeDisabled": "Route は無効です（チェックすると有効化）",
 			"priorityTitle": "優先度（failover 順序）",
 			"factorsAria": "請求・計量カタログ係数",
-			"chargedFactorAria": "請求係数 {value}",
-			"meteredFactorAria": "計量係数 {value}",
+			"chargedFactorAria": "請求係数 {value}：{status}",
+			"meteredFactorAria": "計量係数 {value}：{status}",
 			"scheduleBadge": "時間帯",
 			"scheduleAria": "日次スケジュール：{windows}",
-			"chargedTooltip": "請求係数：{value} · カタログ価格に対する顧客請求倍率",
-			"meteredTooltip": "計量係数：{value} · カタログ価格に対する Provider コスト倍率"
+			"chargedTooltip": "請求係数：{value} · {status} · カタログ価格に対する顧客請求倍率",
+			"meteredTooltip": "計量係数：{value} · {status} · カタログ価格に対する Provider コスト倍率",
+			"baseInversionBadge": "逆ざや",
+			"baseInversionTooltip": "基本請求係数が基本コスト係数を下回っており、逆ざやの可能性があります。時間帯係数はこの判定に含まれません。",
+			"factorStatus": {
+				"charged": {
+					"invalid": "無効な設定",
+					"zero": "無料請求です。設定を確認してください",
+					"veryLow": "大幅割引です。収益を確認してください",
+					"low": "カタログ価格未満",
+					"baseline": "カタログ基準付近",
+					"high": "カタログ価格超過",
+					"veryHigh": "カタログ価格を大幅に超えています。設定を確認してください"
+				},
+				"metered": {
+					"invalid": "無効な設定",
+					"zero": "コストがゼロです。設定を確認してください",
+					"veryLow": "大きなコスト優位性",
+					"low": "カタログコスト未満",
+					"baseline": "カタログ基準付近",
+					"high": "コストが高め",
+					"veryHigh": "コストが大幅に高くなっています。設定を確認してください"
+				}
+			}
 		},
 		"modal": {
 			"editTitle": "Route を編集",
@@ -717,7 +769,8 @@
 			"audioPricePerSecond": "1 秒あたりの料金",
 			"audioMinimumSeconds": "最低秒数",
 			"weight": "重み",
-			"weightHint": "同一 priority 層の重み（≥ 1）。加重戦略では大きいほど流量が増えます。"
+			"weightHint": "同一 priority 層の重み（≥ 1）。加重戦略では大きいほど流量が増えます。",
+			"operationModelsGenerate": "models.generate · Generate Content（ストリーム + 非ストリーム）"
 		},
 		"kindAudio": "音声",
 		"strategy": {
@@ -730,10 +783,18 @@
 			"inheritedResult": "現在の継承結果",
 			"effective": "適用中",
 			"guideTitle": "戦略ガイド",
-			"guideHint": "戦略カードを選択し、保存前に現在の Target への効果を確認できます。",
+			"guideHint": "戦略カードをクリックして選択します。",
+			"cacheHitGuideTitle": "キャッシュヒット率を高めたい場合",
+			"cacheHitGuideBody": "ハッシュ割当は、同じユーザーが優先する Provider を固定するため、標準でキャッシュがヒットしやすくなります。別の戦略を選ぶ場合は、ルートプールで「Provider スティッキー」を有効にしてください。前回成功した Provider を優先して切り替えを減らし、キャッシュヒット率を高めます。",
 			"bestFor": "適した用途",
 			"tradeoff": "注意点",
+			"labelSeparator": "：",
+			"tierLevel": "この層の戦略",
+			"tierLevelHint": "この priority 層内の Target 順序だけに適用されます。空欄ならルートプール既定を継承します。",
+			"tierInheritReadonlyHint": "プール既定とグローバル戦略はここでは変更しません。ルートプールまたは Config で設定してください。",
+			"tierRequiresPool": "層ごとの戦略にはルートプールが必要です。先にプロバイダーを追加してプールを作成してください。",
 			"source": {
+				"tier": "層オーバーライド",
 				"pool": "現在のルートプール",
 				"modelOperation": "モデルエンドポイントルール",
 				"modelProtocol": "モデルプロトコルルール",
@@ -741,48 +802,122 @@
 				"global": "グローバル設定",
 				"default": "システム既定"
 			},
-			"affinity": "affinity",
-			"weighted_random": "weighted_random",
-			"strict": "strict",
-			"round_robin": "round_robin",
+			"display": {
+				"hash_affinity": "ハッシュ割当",
+				"weighted_random": "重み付きランダム",
+				"weight_priority": "重み優先",
+				"weighted_round_robin": "重み付きラウンドロビン"
+			},
+			"diagramCaption": {
+				"hash_affinity": "同じユーザー → 同じ先",
+				"weight_priority": "全員が同じ名簿を共有",
+				"weighted_random": "毎回重みでくじ引き",
+				"weighted_round_robin": "先頭を交代"
+			},
 			"description": {
-				"affinity": {
-					"summary": "ユーザーとモデルから安定した優先先を作り、重みで全体分布を調整します。",
-					"bestFor": "Prompt Cache とセッションの局所性",
-					"tradeoff": "短時間の流量は完全に均等とは限りません"
+				"hash_affinity": {
+					"summary": "「ユーザー + モデル + グループ + プロトコル」から固定の行き先を決めます。同じユーザーはいつも同じ先から試し、別のユーザーは別の先になり得ます。",
+					"bestFor": "同一ユーザーを同じ Provider に安定させ、上流 Prompt Cache のヒットを上げたいとき",
+					"tradeoff": "ユーザーが少ないと流量の偏りが目立ちやすい"
+				},
+				"weight_priority": {
+					"summary": "全リクエストが同じ固定名簿を共有します。重みが最も高いものが先頭、残りは予備で、呼び出し元は関係ありません。",
+					"bestFor": "明確な主／予備、結果の予測しやすさ、調査しやすさ",
+					"tradeoff": "主がほとんどの流量を受け、予備は失敗するまでほぼ使われません"
+				},
+				"weighted_round_robin": {
+					"summary": "重みに応じて先頭を交代します。重み 3 と 1 なら、おおよそ 4 回中 3 回は前者を先に試します。",
+					"bestFor": "複数 Provider を使い分け、容量や枠を分けたいとき",
+					"tradeoff": "カウンターは実行インスタンスごとで、全体では完全には揃いません"
 				},
 				"weighted_random": {
-					"summary": "リクエストごとに重み付きランダムで選択し、重複なしの再試行順を作ります。",
-					"bestFor": "比率分割、A/B テスト、コスト配分",
-					"tradeoff": "同じユーザーでも Provider が頻繁に変わる場合があります"
-				},
-				"strict": {
-					"summary": "同じ優先度内で重みの降順に固定し、同値は Provider ID で並べます。",
-					"bestFor": "明確なプライマリ／バックアップ",
-					"tradeoff": "先頭 Provider に流量が集中します"
-				},
-				"round_robin": {
-					"summary": "重みで展開した順序をローテーションし、Provider を交互に先頭にします。",
-					"bestFor": "均等なローテーションと容量分散",
-					"tradeoff": "カウンターは実行インスタンス単位で、全体同期されません"
+					"summary": "リクエストごとに重みでくじ引きし、先頭を決めます。重み 60% の Provider は長期的に約 60% の初回試行を受けます。",
+					"bestFor": "比率分割、A/B 比較、コスト配分",
+					"tradeoff": "連続する 2 リクエストが別の Provider になることがあります"
 				}
 			},
 			"effectTitle": "戦略効果プレビュー",
 			"effectHint": "有効な Target から順序を説明します。実リクエストは送信しません。",
 			"effect": {
-				"affinity": "同じユーザー、モデル、グループ、プロトコルは安定した優先 Target を持ち、失敗時は同じ層の残りを試します。",
-				"weighted_random": "各リクエストの先頭 Target を重みで選びます。割合は同じ優先度内の概算です。",
-				"strict": "番号は同じ優先度内の固定試行順です。重みが大きいほど先になります。",
-				"round_robin": "同じ優先度内で重みに応じて先頭 Target を交代します。開始位置は実行インスタンスのカウンターに依存します。"
+				"hash_affinity": "同じユーザーは毎回同じ Provider から始め、失敗したら同じ層の残りを順に試します。ユーザーが違えば先頭も異なり得ます。",
+				"weight_priority": "番号は全リクエスト共通の固定試行順です。重みが大きいほど先で、ユーザーには依存しません。",
+				"weighted_round_robin": "同じ優先度内で重みに応じて先頭を交代します。開始位置は実行インスタンスのカウンターに依存します。",
+				"weighted_random": "各リクエストの先頭を重みで選びます。割合は同じ優先度内の概算です。"
 			},
-			"priorityFirst": "Priority は常に戦略より先です。上位層の全 Target が失敗した場合のみ次の層へ進みます。",
+			"priorityFirst": "戦略は同一優先度層内の順序だけを決めます。Priority が常に先で、上位層の全 Target が失敗した場合のみ次の層へ進みます。",
 			"runtimeHealthHint": "実行時はサーキットが開いている Provider も先に除外されるため、稼働順はヘルス状態で変化します。",
+			"roundRobinInstanceHint": "Cloudflare Workers では isolate ごとにカウンターが独立するため、ラウンドロビンは全体均等ではなくベストエフォートです。",
 			"singleTargetEffect": "利用可能な Target は {count} 個です。2 個未満では全戦略の先頭結果は同じです。",
 			"firstAttemptLayer": "最初の試行層",
 			"fallbackLayer": "フォールバック層",
 			"inactiveExcluded": "無効な Route または Provider はプレビューから除外されます。",
-			"hintCache": "affinity 以外は prompt cache のヒット率が下がる可能性があります。",
-			"hintNoCache": "上流に prompt cache はありません。weighted_random または round_robin を推奨。"
+			"hintCache": "ハッシュ割当以外の戦略は prompt cache のヒット率が下がる可能性があります。",
+			"hintNoCache": "上流に prompt cache はありません。重み付きランダムまたは重み付きラウンドロビンを推奨。",
+			"hash_affinity": "hash_affinity",
+			"weighted_random": "weighted_random",
+			"weight_priority": "weight_priority",
+			"weighted_round_robin": "weighted_round_robin"
+		},
+		"providerSticky": {
+			"title": "Provider スティッキー",
+			"chipOff": "スティッキー · オフ",
+			"chipOn": "スティッキー · {ttl}",
+			"chipOnWithCount": "スティッキー · {ttl} · {count}",
+			"tooltip": "前回の呼び出しに成功した Provider を優先します。成功するたびにスティッキー TTL をリセットします。",
+			"enable": "Provider スティッキーを有効化",
+			"idleTtl": "スティッキー TTL（秒）",
+			"idleTtlHint": "許容範囲は {min}–{max} 秒、既定値は {default}。成功するたびに TTL をリセットします。TTL の間リクエストがないとスティッキーは自動的に失効します。",
+			"scopeHint": "前回の呼び出しに成功した Provider を優先します。",
+			"orderPreview": "同じ呼び出し元から次のリクエストが来ると、前回成功した Provider を最初に試します。",
+			"tradeoff": "その Provider が成功し続ける限り優先して使用し、失敗した場合にほかの Provider を試します。",
+			"poolSharedHint": "別の Provider が成功すると、その Provider が新しい優先先になります。この設定はルートプールに紐づくすべてのリクエスト入口に適用されます。",
+			"requiresPool": "Provider スティッキーにはルートプールが必要です。先にこの入口へ Provider を追加してプールを作成してください。",
+			"effectTitle": "有効にするとどうなるか",
+			"distributionTitle": "現在のバインディング",
+			"distributionHint": "有効なバインディング（epoch 一致・未期限切れ）を target ごとに集計します。ウェイトはルートカードと同じ絶対値 W と、このプール全体で正規化した比率（同一 priority 層内ではない）です。",
+			"distributionTotals": "有効 {active} · 古い {stale}",
+			"distributionEmpty": "target または有効なバインディングはありません。",
+			"bindingShare": "バインディング",
+			"weightShare": "ウェイト（プール）",
+			"weightShareValue": "W{weight} · {pct}%",
+			"refresh": "更新",
+			"lookupTitle": "ユーザーのバインディングを検索",
+			"lookupHint": "メールまたは user id を入力すると、現在どの target に固定されているか確認できます。",
+			"lookupPlaceholder": "メールまたは user id",
+			"lookup": "検索",
+			"lookupRequired": "メールまたは user id を入力してください。",
+			"lookupUser": "ユーザー",
+			"lookupTarget": "固定先",
+			"lookupTtl": "残り {seconds}s",
+			"lookupEpochValid": "epoch 有効",
+			"lookupEpochInvalid": "epoch 無効",
+			"lookupExpired": "期限切れ",
+			"lookupNone": "このプールに該当ユーザーのスティッキーバインディングはありません。",
+			"clearBinding": "解除",
+			"clearConfirm": "このユーザーのスティッキーバインディングを解除しますか？次回リクエストは通常どおり選路されます。",
+			"clearDone": "スティッキーバインディングを解除しました。",
+			"clearMiss": "解除対象の行はありませんでした。",
+			"resetTitle": "プール全体のバインディングを無効化",
+			"resetHint": "sticky_epoch を上げて全ユーザーを次回リクエストで再選路させます。履歴行はすぐには削除されず、GC または上書きで消えます。",
+			"resetButton": "すべてのバインディングを無効化",
+			"resetConfirm": "このプールのすべてのスティッキーバインディングを無効化しますか？全ユーザーが次回リクエストで再選路します。",
+			"resetDone": "バインディングを無効化しました（epoch={epoch}）。",
+			"residualTitle": "残っているバインディング",
+			"residualHint": "スティッキーはオフですが、有効 {active} / 古い {stale} のバインディングが残っています。オフ中は新規記録されません。必要ならクリアしてください。",
+			"showOps": "詳細を表示",
+			"hideOps": "詳細を隠す"
+		},
+		"failover": {
+			"title": "Failover ルール",
+			"readonlyHint": "現在は固定ルールで、設定変更はできません。",
+			"order": "試行順：priority が高い層から低い層へ。層内はその層のルート戦略で並べ替え。冷却中の Provider はスキップ。",
+			"sameLayer": "同層 failover：429 / 5xx / 401 / 403 / 524 / ネットワークエラーは次候補へ。400 / 404 などのクライアントエラーは Provider を切り替えません。",
+			"crossLayer": "跨層 failover：上位層の候補を使い切った後、次の priority 層へ進みます（運用で設定する主系/予備）。",
+			"attemptLimit": "固定の再試行上限はありません。サーキットが開いていない active ルートをすべて試せます。",
+			"circuitCooldown": "Provider 冷却：429 は 5s→15s→30s→60s（上流 Retry-After を優先、上限 15 分）、401/403 は 5 分、5xx は連続 3 回で 10 秒。",
+			"allBusy": "すべて冷却中のとき：ゲートウェイは上流呼び出しなしで 429 circuit.upstream_capacity_exhausted を返し、Retry-After に従ってください。",
+			"memoryNote": "冷却状態はプロセス内メモリで、Cloudflare Workers の isolate 間では共有されません。",
+			"imagesAbort": "画像生成：クライアント取消しやゲートウェイタイムアウトは 504 を返し、他 Provider へ failover しません。"
 		}
 	},
 	"playground": {
@@ -1144,11 +1279,16 @@
 		"headers": {
 			"statusTime": "ステータス · 時刻",
 			"user": "ユーザー",
+			"userSystem": "ユーザー · システム",
 			"model": "モデル",
 			"route": "Route",
 			"tokens": "Token",
 			"cost": "コスト（{currency}）",
 			"profit": "利益（{currency}）"
+		},
+		"identity": {
+			"user": "ユーザー",
+			"system": "システム"
 		},
 		"titles": {
 			"model": "Gateway モデル名、プロトコル、Route Group",
@@ -1396,8 +1536,10 @@
 		},
 		"routeStrategy": {
 			"title": "グローバルルート戦略",
-			"description": "モデルに route_policy がない場合の既定戦略（system_config.ROUTE_STRATEGY）。",
-			"strategy": "戦略"
+			"description": "モデルやプールに上書きがない場合の既定戦略（system_config.ROUTE_STRATEGY）。",
+			"strategy": "戦略",
+			"change": "変更",
+			"dialogHint": "モデルやプールに上書きがない場合に使う既定戦略を選択します。"
 		},
 		"saveRouteStrategy": "ルート戦略を保存"
 	},
@@ -1420,10 +1562,27 @@
 			"showSecrets": "APIキーを表示",
 			"hideSecrets": "APIキーを隠す"
 		},
+		"providerCards": {
+			"active": "有効",
+			"editing": "編集中",
+			"unsaved": "未保存",
+			"missingCredentials": "認証情報なし",
+			"unavailable": "利用不可",
+			"lossPricing": "赤字価格",
+			"configured": "設定済み",
+			"priceLegend": "S 標準価格 · C ユーザー課金 · M 原価",
+			"selectHint": "Provider をクリックして右の設定ドロワーを開きます。保存するまで反映されません。",
+			"detailTitle": "{name} を設定",
+			"activeSummary": "有効 · {name}",
+			"noActive": "有効な Provider なし",
+			"saveConfig": "設定を保存",
+			"saveAndActivate": "保存して有効化",
+			"saveConfigOnly": "設定のみ保存"
+		},
 		"webSearch": {
 			"title": "Web Search",
 			"description": "POST /v1/tools/web-search を提供します。実装済みのエンジンのみ選択でき、自由入力は拒否されます。API Key を空欄にして保存すると削除されます（再設定するまでエンドポイントは 503 を返します）。",
-			"descriptionCatalog": "POST /v1/tools/web-search 用。エンジンごとに API キーと三帳簿単価（metered / standard / charged）を設定し Active を選びます。ユーザー予算に加算されるのは charged のみです。キー未設定のエンジンは有効化できません。",
+			"descriptionCatalog": "POST /v1/tools/web-search 用。エンジンごとに API キーと三帳簿単価を設定し、カードを「保存して有効化」します。ユーザー予算に加算されるのは charged のみです。キー未設定のエンジンは有効化できません。",
 			"provider": "検索エンジン",
 			"active": "Active エンジン",
 			"catalogProvider": "エンジン",
@@ -1482,7 +1641,7 @@
 		"webFetch": {
 			"title": "Web Fetch",
 			"description": "POST /v1/tools/web-fetch を提供します。実装済みのスクレイパーのみ選択でき、自由入力は拒否されます。API Key を空欄にして保存すると削除されます（再設定するまでエンドポイントは 503 を返します）。",
-			"descriptionCatalog": "POST /v1/tools/web-fetch 用。スクレイパーごとに API キーと三帳簿単価を設定し Active を選びます。ユーザー予算に加算されるのは charged のみです。",
+			"descriptionCatalog": "POST /v1/tools/web-fetch 用。スクレイパーごとに API キーと三帳簿単価を設定し、カードを「保存して有効化」します。ユーザー予算に加算されるのは charged のみです。",
 			"provider": "Fetch Provider",
 			"active": "Active Provider",
 			"catalogProvider": "Provider",
@@ -1501,7 +1660,7 @@
 		},
 		"webDeepSearch": {
 			"title": "Web Deep Search",
-			"descriptionCatalog": "POST /v1/tools/web-deep-search 用。検索+読取エンジン（Firecrawl Search / Jina Search）。プロバイダーごとにキーと三帳簿単価を設定して Active を選びます。",
+			"descriptionCatalog": "POST /v1/tools/web-deep-search 用。検索+読取エンジン（Firecrawl Search / Jina Search）。プロバイダーごとに設定し、カードを「保存して有効化」します。",
 			"active": "Active Provider",
 			"catalogProvider": "Provider",
 			"noKey": "Key なし",
@@ -1517,7 +1676,7 @@
 		},
 		"aiDetection": {
 			"title": "AI Detection",
-			"descriptionCatalog": "POST /v1/tools/ai-detection 用。エンジンごとに認証情報と三帳簿単価を設定し Active を選びます。課金は文字ユニット（billingUnitChars）で三列をスケール。現在は Tencent Cloud TMS のみ実装。",
+			"descriptionCatalog": "POST /v1/tools/ai-detection 用。エンジンごとに認証情報と三帳簿単価を設定し、カードを「保存して有効化」します。課金は文字ユニット（billingUnitChars）で三列をスケール。現在は Tencent Cloud TMS のみ実装。",
 			"active": "Active エンジン",
 			"catalogProvider": "エンジン",
 			"noKey": "認証情報なし",

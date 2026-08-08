@@ -36,9 +36,11 @@ model + route_group + request protocol + operation
 |----------|-----------|
 | OpenAI | `chat`、`responses`、`images.generations`、`images.edits`、`audio.transcriptions` |
 | Anthropic | `messages` |
-| Gemini | `generateContent`、`streamGenerateContent` |
+| Gemini | **`models.generate`**（generate-content 家族，覆盖流式与非流式） |
 
 `*` 是迁移兼容值。运行时先查精确 operation Surface，查不到时再回退同协议的 `*` Surface。
+
+> **Gemini v2.2.0**：Public / Upstream 配置只认 `models.generate`。客户端 URL 仍为 `POST /v1beta/models/{model}:{generateContent|streamGenerateContent}`；Proxy 用 wire action 派生上游 URL，并把真实 action 写入 `route_trace.gemini.action`。历史 `generateContent` / `streamGenerateContent` Surface 由迁移 `0019_gemini_models_generate.sql` 合并。详见 [gemini-models-generate-cutover.md](../../operators/migrations/gemini-models-generate-cutover.md)。
 
 > `responses` 已作为拓扑标识保留，但 2.0 的 Proxy 尚未挂载 `/v1/responses` 用户入口；配置该 Surface 不会自动新增 HTTP endpoint。当前实际开放接口以 [用户 API](../api/user.md) 为准。
 
@@ -56,23 +58,24 @@ model + route_group + request protocol + operation
 
 ## 策略优先级
 
-有效策略按以下顺序解析：
+有效策略按以下顺序解析（层内排序）：
 
+0. `route_pools.tier_strategies[priority]`（该 priority 层覆盖）
 1. `route_pools.strategy`
 2. `models.route_policy.rules[protocol.capability:route_group]`
 3. `models.route_policy.rules[protocol:route_group]`
 4. `models.route_policy.strategy`
 5. `system_config.ROUTE_STRATEGY`
-6. 代码默认 `affinity`
+6. 代码默认 `hash_affinity`
 
-Pool 级策略只影响当前请求 Surface 指向的 Pool，适合让 Chat 保持 `affinity`，同时让 Images / Audio 使用 `weighted_random`。完整算法见 [route-strategies.md](../reference/route-strategies.md)。
+Pool 级策略只影响当前请求 Surface 指向的 Pool；`tier_strategies` 可在同一 Pool 内让高/低 priority 层使用不同排序算法。完整算法见 [route-strategies.md](../reference/route-strategies.md)。
 
 ## Admin API
 
 - `POST /admin/routes` 可传 `request_protocol`、`request_operation`、`upstream_protocol`、`upstream_operation`、`adapter`；服务端会创建或复用对应 Surface / Pool。
 - `PATCH /admin/routes/:id` 可调整 Target；当请求协议或 operation 改变时会重新关联对应 Pool。
-- `PATCH /admin/routes/pools/:poolId`，body 为 `{ "strategy": "affinity" }`；`null` / 空值表示继承模型或全局策略。
-- `GET /admin/routes` 返回 `route_pool_id` 与序列化的 `surfaces`，供 Admin 绘制路由流。
+- `PATCH /admin/routes/pools/:poolId`，body 可为 `{ "strategy": "hash_affinity", "tier_strategies": { "10": "weight_priority" }, "sticky_routing": { "enabled": true, "idle_ttl_seconds": 3600 } }`；各字段可选；`strategy`/`tier_strategies` 的 `null` / 空值表示清空并继承下一级；`sticky_routing` 写入时递增 `sticky_epoch`。
+- `GET /admin/routes` 返回 `route_pool_id`、`pool_strategy`、`pool_tier_strategies` 与序列化的 `surfaces`，供 Admin 绘制路由流。
 
 对外调用 Admin 时，路径前面加 `/api`，即 `/api/admin/routes/...`。
 
@@ -88,8 +91,12 @@ Pool 级策略只影响当前请求 Surface 指向的 Pool，适合让 Chat 保�
 - `adapter`
 - `route_trace`
 
-排障时先确认 Surface 是否匹配，再确认 Pool 是否 active、是否存在 active Target，最后检查 Provider 状态、密钥和熔断。2.0 的 `route_trace` 是 `{ surface, pool, target }` JSON 快照，记录最终选中（或最后失败）的拓扑标识，不是完整 attempt 列表。
+排障时先确认 Surface 是否匹配，再确认 Pool 是否 active、是否存在 active Target，最后检查 Provider 状态、密钥和熔断。`route_trace` 是 JSON 快照，至少包含 `{ surface, pool, target }`；Gemini 请求另含 `gemini.action`（真实 wire action）。它记录最终选中（或最后失败）的拓扑标识，不是完整 attempt 列表。
+
+Admin 在删除 Target、或 Target 迁移到新 Pool 后，会调用 `deleteRoutePoolIfEmpty`：若旧 Pool 已无任何 Target，则删除其 Surface 与 Pool（避免空 Pool / 孤儿 Surface 泄漏）。
 
 ## 升级兼容
 
 迁移 0016 会按历史 `model_id + route_group + upstream_protocol` 建立 Pool，为每个 Pool 建立 `request_operation='*'` 的兼容 Surface，并把历史 `model_routes` 关联进去。升级步骤与验收清单见 [single-provider-key-cutover.md](../../operators/migrations/single-provider-key-cutover.md)。
+
+迁移 **0017** 将 Gemini 的 `generateContent` / `streamGenerateContent` Surface 合并为 `models.generate`；冲突 Pool 降级为 inactive 并加 `[v220-conflict]` 前缀。切换步骤见 [gemini-models-generate-cutover.md](../../operators/migrations/gemini-models-generate-cutover.md)。

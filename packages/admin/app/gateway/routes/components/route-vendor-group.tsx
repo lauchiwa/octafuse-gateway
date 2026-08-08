@@ -4,7 +4,7 @@ import { ModelVendorIcon } from '@/components/model-vendor-icon';
 import { getModelVendorLabel } from '@/lib/model-vendor';
 import { useTranslations } from 'next-intl';
 import type { GatewayModel, GatewayProvider } from '@/lib/types';
-import type { RouteListRow } from '../types';
+import type { RouteFlowDensity, RouteListRow } from '../types';
 import type { RouteModelGroup } from '../route-utils';
 import { RouteModelFlow } from './route-model-flow';
 
@@ -16,6 +16,7 @@ type Props = {
 	modelMeta: Map<string, GatewayModel>;
 	providerMeta: Map<string, GatewayProvider>;
 	globalRouteStrategy: string | null;
+	density: RouteFlowDensity;
 	copiedModelId: string | null;
 	togglingId: string | null;
 	onCopyModelId: (modelId: string) => void;
@@ -31,7 +32,20 @@ type Props = {
 		group: string,
 		poolId?: string | null,
 		poolStrategy?: string | null,
-		requestOperation?: string
+		requestOperation?: string,
+		extras?: { priority?: number; poolTierStrategies?: string | null }
+	) => void;
+	onOpenProviderStickyDialog: (
+		modelId: string,
+		modelTitle: string,
+		protocol: string,
+		protocolLabel: string,
+		group: string,
+		requestOperation: string,
+		poolId: string | null,
+		enabled: boolean,
+		idleTtlSeconds: number,
+		targets: Array<{ id: string; providerName: string; priority: number; weight: number }>
 	) => void;
 };
 
@@ -44,6 +58,7 @@ export function RouteVendorGroup(props: Props) {
 		modelMeta,
 		providerMeta,
 		globalRouteStrategy,
+		density,
 		copiedModelId,
 		togglingId,
 		onCopyModelId,
@@ -52,6 +67,7 @@ export function RouteVendorGroup(props: Props) {
 		onEditModel,
 		onToggleStatus,
 		onOpenStrategyDialog,
+		onOpenProviderStickyDialog,
 	} = props;
 
 	const t = useTranslations('routes.vendor');
@@ -89,6 +105,7 @@ export function RouteVendorGroup(props: Props) {
 						meta={modelMeta.get(card.model_id)}
 						providerMeta={providerMeta}
 						globalRouteStrategy={globalRouteStrategy}
+						density={density}
 						copiedModelId={copiedModelId}
 						togglingId={togglingId}
 						onCopyModelId={onCopyModelId}
@@ -97,6 +114,7 @@ export function RouteVendorGroup(props: Props) {
 						onEditModel={onEditModel}
 						onToggleStatus={onToggleStatus}
 						onOpenStrategyDialog={onOpenStrategyDialog}
+						onOpenProviderStickyDialog={onOpenProviderStickyDialog}
 					/>
 				))}
 			</div>

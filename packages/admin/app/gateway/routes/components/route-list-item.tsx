@@ -8,9 +8,11 @@ import {
 import { parseRoutePricingSchedule } from '@octafuse/core/db/pricing-schedule';
 import {
 	factorChipClassForValue,
+	factorLevelForValue,
 	formatFactorMultiplier,
 	formatFactorMultiplierForChip,
 	formatScheduleWindowsHint,
+	hasBasePricingInversion,
 } from '../route-utils';
 import { FACTOR_CHIP_BASE } from '../types';
 import type { RouteListRow } from '../types';
@@ -32,6 +34,11 @@ export function RouteListItem(props: Props) {
 	const schedule = parseRoutePricingSchedule(route.price_override);
 	const schHint =
 		formatScheduleWindowsHint(schedule.charged) || formatScheduleWindowsHint(schedule.metered);
+	const chargedLevel = factorLevelForValue(chargedDisp);
+	const meteredLevel = factorLevelForValue(meteredDisp);
+	const chargedStatus = t(`factorStatus.charged.${chargedLevel}`);
+	const meteredStatus = t(`factorStatus.metered.${meteredLevel}`);
+	const hasPricingInversion = hasBasePricingInversion(chargedDisp, meteredDisp);
 
 	return (
 		<li className="flex items-start gap-3 px-4 py-2.5 transition-colors hover:bg-gray-50/80">
@@ -82,19 +89,40 @@ export function RouteListItem(props: Props) {
 					aria-label={t('factorsAria')}
 				>
 					<span
-						className={factorChipClassForValue(chargedDisp)}
-						title={t('chargedTooltip', { value: formatFactorMultiplier(chargedDisp) })}
-						aria-label={t('chargedFactorAria', { value: formatFactorMultiplier(chargedDisp) })}
+						className={factorChipClassForValue(chargedDisp, 'charged')}
+						title={t('chargedTooltip', {
+							value: formatFactorMultiplier(chargedDisp),
+							status: chargedStatus,
+						})}
+						aria-label={t('chargedFactorAria', {
+							value: formatFactorMultiplier(chargedDisp),
+							status: chargedStatus,
+						})}
 					>
 						{formatFactorMultiplierForChip(chargedDisp)}
 					</span>
 					<span
-						className={factorChipClassForValue(meteredDisp)}
-						title={t('meteredTooltip', { value: formatFactorMultiplier(meteredDisp) })}
-						aria-label={t('meteredFactorAria', { value: formatFactorMultiplier(meteredDisp) })}
+						className={factorChipClassForValue(meteredDisp, 'metered')}
+						title={t('meteredTooltip', {
+							value: formatFactorMultiplier(meteredDisp),
+							status: meteredStatus,
+						})}
+						aria-label={t('meteredFactorAria', {
+							value: formatFactorMultiplier(meteredDisp),
+							status: meteredStatus,
+						})}
 					>
 						{formatFactorMultiplierForChip(meteredDisp)}
 					</span>
+					{hasPricingInversion ? (
+						<span
+							className={`${FACTOR_CHIP_BASE} w-auto bg-rose-100 text-rose-950 ring-rose-300/90`}
+							title={t('baseInversionTooltip')}
+							aria-label={t('baseInversionTooltip')}
+						>
+							{t('baseInversionBadge')}
+						</span>
+					) : null}
 					{schHint ? (
 						<span
 							className={`${FACTOR_CHIP_BASE} w-auto max-w-[7rem] truncate bg-sky-50 text-sky-900 ring-sky-200/90`}

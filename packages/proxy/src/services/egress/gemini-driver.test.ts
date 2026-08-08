@@ -40,6 +40,31 @@ describe('dispatchGeminiRoute upstream auth', () => {
 		expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
 	});
 
+	it('uses models.generate family template with wire action', async () => {
+		const fetchMock = vi.fn(async () => new Response('{}', { status: 400 }));
+		vi.stubGlobal('fetch', fetchMock);
+
+		await dispatchGeminiRoute(
+			minimalRoute({
+				providerEndpoints: {
+					gemini: {
+						endpoints: {
+							'models.generate': 'https://family.example/v1/models/{model}:{action}',
+						},
+					},
+				},
+			}),
+			{},
+			'streamGenerateContent',
+			''
+		);
+
+		const [calledUrl] = fetchMock.mock.calls[0] as [string, RequestInit];
+		const u = new URL(calledUrl);
+		expect(u.pathname).toBe('/v1/models/gemini-2.5-flash:streamGenerateContent');
+		expect(u.searchParams.get('alt')).toBe('sse');
+	});
+
 	it('uses Authorization Bearer for qnaigc bypass upstream', async () => {
 		const fetchMock = vi.fn(async () => new Response('{}', { status: 400 }));
 		vi.stubGlobal('fetch', fetchMock);

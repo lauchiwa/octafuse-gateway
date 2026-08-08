@@ -1,6 +1,6 @@
 {
 	"name": "@octafuse/core",
-	"version": "2.1.1",
+	"version": "2.3.0",
 	"private": true,
 	"type": "module",
 	"bin": {
@@ -11,7 +11,7 @@
 		"build": "npm run build:migrate && npm run build:node-index",
 		"build:migrate": "tsc -p tsconfig.build.migrate.json",
 		"build:node-index": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --packages=external --log-level=warning",
-		"test:unit": "tsx --test src/db/image-token-usage.test.ts src/db/audio-token-usage.test.ts src/db/image-per-image-usage.test.ts src/db/pricing-profile.test.ts src/db/pricing-schedule.test.ts src/db/model-modalities.test.ts src/db/model-route-policy.test.ts src/lib/business-timezone.test.ts src/services/budget-transition-service.test.ts src/upstream-protocol-images-url.test.ts src/provider-endpoints.test.ts src/route-topology.test.ts src/gemini-upstream-url.test.ts src/lib/resolve-me-metadata.test.ts src/db/provider-key-utils.test.ts src/services/api-key-hash.test.ts src/provider-custom-headers.test.ts src/merge-upstream-headers.test.ts src/db/providers-custom-headers-roundtrip.test.ts"
+		"test:unit": "tsx --test src/db/image-token-usage.test.ts src/db/audio-token-usage.test.ts src/db/image-per-image-usage.test.ts src/db/pricing-profile.test.ts src/db/pricing-schedule.test.ts src/db/model-modalities.test.ts src/db/model-route-policy.test.ts src/lib/business-timezone.test.ts src/services/budget-transition-service.test.ts src/upstream-protocol-images-url.test.ts src/provider-endpoints.test.ts src/route-topology.test.ts src/gemini-upstream-url.test.ts src/lib/resolve-me-metadata.test.ts src/db/provider-key-utils.test.ts src/services/api-key-hash.test.ts src/provider-custom-headers.test.ts src/merge-upstream-headers.test.ts src/db/providers-custom-headers-roundtrip.test.ts src/db/route-pool-tier-strategies.test.ts src/db/route-pool-sticky-types.test.ts src/db/route-pool-sticky-bindings.contract.test.ts"
 	},
 	"files": [
 		"dist",
@@ -33,6 +33,9 @@
 		"./db/pricing-schedule": "./src/db/pricing-schedule.ts",
 		"./db/model-modalities": "./src/db/model-modalities.ts",
 		"./db/model-route-policy": "./src/db/model-route-policy.ts",
+		"./db/route-pool-tier-strategies": "./src/db/route-pool-tier-strategies.ts",
+		"./db/route-pool-sticky-types": "./src/db/route-pool-sticky-types.ts",
+		"./db/route-affinity-key": "./src/db/route-affinity-key.ts",
 		"./db/provider-key-utils": "./src/db/provider-key-utils.ts",
 		"./db/request-log-status-filter": "./src/db/request-log-status-filter.ts",
 		"./db/user-audit-catalog": "./src/db/user-audit-catalog.ts",

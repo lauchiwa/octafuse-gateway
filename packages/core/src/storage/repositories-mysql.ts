@@ -8,6 +8,7 @@ import { createMySqlModelsRepository } from '../db/mysql/models.impl';
 import { createMySqlProvidersRepository } from '../db/mysql/providers.impl';
 import { createMySqlRequestLogsRepository } from '../db/mysql/request-logs.impl';
 import { createMySqlSystemConfigRepository } from '../db/mysql/system-config.impl';
+import { createMySqlRoutePoolStickyBindingsRepository } from '../db/mysql/route-pool-sticky-bindings.impl';
 import { createMySqlUserAuditLogsRepository } from '../db/mysql/user-audit-logs.impl';
 import { createMySqlUsersRepository } from '../db/mysql/users.impl';
 
@@ -27,5 +28,6 @@ export function createMySqlRepositories(client: GatewayDatabaseClient): GatewayR
 		analytics: createMySqlAdminAnalyticsRepository(client),
 		modelRouting: createMySqlModelRoutingRepository(client),
 		userAuditLogs: createMySqlUserAuditLogsRepository(client),
+		routePoolSticky: createMySqlRoutePoolStickyBindingsRepository(client),
 	};
 }

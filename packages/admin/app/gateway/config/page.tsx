@@ -54,6 +54,7 @@ import {
 } from '@/lib/ai-detection-options';
 import { useTranslations } from 'next-intl';
 import { useBusinessTimezoneContext } from '@/components/BusinessTimezoneProvider';
+import { GlobalRouteStrategySection } from './global-route-strategy-section';
 
 const OTHER_TZ = '__other__';
 
@@ -395,12 +396,12 @@ export default function GatewayConfigPage() {
     }
   };
 
-  const handleSaveRouteStrategy = async () => {
-    const raw = routeStrategyValue.trim().toLowerCase();
+  const handleSaveRouteStrategy = async (nextValue: string): Promise<boolean> => {
+    const raw = nextValue.trim().toLowerCase();
     if (!isRouteStrategyName(raw)) {
       clearSaveSuccess();
       setSaveError(`ROUTE_STRATEGY must be one of: ${ROUTE_STRATEGY_NAMES.join(', ')}`);
-      return;
+      return false;
     }
     setSaveError('');
     clearSaveSuccess();
@@ -428,13 +429,15 @@ export default function GatewayConfigPage() {
           return [...prev, nextRow];
         });
         setRouteStrategyValue(raw);
-      } else {
-        clearSaveSuccess();
-        setSaveError(data.message || tCommon('saveFailed'));
+        return true;
       }
+      clearSaveSuccess();
+      setSaveError(data.message || tCommon('saveFailed'));
+      return false;
     } catch {
       clearSaveSuccess();
       setSaveError(tCommon('requestFailed'));
+      return false;
     } finally {
       setRouteStrategySaving(false);
     }
@@ -771,32 +774,11 @@ export default function GatewayConfigPage() {
         title={t('routeStrategy.title')}
         description={t('routeStrategy.description')}
       >
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              {t('routeStrategy.strategy')}
-            </label>
-            <select
-              value={routeStrategyValue}
-              onChange={(e) => setRouteStrategyValue(e.target.value)}
-              className="min-w-[16rem] rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm"
-            >
-              {ROUTE_STRATEGY_NAMES.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button
-            type="button"
-            onClick={() => void handleSaveRouteStrategy()}
-            disabled={routeStrategySaving}
-            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-          >
-            {routeStrategySaving ? tCommon('saving') : t('saveRouteStrategy')}
-          </button>
-        </div>
+        <GlobalRouteStrategySection
+          value={routeStrategyValue}
+          saving={routeStrategySaving}
+          onSave={handleSaveRouteStrategy}
+        />
       </ConfigCardShell>
 
       <ConfigCardShell
