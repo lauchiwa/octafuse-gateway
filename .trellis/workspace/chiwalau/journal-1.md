@@ -412,3 +412,76 @@ body: {"error":"Invalid API key","code":"gateway.auth_failed"}
 - 观察 1102 是否复现（关注 `api_key_request_logs` 是否再出现分钟级缺口）
 - 待定：缩短 `USAGE_SAFETY_TIMEOUT_MS`（5min→90s）、加请求体大小上限返回 413（故障隔离）
 - 千刀 405 是其 nginx 拒绝 POST，网关无解；建议停用该路由或联系对方
+
+---
+
+## 2026-08-08 — 部署 audio 自定义头修复；探测上游 v2.3.0
+
+### 部署
+
+| Worker | 前 | 后 |
+|---|---|---|
+| proxy | `2edf53ea` | **`d11ffdb4`** |
+| admin | `045a47df` | **`ab99e647`** |
+
+本次只含 `1958382`（audio 驱动转发 `providerCustomHeaders`）。无迁移，不触及 DB。
+
+**纠正一处认知**：此前我以为有 3 个改动待部署，实际 `9d3d9d6`（移除翻译层）与 `362514c`（1102 内存修复）在 08-05 部署 `2edf53ea` 时就已上线（提交 `6b69040` 有记录）。真正未部署的只有 audio 修复。
+
+### 验证
+
+- 四入口全 200；`x-octafuse-error-code` 未回归
+- 439 测试通过，双 typecheck 干净
+- **真实流量验证内存修复**：部署后 20 分钟 12 条请求，输入 token 最高 **781,105**，`upstream_request_body` 无一条为空
+
+### 上游探测：已发布 v2.1.2 / v2.2.0 / v2.3.0
+
+相对我们的 `v2.1.1`：**23 提交**，另有 2 个未发布文档提交。我们本地独有 39 提交。
+
+**风险一：迁移编号冲突（必须处理）**
+
+上游新增 `0017`–`0021`，与我们已应用的号撞车：
+
+| 号 | 我们（生产已应用） | 上游新增 |
+|---|---|---|
+| 0017 | `single_provider_key` | `gemini_models_generate` |
+| 0018 | `route_surfaces_pools` | `route_pool_tier_strategies` |
+
+D1 按完整文件名记录，故对现有生产库不会重跑。**但全新部署会失败**：字典序下 `0017_gemini_models_generate` 先于 `0018_route_surfaces_pools` 执行，而前者依赖后者创建的 `model_surfaces` / `route_pools` —— 依赖倒置。
+
+按 `database-guidelines.md`：已上线号不可动，需把上游 `0017`–`0021` 重编号为 `0019`–`0023`。
+
+**风险二：路由策略 ID 两次重命名，无别名**
+
+```
+v2.1.1（我们）: affinity / strict / round_robin
+v2.2.0:         cache_affinity / fixed_order / weighted_round_robin
+v2.3.0:         hash_affinity / weight_priority / weighted_round_robin
+```
+
+上游明示「0021 无旧 ID 别名」「写入旧 ID 将 400」。我们生产是 `ROUTE_STRATEGY=affinity`。迁移链完整（`0019` affinity→cache_affinity，`0021` →hash_affinity），但要求**迁移与部署严格同版本，禁止新旧混跑**。
+
+**风险三：恢复 sticky routing**
+
+v2.0.0 删除的 sticky 回归（`d9003b8`），新增 `route_pools` 粘滞列 + `route_pool_sticky_bindings` 表（迁移 0020），默认关闭。对单用户场景有利（prompt cache 命中率）。
+
+**与本地改动的冲突预估**
+
+| 本地改动 | 与上游新版关系 |
+|---|---|
+| `9d3d9d6` 移除 Responses 翻译 | 上游仍无 Responses 入站，无冲突 |
+| `362514c` 日志 body 提前脱敏 | 四条路由都会被上游触及，**大概率冲突** |
+| `1958382` audio 头修复 | 上游未动 audio 驱动，应无冲突 |
+
+`route-attempt-planner` / `failover-dispatch` 会被 sticky + tier_strategies 大改，我们的 `preferInTier` 层内偏好需重新对齐。
+
+### Status
+
+[OK] **audio 修复已部署并验证**；上游 v2.3.0 探测完成，**按用户决定暂不合并**
+
+### Next Steps
+
+- 使用一段时间后再规划 v2.3.0 升级（需建 Trellis 任务、维护窗口、D1 备份、迁移重编号）
+- 观察 1102 是否复现（查 `api_key_request_logs` 分钟级缺口）
+- `ai.h5sky.cn` 的 key 分组已删除（`GROUP_DELETED`），仍有 3 条 active 路由
+- 轮换 gateway API key（`sk-P13si…` 已在会话中明文出现）
