@@ -1,5 +1,51 @@
 # @octafuse/proxy
 
+## 2.4.0
+
+### Minor Changes
+
+- [`f42eef2`](https://github.com/OctaFuse/octafuse-gateway/commit/f42eef2f9674c50401659773e83d041d9a4dacb2) Thanks [@lauchiwa](https://github.com/lauchiwa)! - Serve `/v1/responses` on providers that only speak `/chat/completions`.
+
+  Phase 1 only forwarded to upstreams exposing a native Responses endpoint; every other
+  provider was filtered out and the request returned 502. That capability check is now a
+  per-route strategy choice: providers declaring `endpoints.openai.endpoints.responses` keep
+  byte passthrough, and the rest are served by translating Responses ↔ Chat Completions.
+
+  - Request translation covers Codex's item-centred `input` (`message`, `function_call`,
+    `function_call_output`), `instructions`, function tools, and the parameter renames
+    (`max_output_tokens` → `max_tokens`). Consecutive `function_call` items merge into one
+    assistant message, as the Chat protocol requires for parallel calls.
+  - Streaming translation synthesises the Responses lifecycle events chat SSE lacks
+    (`output_item.added` / `content_part.added` / `*.done`), and always emits a terminal
+    event — including when the upstream truncates, since an unterminated sequence hangs
+    Codex instead of failing cleanly.
+  - `stream_options.include_usage` is requested on every translated streaming call;
+    without it most OpenAI-compatible relays omit `usage` and requests would bill zero.
+  - Features that cannot be represented in Chat Completions (`previous_response_id`,
+    `store:true`, hosted tools) return 400 naming the field rather than being dropped
+    silently. Reasoning items are dropped, which is lossy but keeps multi-turn working.
+  - Route ordering puts passthrough-capable providers first, so translation is a fallback.
+
+### Patch Changes
+
+- [`3424559`](https://github.com/OctaFuse/octafuse-gateway/commit/3424559699319692b434c65718038c023daea35d) Thanks [@lauchiwa](https://github.com/lauchiwa)! - Stop circuit-breaking provider keys on a client-identity `403`.
+
+  An upstream `403` was always classified as `failureKind='auth'`, which opened a circuit on the
+  provider key. On a single-key provider that took the whole provider offline for the cooldown
+  window and turned every subsequent request into a local `429`, masking the real upstream error.
+
+  - `classifyUpstreamHttpFailure()` accepts an optional `bodyText`; a `403` whose body matches a
+    known client-restriction signature returns `fail_immediately` with `clientIdentityRejected`
+    and no `failureKind`, so the upstream status and message reach the caller untouched.
+  - `401` keeps its unconditional `auth` classification — only `403` is ambiguous.
+  - `failover-dispatch` reads the body via `response.clone()` on `403` only, leaving the original
+    readable for `materializeNonOkResponse`.
+  - `logKeySwitchAlert` distinguishes client-identity rejection from key failure.
+
+- Updated dependencies []:
+  - @octafuse/core@2.4.0
+  - @octafuse/tool-engines@2.4.0
+
 ## 2.3.0
 
 ### Patch Changes
