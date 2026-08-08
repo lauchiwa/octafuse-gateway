@@ -15,7 +15,7 @@
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
-  "commit": null,
+  "commit": "b6ba947",
   "pr_url": null,
   "subtasks": [],
   "children": [],
@@ -27,7 +27,7 @@
     "packages/proxy/src/services/route-attempt-planner.ts",
     "packages/proxy/src/routes/v1/responses.ts"
   ],
-  "notes": "Rollback tag: pre-v2.3.0-merge -> 921caa5",
+  "notes": "Merged, verified, NOT deployed. Rollback tag: pre-v2.3.0-merge -> 921caa5. 5 migrations (0019-0023) pending on prod.",
   "meta": {
     "upstream_tag": "v2.3.0",
     "base_tag": "v2.1.1",
